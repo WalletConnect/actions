@@ -1,0 +1,39 @@
+name: 'Deploy Infra'
+description: 'Deploys Terraform infrastructure'
+inputs:
+  environment:
+    description: 'The environment to deploy to'
+    required: true
+  aws-access-key-id:
+    description: 'The AWS access key id'
+    required: true
+  aws-secret-access-key:
+    description: 'The AWS secret access key'
+    required: true
+  aws-region:
+    description: 'The AWS region to deploy to'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v1
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ inputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
+        aws-region: ${{ inputs.aws-region }}
+    - name: Terraform Init
+      id: init
+      shell: bash
+      run: terraform -chdir=terraform init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color
+    - name: Terraform Select Workspace
+      id: workspace
+      shell: bash
+      run: terraform -chdir=terraform workspace select ${{ inputs.environment }}
+    - name: Terraform Apply
+      id: apply
+      shell: bash
+      run: terraform -chdir=terraform apply -var-file="vars/${{ inputs.environment }}.tfvars" -auto-approve -no-color
