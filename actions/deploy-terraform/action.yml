@@ -13,6 +13,10 @@ inputs:
   aws-region:
     description: 'The AWS region to deploy to'
     required: true
+  grafana-api-key:
+    description: 'The Grafana API Key'
+    required: false
+    default: ''
 
 runs:
   using: "composite"
@@ -28,12 +32,18 @@ runs:
     - name: Terraform Init
       id: init
       shell: bash
+      env:
+        GRAFANA_AUTH: ${{ inputs.grafana-api-key }}
       run: terraform -chdir=terraform init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color
     - name: Terraform Select Workspace
       id: workspace
       shell: bash
+      env:
+        GRAFANA_AUTH: ${{ inputs.grafana-api-key }}
       run: terraform -chdir=terraform workspace select ${{ inputs.environment }}
     - name: Terraform Apply
       id: apply
       shell: bash
+      env:
+        GRAFANA_AUTH: ${{ inputs.grafana-api-key }}
       run: terraform -chdir=terraform apply -var-file="vars/${{ inputs.environment }}.tfvars" -auto-approve -no-color
