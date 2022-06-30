@@ -1,0 +1,20 @@
+name: 'Check Terraform fmt'
+description: 'Validates that Terraform fmt is valid'
+inputs:
+  terraform-path:
+    description: 'The path passed to Terraform e.g. -chdir=<terraform-path>'
+    required: false
+    default: 'terraform'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+    - name: Terraform fmt
+      env:
+        TERRAFORM_PATH: ${{ inputs.terraform-path }}
+      id: fmt
+      shell: bash
+      run: terraform -chdir=$TERRAFORM_PATH fmt -recursive -check
+      continue-on-error: false
