@@ -1,0 +1,67 @@
+name: 'Plan Infra'
+description: 'Plan Terraform infrastructure'
+inputs:
+  environment:
+    description: 'The environment to deploy to'
+    required: true
+  aws-access-key-id:
+    description: 'The AWS access key id'
+    required: true
+  aws-secret-access-key:
+    description: 'The AWS secret access key'
+    required: true
+  aws-region:
+    description: 'The AWS region to deploy to'
+    required: true
+  grafana-api-key:
+    description: 'The Grafana API Key'
+    required: false
+    default: ''
+  terraform-path:
+    description: 'The path passed to Terraform e.g. -chdir=<terraform-path>'
+    required: false
+    default: 'terraform'
+outputs:
+  plan-file:
+    description: "Plan File"
+    value: ${{ steps.plan.outputs.plan-file }}
+  output-file:
+    description: "Human Readable plan of action"
+    value: ${{ steps.plan.outputs.output-file }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v1
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ inputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
+        aws-region: ${{ inputs.aws-region }}
+    - name: Terraform Init
+      id: init
+      shell: bash
+      env:
+        GRAFANA_AUTH: ${{ inputs.grafana-api-key }}
+        TERRAFORM_PATH: ${{ inputs.terraform-path }}
+      run: terraform -chdir=$TERRAFORM_PATH init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color
+    - name: Terraform Select Workspace
+      id: workspace
+      shell: bash
+      env:
+        GRAFANA_AUTH: ${{ inputs.grafana-api-key }}
+        TERRAFORM_PATH: ${{ inputs.terraform-path }}
+      run: terraform -chdir=$TERRAFORM_PATH workspace select ${{ inputs.environment }}
+    - name: Terraform Plan
+      id: plan
+      shell: bash
+      env:
+        GRAFANA_AUTH: ${{ inputs.grafana-api-key }}
+        TERRAFORM_PATH: ${{ inputs.terraform-path }}
+      run: |
+        terraform -chdir=$TERRAFORM_PATH plan -var-file="vars/${{ inputs.environment }}.tfvars" -no-color -out=/tmp/plan.tfplan >> /tmp/plan.txt
+        cat /tmp/plan.txt
+        echo "::set-output name=plan-file::/tmp/plan.tfplan"
+        echo "::set-output name=output-file::/tmp/plan.txt"
