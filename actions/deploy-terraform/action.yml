@@ -17,6 +17,10 @@ inputs:
     description: 'The Grafana API Key'
     required: false
     default: ''
+  grafana-endpoint:
+    description: 'The Grafana Endpoint (without protocol e.g. https:// in front)'
+    required: false
+    default: ''
 
 runs:
   using: "composite"
@@ -34,16 +38,19 @@ runs:
       shell: bash
       env:
         GRAFANA_AUTH: ${{ inputs.grafana-api-key }}
+        TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint }}
       run: terraform -chdir=terraform init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color
     - name: Terraform Select Workspace
       id: workspace
       shell: bash
       env:
         GRAFANA_AUTH: ${{ inputs.grafana-api-key }}
+        TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint }}
       run: terraform -chdir=terraform workspace select ${{ inputs.environment }}
     - name: Terraform Apply
       id: apply
       shell: bash
       env:
         GRAFANA_AUTH: ${{ inputs.grafana-api-key }}
+        TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint }}
       run: terraform -chdir=terraform apply -var-file="vars/${{ inputs.environment }}.tfvars" -auto-approve -no-color
