@@ -21,6 +21,10 @@ inputs:
     description: 'The Grafana Endpoint (without protocol e.g. https:// in front)'
     required: false
     default: ''
+  terraform-path:
+    description: 'The path passed to Terraform e.g. -chdir=<terraform-path>'
+    required: false
+    default: 'terraform'
 
 runs:
   using: "composite"
@@ -39,18 +43,21 @@ runs:
       env:
         GRAFANA_AUTH: ${{ inputs.grafana-api-key }}
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint }}
-      run: terraform -chdir=terraform init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color
+        TERRAFORM_PATH: ${{ inputs.terraform-path }}
+      run: terraform -chdir=$TERRAFORM_PATH init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color
     - name: Terraform Select Workspace
       id: workspace
       shell: bash
       env:
         GRAFANA_AUTH: ${{ inputs.grafana-api-key }}
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint }}
-      run: terraform -chdir=terraform workspace select ${{ inputs.environment }}
+        TERRAFORM_PATH: ${{ inputs.terraform-path }}
+      run: terraform -chdir=$TERRAFORM_PATH workspace select ${{ inputs.environment }}
     - name: Terraform Apply
       id: apply
       shell: bash
       env:
         GRAFANA_AUTH: ${{ inputs.grafana-api-key }}
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint }}
-      run: terraform -chdir=terraform apply -var-file="vars/${{ inputs.environment }}.tfvars" -auto-approve -no-color
+        TERRAFORM_PATH: ${{ inputs.terraform-path }}
+      run: terraform -chdir=$TERRAFORM_PATH apply -var-file="vars/${{ inputs.environment }}.tfvars" -auto-approve -no-color
