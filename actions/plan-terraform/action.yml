@@ -87,7 +87,6 @@ runs:
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
       run: |
         terraform -chdir=$TERRAFORM_PATH plan -var-file="vars/${{ inputs.environment }}.tfvars" -no-color -out=/tmp/plan.tfplan
-        cat /tmp/plan.txt
         echo "::set-output name=plan-file::/tmp/plan.tfplan"
     - name: Expose as file
       id: file
