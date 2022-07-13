@@ -92,7 +92,7 @@ runs:
       id: file
       shell: bash
       env:
-        GRAFANA_AUTH: ${{ steps.plan.outputs.stdout }}
+        PLAN: ${{ steps.plan.outputs.stdout }}
       run: |
         echo $PLAN >> /tmp/plan.txt
         cat /tmp/plan.txt
