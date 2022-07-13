@@ -71,14 +71,16 @@ runs:
       id: workspace
       shell: bash
       env:
-        GRAFANA_AUTH: ${{ inputs.grafana-api-key }}
+        GRAFANA_AUTH: ${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}
+        TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
       run: terraform -chdir=$TERRAFORM_PATH workspace select ${{ inputs.environment }}
     - name: Terraform Plan
       id: plan
       shell: bash
       env:
-        GRAFANA_AUTH: ${{ inputs.grafana-api-key }}
+        GRAFANA_AUTH: ${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}
+        TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
       run: |
         terraform -chdir=$TERRAFORM_PATH plan -var-file="vars/${{ inputs.environment }}.tfvars" -no-color -out=/tmp/plan.tfplan >> /tmp/plan.txt
