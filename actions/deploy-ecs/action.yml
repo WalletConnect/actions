@@ -1,0 +1,48 @@
+name: 'Deploy App'
+description: 'Deploys a new revision an App to ECS'
+inputs:
+  aws-access-key-id:
+    description: 'The AWS access key id'
+    required: true
+  aws-secret-access-key:
+    description: 'The AWS secret access key'
+    required: true
+  aws-region:
+    description: 'The AWS region to deploy to'
+    required: true
+  cluster-name:
+    description: 'The name of the ECS cluster to deploy to'
+    required: true
+  service-name:
+    description: 'The name of the ECS service to deploy to'
+    required: true
+  task-definition-name:
+    description: 'The name of the ECS task definition to deploy'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ inputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
+        aws-region: ${{ inputs.aws-region }}
+
+    - name: Download task definition
+      id: task-definition
+      shell: bash
+      env:
+        TASK_DEFINITION: ${{ inputs.task-definition-name }}
+      run: |
+        aws ecs describe-task-definition --task-definition $TASK_DEFINITION --query taskDefinition > task-definition.json
+  
+    - name: Deploy to Amazon ECS
+      id: deploy
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: task-definition.json
+        service: ${{ inputs.service-name }}
+        cluster: ${{ inputs.cluster-name }}
+        wait-for-service-stability: true
