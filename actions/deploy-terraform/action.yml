@@ -53,7 +53,7 @@ runs:
         ENDPOINT=$(aws grafana list-workspaces | jq -r '.workspaces[] | select( .tags.Env == "prod") | .endpoint')
         KEY_NAME="$APP_NAME-$RANDOM"
         echo "Deploying with $KEY_NAME"
-        KEY=$(aws grafana create-workspace-api-key --key-name "$KEY_NAME" --key-role "ADMIN" --seconds-to-live 300 --workspace-id "$WORKSPACE_ID" | jq -r .key)
+        KEY=$(aws grafana create-workspace-api-key --key-name "$KEY_NAME" --key-role "ADMIN" --seconds-to-live 900 --workspace-id "$WORKSPACE_ID" | jq -r .key)
         echo "::set-output name=endpoint::$ENDPOINT"
         echo "::set-output name=key::$KEY"
         echo "::set-output name=key-name::$KEY_NAME"
