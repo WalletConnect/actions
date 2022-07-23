@@ -91,4 +91,4 @@ runs:
       shell: bash
       run: |
         echo "Deleting key name $KEY_NAME"
-        aws grafana create-workspace-api-key --key-name "$KEY_NAME" --workspace-id "$WORKSPACE_ID"
+        aws grafana delete-workspace-api-key --key-name "$KEY_NAME" --workspace-id "$WORKSPACE_ID"
