@@ -56,6 +56,8 @@ runs:
         KEY=$(aws grafana create-workspace-api-key --key-name "$KEY_NAME" --key-role "ADMIN" --seconds-to-live 300 --workspace-id "$WORKSPACE_ID" | jq -r .key)
         echo "::set-output name=endpoint::$ENDPOINT"
         echo "::set-output name=key::$KEY"
+        echo "::set-output name=key-name::$KEY_NAME"
+        echo "::set-output name=workspace-id::$WORKSPACE_ID"
     - name: Terraform Init
       id: init
       shell: bash
@@ -80,3 +82,13 @@ runs:
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
       run: terraform -chdir=$TERRAFORM_PATH apply -var-file="vars/${{ inputs.environment }}.tfvars" -auto-approve -no-color
+    - name: Reset Grafana Details
+      id: delete-grafana-key
+      if: ${{ always() && inputs.app-name != '' }}
+      env:
+        KEY_NAME: ${{ steps.get-grafana-key.outputs.key-name }}
+        WORKSPACE_ID: ${{ steps.get-grafana-key.outputs.workspace-id }}
+      shell: bash
+      run: |
+        echo "Deleting key name $KEY_NAME"
+        aws grafana create-workspace-api-key --key-name "$KEY_NAME" --workspace-id "$WORKSPACE_ID"
