@@ -19,6 +19,9 @@ inputs:
   task-definition-name:
     description: 'The name of the ECS task definition to deploy'
     required: true
+  image-name:
+    description: 'The image name with tag to deploy. Ex: my-image:v1.x.x'
+    required: true
 
 runs:
   using: "composite"
@@ -56,12 +59,20 @@ runs:
               exit 1
         fi
         echo "::set-output name=service::$SERVICE_NAME"
-  
+    
+    - name: Fill in the new image ID in the Amazon ECS task definition
+      id: task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: task-definition.json
+        container-name: ${{ inputs.task-definition-name }}
+        image: ${{ inputs.image-name }}
+
     - name: Deploy to Amazon ECS
       id: deploy
       uses: aws-actions/amazon-ecs-deploy-task-definition@v1
       with:
-        task-definition: task-definition.json
+        task-definition: ${{ steps.task-def.outputs.task-definition }}
         service: ${{ steps.service-name.outputs.service }}
         cluster: ${{ inputs.cluster-name }}
         wait-for-service-stability: true
