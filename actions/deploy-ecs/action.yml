@@ -47,9 +47,14 @@ runs:
       run: |
         SERVICE_ARN=$(aws ecs list-services --cluster "$CLUSTER" | jq -r '.serviceArns  | .[]' | grep "$SERVICE")
         echo "Found service with arn $SERVICE_ARN"
-        PARTS=($(echo $SERVICE_ARN | tr '/' "\n"))
-        SERVICE_NAME=${PARTS[3]}
-        echo "Service name is $SERVICE_NAME (parts '$PARTS')"
+        PARTS=($(echo $SERVICE_ARN | tr '\/' "\n"))
+        SERVICE_NAME=${PARTS[2]}
+        echo "Service name is $SERVICE_NAME"
+        if [ -z "$SERVICE_NAME" ]
+        then
+              echo "Servie Name may not be empty"
+              exit 1
+        fi
         echo "::set-output name=service::$SERVICE_NAME"
   
     - name: Deploy to Amazon ECS
