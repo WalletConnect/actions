@@ -22,6 +22,10 @@ inputs:
     description: 'The Grafana API Key'
     required: false
     default: ''
+  cloudflare-api-key:
+    description: 'The CloudFlare API Key'
+    required: false
+    default: ''
   grafana-endpoint:
     description: 'The Grafana Endpoint (without protocol e.g. https:// in front)'
     required: false
@@ -63,6 +67,7 @@ runs:
       shell: bash
       env:
         GRAFANA_AUTH: ${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}
+        CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare-api-key }}
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
       run: terraform -chdir=$TERRAFORM_PATH init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color
@@ -71,6 +76,7 @@ runs:
       shell: bash
       env:
         GRAFANA_AUTH: ${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}
+        CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare-api-key }}
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
       run: terraform -chdir=$TERRAFORM_PATH workspace select ${{ inputs.environment }}
@@ -79,6 +85,7 @@ runs:
       shell: bash
       env:
         GRAFANA_AUTH: ${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}
+        CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare-api-key }}
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
       run: terraform -chdir=$TERRAFORM_PATH apply -var-file="vars/${{ inputs.environment }}.tfvars" -auto-approve -no-color
