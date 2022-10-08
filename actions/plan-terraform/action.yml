@@ -26,6 +26,10 @@ inputs:
     description: 'The CloudFlare API Key'
     required: false
     default: ''
+  onepassword-api-key:
+    description: 'The OnePassword Connect API Key'
+    required: false
+    default: ''
   terraform-path:
     description: 'The path passed to Terraform e.g. -chdir=<terraform-path>'
     required: false
@@ -72,6 +76,7 @@ runs:
       env:
         GRAFANA_AUTH: ${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}
         CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare-api-key }}
+        OP_CONNECT_TOKEN: ${{ inputs.onepassword-api-key }}
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
       run: terraform -chdir=$TERRAFORM_PATH init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color
