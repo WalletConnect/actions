@@ -105,9 +105,7 @@ runs:
     - name: Expose as file
       id: file
       shell: bash
-      env:
-        PLAN: ${{ steps.plan.outputs.stdout }}
       run: |
-        printf "%s" "$PLAN" >> /tmp/plan.txt
+        terraform show -no-color /tmp/plan.tfplan > /tmp/plan.txt
         cat /tmp/plan.txt
         echo "::set-output name=output-file::/tmp/plan.txt"
