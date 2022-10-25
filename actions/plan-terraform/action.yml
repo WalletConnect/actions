@@ -68,8 +68,8 @@ runs:
         KEY_NAME="$APP_NAME-$RANDOM"
         echo "Deploying with $KEY_NAME"
         KEY=$(aws grafana create-workspace-api-key --key-name "$KEY_NAME" --key-role "ADMIN" --seconds-to-live 300 --workspace-id "$WORKSPACE_ID" | jq -r .key)
-        echo "{endpoint}={$ENDPOINT}" >> $GITHUB_OUTPUT
-        echo "{key}={$KEY}" >> $GITHUB_OUTPUT
+        echo "::set-output name=endpoint::$ENDPOINT"
+        echo "::set-output name=key::$KEY"
     - name: Terraform Init
       id: init
       shell: bash
@@ -101,7 +101,7 @@ runs:
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
       run: |
         terraform -chdir=$TERRAFORM_PATH plan -var-file="vars/${{ inputs.environment }}.tfvars" -no-color -out=/tmp/plan.tfplan
-        echo "{plan-file}={/tmp/plan.tfplan}" >> $GITHUB_OUTPUT
+        echo "::set-output name=plan-file::/tmp/plan.tfplan"
     - name: Expose as file
       id: file
       shell: bash
@@ -110,4 +110,4 @@ runs:
       run: |
         printf "%s" "$PLAN" >> /tmp/plan.txt
         cat /tmp/plan.txt
-        echo "{output-file}={/tmp/plan.txt}" >> $GITHUB_OUTPUT
+        echo "::set-output name=output-file::/tmp/plan.txt"
