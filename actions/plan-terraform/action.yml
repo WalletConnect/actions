@@ -108,6 +108,6 @@ runs:
       env:
         PLAN: ${{ steps.plan.outputs.stdout }}
       run: |
-        echo $PLAN >> /tmp/plan.txt
+        printf "%s" "$PLAN" >> /tmp/plan.txt
         cat /tmp/plan.txt
         echo "{output-file}={/tmp/plan.txt}" >> $GITHUB_OUTPUT
