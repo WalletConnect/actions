@@ -40,7 +40,7 @@ outputs:
     value: ${{ steps.plan.outputs.plan-file }}
   output-file:
     description: "Human Readable plan of action"
-    value: ${{ steps.file.outputs.output-file }}
+    value: ${{ steps.plan.outputs.output-file }}
   plan:
     description: "Human Readable plan of action"
     value: ${{ steps.plan.outputs.stdout }}
@@ -102,10 +102,6 @@ runs:
       run: |
         terraform -chdir=$TERRAFORM_PATH plan -var-file="vars/${{ inputs.environment }}.tfvars" -no-color -out=/tmp/plan.tfplan
         echo "::set-output name=plan-file::/tmp/plan.tfplan"
-    - name: Expose as file
-      id: file
-      shell: bash
-      run: |
-        terraform show -no-color /tmp/plan.tfplan > /tmp/plan.txt
-        cat /tmp/plan.txt
+        terraform -chdir=$TERRAFORM_PATH show -no-color /tmp/plan.tfplan > /tmp/plan.txt
         echo "::set-output name=output-file::/tmp/plan.txt"
+        
