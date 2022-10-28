@@ -34,12 +34,24 @@ inputs:
     description: 'The path passed to Terraform e.g. -chdir=<terraform-path>'
     required: false
     default: 'terraform'
+  needs-python:
+    description: 'Whether Python is required'
+    required: false
+    default: 'false'
+  python-version:
+    description: 'The version of Python to use'
+    required: false
+    default: '3.9'
 
 runs:
   using: "composite"
   steps:
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v1
+    - uses: actions/setup-python@v4
+      if: ${{ inputs.needs-python == 'true' }}
+      with:
+        python-version: ${{ inputs.python-version }}
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v1
       with:
