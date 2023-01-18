@@ -1,0 +1,23 @@
+name: "Delete Grafana Key"
+description: "Delete an access key from a Grafana workspace"
+
+inputs:
+  key-name:
+    description: "The name of the key to remove"
+    required: true
+  workspace-id:
+    description: 'The id of the key workspace'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Delete Grafana key
+      id: delete-grafana-key
+      env:
+        KEY_NAME: ${{ inputs.key-name }}
+        WORKSPACE_ID: ${{ inputs.workspace-id }}
+      shell: bash
+      run: |
+        echo "Deleting key name $KEY_NAME"
+        aws grafana delete-workspace-api-key --key-name "$KEY_NAME" --workspace-id "$WORKSPACE_ID"

@@ -1,0 +1,21 @@
+name: "Init Terraform"
+description: "Initializes Terraform"
+
+inputs:
+  environment:
+    description: "The running environment"
+    required: true
+  terraform-path:
+    description: "The path passed to Terraform e.g. -chdir=<terraform-path>"
+    required: false
+    default: 'terraform'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Init Terraform
+      id: init
+      env:
+        TF_WORKSPACE: ${{ inputs.environment }}
+      shell: bash
+      run: terraform -chdir=${{ inputs.terraform-path }} init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color

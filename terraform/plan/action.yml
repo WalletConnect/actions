@@ -1,0 +1,104 @@
+name: "Terraform Plan"
+description: "Run a Terraform plan"
+
+inputs:
+  environment:
+    description: "The environment to deploy to"
+    required: true
+  terraform-path:
+    description: "The path passed to Terraform e.g. -chdir=<terraform-path>"
+    required: false
+    default: 'terraform'
+  github-token:
+    description: "The GitHub token, needed to update PRs"
+    required: false
+    default: ''
+  upload-plan-file:
+    description: "Upload the plan file to the GitHub artifacts"
+    required: false
+    default: 'true'
+  upload-output-file:
+    description: "Upload the plan output to the GitHub artifacts"
+    required: false
+    default: 'true'
+  add-output-to-pr:
+    description: "Add the plan output to the current PR if there is one"
+    required: false
+    default: 'true'
+
+outputs:
+  plan-file:
+    description: "Plan File"
+    value: ${{ steps.plan.outputs.plan-file }}
+  output-file:
+    description: "Human Readable plan of action"
+    value: ${{ steps.plan.outputs.output-file }}
+  plan:
+    description: "Human Readable plan of action"
+    value: ${{ steps.plan.outputs.stdout }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Terraform Plan
+      id: plan
+      shell: bash
+      env:
+        TF_WORKSPACE: ${{ inputs.environment }}
+      run: |
+        terraform -chdir=${{ inputs.terraform-path }} plan -var-file="vars/${{ inputs.environment }}.tfvars" -no-color -out=/tmp/plan.tfplan
+        echo "plan-file=/tmp/plan.tfplan" >> $GITHUB_OUTPUT
+        terraform -chdir=${{ inputs.terraform-path }} show -no-color /tmp/plan.tfplan > /tmp/plan.txt
+        echo "output-file=/tmp/plan.txt" >> $GITHUB_OUTPUT
+
+    - uses: actions/upload-artifact@v3
+      if: ${{ inputs.upload-plan-file == 'true' }}
+      with:
+        name: plan.tfplan
+        path: ${{ steps.plan.outputs.plan-file }}
+
+    - uses: actions/upload-artifact@v3
+      if: ${{ inputs.upload-output-file == 'true' }}
+      with:
+        name: plan.txt
+        path: ${{ steps.plan.outputs.output-file }}
+
+    - name: Add Plan to PR
+      if: ${{ github.event_name == 'pull_request' || inputs.add-output-to-pr == 'true' }}
+      uses: actions/github-script@v6
+      env:
+        PLAN_FILE: ${{ steps.plan.outputs.output-file }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const { promises: fs } = require('fs');
+
+          const MAX_LENGTH = 65535;
+          const ellipsis = `\n...\n`;
+
+          const prefix = `<details><summary>Show Plan</summary>
+
+          \`\`\`\n
+          `;
+          const postfix = `
+          \`\`\`
+
+          </details>
+
+          *Action: \`${{ github.event_name }}\`*`;
+
+          let content = await fs.readFile(process.env.PLAN_FILE, 'utf8')
+          let output = prefix + content + postfix;
+
+          if (output.length > MAX_LENGTH) {
+            let l = MAX_LENGTH - prefix.length - postfix.length - ellipsis.length;
+            content = content.slice(0, l);
+            output = prefix + content + ellipsis + postfix;
+          }
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: output
+          });
