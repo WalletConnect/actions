@@ -97,7 +97,7 @@ runs:
         OP_CONNECT_TOKEN: ${{ inputs.onepassword-api-key }}
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
-      run: terraform -chdir=$TERRAFORM_PATH workspace select ${{ inputs.environment }}
+      run: terraform -chdir=$TERRAFORM_PATH workspace select ${{ inputs.environment }} -or-create
     - name: Terraform Apply
       id: apply
       shell: bash
