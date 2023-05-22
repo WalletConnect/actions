@@ -1,0 +1,19 @@
+name: "Select Terraform Workspace"
+description: "Switch Terraform to the specified workspace"
+
+inputs:
+  environment:
+    description: "The environment to switch to"
+    required: true
+  terraform-path:
+    description: "The path passed to Terraform e.g. -chdir=<terraform-path>"
+    required: false
+    default: 'terraform'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Terraform Select Workspace
+      id: workspace
+      shell: bash
+      run: terraform -chdir=${{ inputs.terraform-path }} workspace select ${{ inputs.environment }}

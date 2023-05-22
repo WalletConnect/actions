@@ -1,0 +1,29 @@
+name: "Get Grafana Details"
+description: "Get endpoint and workspace-id"
+
+inputs:
+  environment:
+    description: "The workspace environment"
+    required: false
+    default: 'prod'
+
+outputs:
+  endpoint:
+    description: "The Grafana endpoint for this environment"
+    value: ${{ steps.get-grafana-details.outputs.endpoint }}
+  workspace-id:
+    description: "The Grafana workspace id of the environment"
+    value: ${{ steps.get-grafana-details.outputs.workspace-id }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Get Grafana Details
+      id: get-grafana-details
+      shell: bash
+      run: |
+        echo "getting details for '${{ inputs.environment }}'"
+        WORKSPACE_ID=$(aws grafana list-workspaces | jq -r '.workspaces[] | select( .tags.Env == "${{ inputs.environment }}") | select( .tags.Name == "grafana-9") | .id')
+        ENDPOINT=$(aws grafana list-workspaces | jq -r '.workspaces[] | select( .tags.Env == "${{ inputs.environment }}") | select( .tags.Name == "grafana-9") | .endpoint')
+        echo "endpoint=$ENDPOINT" >> $GITHUB_OUTPUT
+        echo "workspace-id=$WORKSPACE_ID" >> $GITHUB_OUTPUT

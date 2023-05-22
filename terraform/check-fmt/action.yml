@@ -1,0 +1,17 @@
+name: "Check Terraform format"
+description: "Validates that Terraform fmt is valid"
+
+inputs:
+  terraform-path:
+    description: "The path passed to Terraform e.g. -chdir=<terraform-path>"
+    required: false
+    default: 'terraform'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check Terraform Formatting
+      id: fmt
+      shell: bash
+      continue-on-error: false
+      run: terraform -chdir=${{ inputs.terraform-path }} fmt -recursive -check
