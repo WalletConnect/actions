@@ -23,7 +23,7 @@ runs:
       shell: bash
       run: |
         echo "getting details for '${{ inputs.environment }}'"
-        WORKSPACE_ID=$(aws grafana list-workspaces | jq -r '.workspaces[] | select( .tags.Env == "${{ inputs.environment }}") | .id')
-        ENDPOINT=$(aws grafana list-workspaces | jq -r '.workspaces[] | select( .tags.Env == "${{ inputs.environment }}") | .endpoint')
+        WORKSPACE_ID=$(aws grafana list-workspaces | jq -r '.workspaces[] | select( .tags.Env == "${{ inputs.environment }}") | select( .tags.Name == "grafana-9") | .id')
+        ENDPOINT=$(aws grafana list-workspaces | jq -r '.workspaces[] | select( .tags.Env == "${{ inputs.environment }}") | select( .tags.Name == "grafana-9") | .endpoint')
         echo "endpoint=$ENDPOINT" >> $GITHUB_OUTPUT
         echo "workspace-id=$WORKSPACE_ID" >> $GITHUB_OUTPUT
