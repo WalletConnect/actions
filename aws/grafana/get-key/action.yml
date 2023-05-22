@@ -1,0 +1,33 @@
+name: "Get Grafana Key"
+description: "Generate a key to access a Grafana workspace"
+
+inputs:
+  key-prefix:
+    description: "The prefix for the key name"
+    required: true
+  workspace-id:
+    description: "The id of the key workspace"
+    required: true
+
+outputs:
+  key-name:
+    description: "The complete key name"
+    value: ${{ steps.get-grafana-key.outputs.key-name }}
+  key:
+    description: "The key value"
+    value: ${{ steps.get-grafana-key.outputs.key }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Get Grafana key
+      id: get-grafana-key
+      env:
+        KEY_PREFIX: ${{ inputs.key-prefix }}
+      shell: bash
+      run: |
+        KEY_NAME="$KEY_PREFIX-${{ github.run_id }}-${{ github.run_attempt }}-$RANDOM"
+        echo $KEY_NAME
+        KEY=$(aws grafana create-workspace-api-key --key-name "$KEY_NAME" --key-role "ADMIN" --seconds-to-live 300 --workspace-id "${{ inputs.workspace-id }}" | jq -r .key)
+        echo "key-name=$KEY_NAME" >> $GITHUB_OUTPUT
+        echo "key=$KEY" >> $GITHUB_OUTPUT

@@ -1,0 +1,21 @@
+name: "Apply Terraform changes"
+description: "Deploys Terraform infrastructure"
+
+inputs:
+  environment:
+    description: "The environment to deploy to"
+    required: true
+  terraform-path:
+    description: "The path passed to Terraform e.g. -chdir=<terraform-path>"
+    required: false
+    default: 'terraform'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Terraform Apply
+      id: apply
+      shell: bash
+      env:
+        TF_WORKSPACE: ${{ inputs.environment }}
+      run: terraform -chdir=${{ inputs.terraform-path }} apply -var-file="vars/${{ inputs.environment }}.tfvars" -auto-approve -no-color
