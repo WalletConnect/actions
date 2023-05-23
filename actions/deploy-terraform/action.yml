@@ -69,8 +69,8 @@ runs:
         APP_NAME: ${{ inputs.app-name }}
       shell: bash
       run: |
-        WORKSPACE_ID=$(aws grafana list-workspaces | jq -r '.workspaces[] | select( .tags.Env == "prod") | select( .tags.Application == "infra") | .id')
-        ENDPOINT=$(aws grafana list-workspaces | jq -r '.workspaces[] | select( .tags.Env == "prod") | .endpoint')
+        WORKSPACE_ID=$(aws grafana list-workspaces | jq -r '.workspaces[] | select( .tags.Env == "prod") | select( .tags.Name == "grafana-9") | .id')
+        ENDPOINT=$(aws grafana list-workspaces | jq -r '.workspaces[] | select( .tags.Env == "prod") | select( .tags.Name == "grafana-9") | .endpoint')
         KEY_NAME="$APP_NAME-$RANDOM"
         echo "Deploying with $KEY_NAME"
         KEY=$(aws grafana create-workspace-api-key --key-name "$KEY_NAME" --key-role "ADMIN" --seconds-to-live 900 --workspace-id "$WORKSPACE_ID" | jq -r .key)
