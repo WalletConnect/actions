@@ -15,6 +15,9 @@ inputs:
   aws-secret-access-key:
     description: 'The AWS secret access key'
     required: true
+  aws-session-token:
+    description: 'The AWS session token'
+    required: false
   aws-region:
     description: 'The AWS region to deploy to'
     required: true
@@ -55,6 +58,7 @@ runs:
       with:
         aws-access-key-id: ${{ inputs.aws-access-key-id }}
         aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
+        aws-session-token: ${{ inputs.aws-session-token }}
         aws-region: ${{ inputs.aws-region }}
     - name: Get Grafana Details
       id: get-grafana-key
