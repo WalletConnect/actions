@@ -1,0 +1,17 @@
+name: "Validate Terraform project"
+description: "Validates that the Terraform declarations are valid"
+
+inputs:
+  terraform-path:
+    description: "The path passed to Terraform e.g. -chdir=<terraform-path>"
+    required: false
+    default: 'terraform'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate Terraform
+      id: validate
+      shell: bash
+      continue-on-error: false
+      run: terraform -chdir=${{ inputs.terraform-path }} validate
