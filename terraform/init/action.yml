@@ -9,13 +9,26 @@ inputs:
     description: "The path passed to Terraform e.g. -chdir=<terraform-path>"
     required: false
     default: 'terraform'
+  use-tfvars:
+    description: "Whether to use a tfvars file"
+    required: false
+    default: true
 
 runs:
   using: 'composite'
   steps:
-    - name: Init Terraform
-      id: init
+    - name: Init Terraform (tfvars)
+      if: ${{ inputs.use-tfvars }}
+      id: init-tfvars
       env:
         TF_WORKSPACE: ${{ inputs.environment }}
       shell: bash
       run: terraform -chdir=${{ inputs.terraform-path }} init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color
+
+    - name: Init Terraform
+      if: ${{ !inputs.use-tfvars }}
+      id: init
+      env:
+        TF_WORKSPACE: ${{ inputs.environment }}
+      shell: bash
+      run: terraform -chdir=${{ inputs.terraform-path }} init -no-color
