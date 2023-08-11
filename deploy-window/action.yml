@@ -1,0 +1,46 @@
+name: Deploy Window
+description: Stop GitHub Actions deployments outside of a given time window.
+inputs:
+  earliest-hour:
+    description: The earliest hour to deploy (0-23). Passing 9 will deploy from 9:00 on.
+    required: false
+    default: "9"
+  latest-hour:
+    description: The latest hour to deploy (0-23). Passing 15 will deploy until 14:59.
+    required: false
+    default: "17"
+  latest-weekday:
+    description: The latest weekday to deploy on (1-7 = mo - su). Passing 5 will deploy until Friday.
+    required: false
+    default: "5"
+  time-zone:
+    description: The time zone to apply to the times.
+    required: false
+    default: UTC
+  force-deploy-phrase:
+    description: If a commit message contains this phrase, the deployment is forced.
+    required: false
+    default: force deploy
+outputs:
+  deploy_or_not:
+    description: Whether to deploy or not (yes|no)
+    value: ${{ steps.decide.outputs.result }}
+runs:
+  using: composite
+  steps:
+    - id: decide
+      shell: bash
+      env:
+        COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        TZ: ${{ inputs.time-zone }}
+        EARLIEST_HOUR: ${{ inputs.earliest-hour }}
+        LATEST_HOUR: ${{ inputs.latest-hour }}
+        LATEST_WEEKDAY: ${{ inputs.latest-weekday }}
+        FORCE_DEPLOY_PHRASE: ${{ inputs.force-deploy-phrase }}
+      run: |
+        grep -q "$FORCE_DEPLOY_PHRASE" <<< "$COMMIT_MESSAGE" ||
+          (test `date "+%u"` -le $LATEST_WEEKDAY && \
+          test `date "+%H"` -ge $EARLIEST_HOUR && \
+          test `date "+%H"` -lt $LATEST_HOUR) && \
+        echo "result=yes" >> "$GITHUB_OUTPUT" || \
+        echo "result=no" >> "$GITHUB_OUTPUT"
