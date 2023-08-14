@@ -18,7 +18,7 @@ runs:
   using: 'composite'
   steps:
     - name: Init Terraform (tfvars)
-      if: ${{ inputs.use-tfvars }}
+      if: ${{ inputs.use-tfvars == 'true' }}
       id: init-tfvars
       env:
         TF_WORKSPACE: ${{ inputs.environment }}
@@ -26,7 +26,7 @@ runs:
       run: terraform -chdir=${{ inputs.terraform-path }} init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color
 
     - name: Init Terraform
-      if: ${{ !inputs.use-tfvars }}
+      if: ${{ inputs.use-tfvars != 'true' }}
       id: init
       env:
         TF_WORKSPACE: ${{ inputs.environment }}
