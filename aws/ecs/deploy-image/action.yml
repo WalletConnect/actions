@@ -1,0 +1,75 @@
+name: 'Deploy Image to ECS'
+description: 'Deploys a new revision of an App to ECS'
+
+inputs:
+  aws-role-arn:
+    description: 'the ARN of the AWS role to assume'
+    required: true
+  aws-region:
+    description: 'The AWS region to deploy to'
+    required: true
+  cluster-name:
+    description: 'The name of the ECS cluster to deploy to'
+    required: true
+  service-name:
+    description: 'The name of the ECS service to deploy to'
+    required: true
+  task-definition-name:
+    description: 'The name of the ECS task definition to deploy'
+    required: true
+  image-name:
+    description: 'The image name with tag to deploy. Ex: my-image:v1.x.x'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        role-to-assume: ${{ inputs.aws-role-arn }}
+        aws-region: ${{ inputs.aws-region }}
+
+    - name: Download task definition
+      id: task-definition
+      shell: bash
+      env:
+        TASK_DEFINITION: ${{ inputs.task-definition-name }}
+      run: |
+        aws ecs describe-task-definition --task-definition $TASK_DEFINITION --query taskDefinition > task-definition.json
+
+    - name: Get Service Name
+      id: service-name
+      shell: bash
+      env:
+        CLUSTER: ${{ inputs.cluster-name }}
+        SERVICE: ${{ inputs.service-name }}
+      run: |
+        SERVICE_ARN=$(aws ecs list-services --cluster "$CLUSTER" | jq -r '.serviceArns  | .[]' | grep "$SERVICE")
+        echo "Found service with arn $SERVICE_ARN"
+        PARTS=($(echo $SERVICE_ARN | tr '\/' "\n"))
+        SERVICE_NAME=${PARTS[2]}
+        echo "Service name is $SERVICE_NAME"
+        if [ -z "$SERVICE_NAME" ]
+        then
+              echo "Servie Name may not be empty"
+              exit 1
+        fi
+        echo "service=$SERVICE_NAME" >> $GITHUB_OUTPUT
+
+    - name: Fill in the new image ID in the Amazon ECS task definition
+      id: task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: task-definition.json
+        container-name: ${{ inputs.task-definition-name }}
+        image: ${{ inputs.image-name }}
+
+    - name: Deploy to Amazon ECS
+      id: deploy
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ steps.task-def.outputs.task-definition }}
+        service: ${{ steps.service-name.outputs.service }}
+        cluster: ${{ inputs.cluster-name }}
+        wait-for-service-stability: true
