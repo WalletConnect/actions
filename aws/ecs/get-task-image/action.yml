@@ -1,0 +1,58 @@
+name: 'Deploy Image to ECS'
+description: 'Deploys a new revision of an App to ECS'
+
+inputs:
+  aws-role-arn:
+    description: 'the ARN of the AWS role to assume'
+    required: true
+  aws-region:
+    description: 'The AWS region to deploy to'
+    required: true
+  task-definition-name:
+    description: 'The name of the ECS task definition'
+    required: true
+  container-name:
+    description: 'The name of the container in the task definition.'
+    required: true
+
+outputs:
+  registry:
+    description: 'The ECR registry name'
+    value: ${{ steps.get-task.outputs.registry }}
+  image:
+    description: 'The image name'
+    value: ${{ steps.get-task.outputs.image }}
+  tag:
+    description: 'The image tag'
+    value: ${{ steps.get-task.outputs.tag }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        role-to-assume: ${{ inputs.aws-role-arn }}
+        aws-region: ${{ inputs.aws-region }}
+
+    - name: Get task definition
+      id: get-task
+      shell: bash
+      run: |
+        TASK_ARN=$(aws ecs describe-task-definition --task-definition ${{ inputs.task-definition-name }} --query taskDefinition | jq -r '.containerDefinitions[] | select(.name == "${{ inputs.container-name }}") | .image')
+        ARN_PARTS=($(echo $TASK_ARN | tr '\/' "\n"))
+        REGISTRY_NAME=${ARN_PARTS[0]}
+        IMAGE_VERSION=${ARN_PARTS[1]}
+
+        IMAGE_PARTS=($(echo $IMAGE_VERSION | tr ':' "\n"))
+        IMAGE_NAME=${IMAGE_PARTS[0]}
+        IMAGE_TAG=${IMAGE_PARTS[1]}
+
+        echo "Found task definition with arn $TASK_ARN"
+        echo "Registry name is $REGISTRY_NAME"
+        echo "Image name is $IMAGE_NAME"
+        echo "Image tag is $IMAGE_TAG"
+
+        echo "registry=$REGISTRY_NAME" >> $GITHUB_OUTPUT
+        echo "image=$IMAGE_NAME" >> $GITHUB_OUTPUT
+        echo "tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
