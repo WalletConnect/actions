@@ -29,8 +29,9 @@ runs:
       shell: bash
       run: |
         version=$(echo "${{ steps.release.outputs.version }}" | sed 's/v//g')
+        package_name=$(sed -n 's/^name = "\(.*\)"/\1/p' ./Cargo.toml)
         sed "s/^version = \".*\"\$/version = \"$version\"/" ./Cargo.toml > /tmp/cargo.toml
-        sed "/^name = \"keyserver\"\$/{ n; s/^version = \".*\"\$/version = \"$version\"/g }" ./Cargo.lock > /tmp/cargo.lock
+        sed -e "/^name = \"$package_name\"\$/{ n; s/^version = \".*\"\$/version = \"$version\"/g; }" ./Cargo.lock > /tmp/cargo.lock
         mv /tmp/cargo.toml ./Cargo.toml
         mv /tmp/cargo.lock ./Cargo.lock
 
