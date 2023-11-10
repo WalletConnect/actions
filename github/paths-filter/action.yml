@@ -1,0 +1,48 @@
+name: "Path Filter"
+description: "Filter which parts of the repository have been updated"
+
+inputs:
+  path-infra:
+    description: "The path to the infra directory"
+    required: true
+    default: "terraform"
+  path-app:
+    description: "The path to the app directory"
+    required: true
+    default: "src"
+  path-ci:
+    description: "The path to the CI directory"
+    required: true
+    default: ".github"
+
+outputs:
+  infra:
+      description: "Whether the infra directory was changed"
+      value: ${{ steps.filter.outputs.infra }}
+  app:
+      description: "Whether the app directory was changed"
+      value: ${{ steps.filter.outputs.app }}
+  ci:
+      description: "Whether the ci directory was changed"
+      value: ${{ steps.filter.outputs.ci }}
+
+runs:
+  using: composite
+
+  steps:
+    - uses: dorny/paths-filter@v2
+      id: filter
+      with:
+        filters: |
+          infra:
+            - '${{ inputs.path-infra }}/**'
+          app:
+            - '${{ inputs.path-app }}/**'
+          ci:
+            - '${{ inputs.path-ci }}/**'
+
+    - shell: bash
+      run: |
+        echo "infra=${{ steps.filter.outputs.infra }}"
+        echo "app=${{ steps.filter.outputs.app }}"
+        echo "ci=${{ steps.filter.outputs.ci }}"
