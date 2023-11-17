@@ -1,30 +1,30 @@
-name: "Path Filter"
-description: "Filter which parts of the repository have been updated"
+name: Path Filter
+description: Filter which parts of the repository have been updated
 
 inputs:
   path-infra:
-    description: "The path to the infra directory"
+    description: The path to the infra directory
     required: true
-    default: "terraform"
+    default: terraform
   path-app:
-    description: "The path to the app directory"
+    description: The path to the app directory
     required: true
-    default: "src"
+    default: src
   path-ci:
-    description: "The path to the CI directory"
+    description: The path to the CI directory
     required: true
-    default: ".github"
+    default: .github
 
 outputs:
   infra:
-      description: "Whether the infra directory was changed"
-      value: ${{ steps.filter.outputs.infra }}
+    description: Whether the infra directory was changed
+    value: ${{ steps.filter.outputs.infra }}
   app:
-      description: "Whether the app directory was changed"
-      value: ${{ steps.filter.outputs.app }}
+    description: Whether the app directory was changed
+    value: ${{ steps.filter.outputs.app }}
   ci:
-      description: "Whether the ci directory was changed"
-      value: ${{ steps.filter.outputs.ci }}
+    description: Whether the ci directory was changed
+    value: ${{ steps.filter.outputs.ci }}
 
 runs:
   using: composite
