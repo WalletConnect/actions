@@ -38,6 +38,8 @@ runs:
             - '${{ inputs.path-infra }}/**'
           app:
             - '${{ inputs.path-app }}/**'
+            - 'Cargo.lock'
+            - 'Cargo.toml'
           ci:
             - '${{ inputs.path-ci }}/**'
 
