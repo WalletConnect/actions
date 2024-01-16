@@ -1,0 +1,20 @@
+name: "Get latest release version"
+description: "Fetch the latest release version for the current repository"
+
+outputs:
+  latest-release:
+    description: 'Latest release version'
+    value: ${{ steps.fetch-latest-release-version.outputs.latest-release }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Fetch latest release
+      id: fetch-latest-release-version
+      shell: bash
+      run: |
+        git fetch --tags
+        git fetch --prune --unshallow || true
+        latest_release_version=$(git describe --abbrev=0 --tags)
+        echo "latest-release=$latest_release_version" >> $GITHUB_OUTPUT
+        echo The latest release version is \"$latest_release_version\".
