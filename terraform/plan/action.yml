@@ -51,13 +51,13 @@ runs:
         terraform -chdir=${{ inputs.terraform-path }} show -no-color /tmp/plan.tfplan > /tmp/plan.txt
         echo "output-file=/tmp/plan.txt" >> $GITHUB_OUTPUT
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       if: ${{ inputs.upload-plan-file == 'true' }}
       with:
         name: plan.tfplan
         path: ${{ steps.plan.outputs.plan-file }}
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       if: ${{ inputs.upload-output-file == 'true' }}
       with:
         name: plan.txt
@@ -65,7 +65,7 @@ runs:
 
     - name: Add Plan to PR
       if: ${{ github.event_name == 'pull_request' || inputs.add-output-to-pr == 'true' }}
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
       env:
         PLAN_FILE: ${{ steps.plan.outputs.output-file }}
       with:

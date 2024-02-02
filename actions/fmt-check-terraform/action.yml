@@ -10,7 +10,7 @@ runs:
   using: "composite"
   steps:
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
+      uses: hashicorp/setup-terraform@v3
     - name: Terraform fmt
       env:
         TERRAFORM_PATH: ${{ inputs.terraform-path }}

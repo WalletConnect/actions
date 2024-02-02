@@ -54,13 +54,13 @@ runs:
   using: "composite"
   steps:
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v1
-    - uses: actions/setup-python@v4
+      uses: hashicorp/setup-terraform@v3
+    - uses: actions/setup-python@v5
       if: ${{ inputs.needs-python == 'true' }}
       with:
         python-version: ${{ inputs.python-version }}
     - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v1
+      uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ inputs.aws-access-key-id }}
         aws-secret-access-key: ${{ inputs.aws-secret-access-key }}

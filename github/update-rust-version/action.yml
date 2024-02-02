@@ -17,7 +17,7 @@ runs:
   steps:
     - name: Cocogitto Release
       id: release
-      uses: cocogitto/cocogitto-action@v3.5
+      uses: cocogitto/cocogitto-action@v3
       with:
         check: true
         check-latest-tag-only: true
@@ -36,7 +36,7 @@ runs:
         mv /tmp/cargo.lock ./Cargo.lock
 
     - name: Commit version bump
-      uses: stefanzweifel/git-auto-commit-action@v4
+      uses: stefanzweifel/git-auto-commit-action@v5
       with:
         commit_message: "chore: Bump version for release"
         file_pattern: "Cargo.toml Cargo.lock"
@@ -44,7 +44,7 @@ runs:
         commit_user_email: "github-actions[bot]@users.noreply.github.com"
 
     - name: Install Rust
-      uses: WalletConnect/actions-rs/toolchain@1.0.0
+      uses: WalletConnect/actions-rs/toolchain@2.0.0
       with:
         toolchain: stable
         profile: minimal
