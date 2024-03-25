@@ -28,7 +28,7 @@ runs:
       run: |
         KEY_NAME="$KEY_PREFIX-${{ github.run_id }}-${{ github.run_attempt }}-$RANDOM"
         echo $KEY_NAME
-        KEY=$(aws grafana create-workspace-api-key --key-name "$KEY_NAME" --key-role "ADMIN" --seconds-to-live 300 --workspace-id "${{ inputs.workspace-id }}" | jq -r .key)
+        KEY=$(aws grafana create-workspace-api-key --key-name "$KEY_NAME" --key-role "ADMIN" --seconds-to-live 3600 --workspace-id "${{ inputs.workspace-id }}" | jq -r .key)
         echo "::add-mask::$KEY"
         echo "key-name=$KEY_NAME" >> $GITHUB_OUTPUT
         echo "key=$KEY" >> $GITHUB_OUTPUT
