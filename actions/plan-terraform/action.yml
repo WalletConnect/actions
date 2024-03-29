@@ -84,6 +84,7 @@ runs:
       run: |
         eval `ssh-agent -s`
         ssh-add - <<< '${{ inputs.ssh-key }}'
+        ls ~/.ssh
     - name: Terraform Init
       id: init
       shell: bash
