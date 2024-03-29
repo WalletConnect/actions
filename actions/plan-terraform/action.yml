@@ -39,7 +39,8 @@ inputs:
     default: 'terraform'
   ssh-key:
     description: 'SSH key to fetch private Terraform modules'
-    required: true
+    required: false
+    default: ''
 outputs:
   plan-file:
     description: "Plan File"
