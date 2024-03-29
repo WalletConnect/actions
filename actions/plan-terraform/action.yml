@@ -39,8 +39,7 @@ inputs:
     default: 'terraform'
   ssh-key:
     description: 'SSH key to fetch private Terraform modules'
-    required: false
-    default: ''
+    required: true
 outputs:
   plan-file:
     description: "Plan File"
@@ -80,10 +79,9 @@ runs:
         echo "::set-output name=key::$KEY"
     - name: Setup SSH key
       id: setup-ssh-key
-      # if: ${{ inputs.ssh_key != '' }}
+      if: ${{ inputs.ssh_key != '' }}
       shell: bash
       run: |
-        echo ${{ inputs.ssh_key != '' }}
         eval `ssh-agent -s`
         ssh-add - <<< '${{ inputs.ssh_key }}'
     - name: Terraform Init
