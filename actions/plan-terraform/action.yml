@@ -78,13 +78,10 @@ runs:
         echo "::set-output name=endpoint::$ENDPOINT"
         echo "::set-output name=key::$KEY"
     - name: Setup SSH key
-      id: setup-ssh-key
       if: ${{ inputs.ssh-key != '' }}
-      shell: bash
-      run: |
-        eval `ssh-agent -s`
-        ssh-add - <<< '${{ inputs.ssh-key }}'
-        ls ~/.ssh
+      uses: webfactory/ssh-agent@v0.9.0
+      with:
+        ssh-private-key: ${{ inputs.ssh-key }}
     - name: Terraform Init
       id: init
       shell: bash
