@@ -37,6 +37,10 @@ inputs:
     description: 'The path passed to Terraform e.g. -chdir=<terraform-path>'
     required: false
     default: 'terraform'
+  ssh-key:
+    description: 'SSH key to fetch private Terraform modules'
+    required: false
+    default: ''
 outputs:
   plan-file:
     description: "Plan File"
@@ -83,7 +87,12 @@ runs:
         OP_CONNECT_TOKEN: ${{ inputs.onepassword-api-key }}
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
-      run: terraform -chdir=$TERRAFORM_PATH init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color
+      run: |
+        if [ ${{ inputs.ssh_key }} != '' ] then
+          eval `ssh-agent -s`
+          ssh-add - <<< '${{ inputs.ssh_key }}'
+        fi
+        terraform -chdir=$TERRAFORM_PATH init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color
     - name: Terraform Select Workspace
       id: workspace
       shell: bash
