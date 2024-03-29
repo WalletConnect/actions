@@ -79,12 +79,11 @@ runs:
         echo "::set-output name=key::$KEY"
     - name: Setup SSH key
       id: setup-ssh-key
-      # if: ${{ inputs.ssh_key != '' }}
+      if: ${{ inputs.ssh-key != '' }}
       shell: bash
       run: |
-        echo ${{ inputs.ssh_key }}
         eval `ssh-agent -s`
-        ssh-add - <<< '${{ inputs.ssh_key }}'
+        ssh-add - <<< '${{ inputs.ssh-key }}'
     - name: Terraform Init
       id: init
       shell: bash
