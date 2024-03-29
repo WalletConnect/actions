@@ -78,6 +78,13 @@ runs:
         KEY=$(aws grafana create-workspace-api-key --key-name "$KEY_NAME" --key-role "ADMIN" --seconds-to-live 300 --workspace-id "$WORKSPACE_ID" | jq -r .key)
         echo "::set-output name=endpoint::$ENDPOINT"
         echo "::set-output name=key::$KEY"
+    - name: Setup SSH key
+      id: setup-ssh-key
+      if: ${{ inputs.ssh_key != '' }}
+      shell: bash
+      run: |
+        eval `ssh-agent -s`
+        ssh-add - <<< '${{ inputs.ssh_key }}'
     - name: Terraform Init
       id: init
       shell: bash
@@ -87,12 +94,7 @@ runs:
         OP_CONNECT_TOKEN: ${{ inputs.onepassword-api-key }}
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
-      run: |
-        if [ ${{ inputs.ssh_key }} != '' ] then
-          eval `ssh-agent -s`
-          ssh-add - <<< '${{ inputs.ssh_key }}'
-        fi
-        terraform -chdir=$TERRAFORM_PATH init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color
+      run: terraform -chdir=$TERRAFORM_PATH init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color
     - name: Terraform Select Workspace
       id: workspace
       shell: bash
