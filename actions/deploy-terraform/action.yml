@@ -49,6 +49,10 @@ inputs:
     description: 'The version of Python to use'
     required: false
     default: '3.9'
+  ssh-key:
+    description: 'SSH key to fetch private Terraform modules'
+    required: false
+    default: ''
 
 runs:
   using: "composite"
@@ -82,6 +86,11 @@ runs:
         echo "::set-output name=key::$KEY"
         echo "::set-output name=key-name::$KEY_NAME"
         echo "::set-output name=workspace-id::$WORKSPACE_ID"
+    - name: Setup SSH key
+      if: ${{ inputs.ssh-key != '' }}
+      uses: webfactory/ssh-agent@v0.9.0
+      with:
+        ssh-private-key: ${{ inputs.ssh-key }}
     - name: Terraform Init
       id: init
       shell: bash
