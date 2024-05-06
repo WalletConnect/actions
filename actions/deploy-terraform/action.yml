@@ -120,7 +120,7 @@ runs:
         OP_CONNECT_TOKEN: ${{ inputs.onepassword-api-key }}
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
-      run: terraform -chdir=$TERRAFORM_PATH apply -var-file="vars/${{ inputs.environment }}.tfvars" -auto-approve -no-color
+      run: terraform -chdir=$TERRAFORM_PATH apply -var-file="vars/${{ inputs.environment }}.tfvars" -auto-approve -no-color -input=false
     - name: Reset Grafana Details
       id: delete-grafana-key
       if: ${{ always() && inputs.app-name != '' }}

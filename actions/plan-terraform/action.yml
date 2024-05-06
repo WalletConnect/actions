@@ -92,7 +92,7 @@ runs:
         OP_CONNECT_TOKEN: ${{ inputs.onepassword-api-key }}
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
-      run: terraform -chdir=$TERRAFORM_PATH init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color
+      run: terraform -chdir=$TERRAFORM_PATH init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color -input=false
     - name: Terraform Select Workspace
       id: workspace
       shell: bash
