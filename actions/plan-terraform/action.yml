@@ -113,7 +113,7 @@ runs:
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
       run: |
-        terraform -chdir=$TERRAFORM_PATH plan -var-file="vars/${{ inputs.environment }}.tfvars" -no-color -out=/tmp/plan.tfplan
+        terraform -chdir=$TERRAFORM_PATH plan -var-file="vars/${{ inputs.environment }}.tfvars" -no-color -input=false -out=/tmp/plan.tfplan
         echo "::set-output name=plan-file::/tmp/plan.tfplan"
         terraform -chdir=$TERRAFORM_PATH show -no-color /tmp/plan.tfplan > /tmp/plan.txt
         echo "::set-output name=output-file::/tmp/plan.txt"
