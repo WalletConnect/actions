@@ -107,7 +107,7 @@ runs:
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
         TF_WORKSPACE: ${{ inputs.environment }}
-      run: terraform -chdir=$TERRAFORM_PATH init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color -input=false
+      run: terraform -chdir=$TERRAFORM_PATH init -no-color -input=false
     - name: Terraform Apply
       id: apply
       shell: bash
@@ -118,7 +118,7 @@ runs:
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
         TF_WORKSPACE: ${{ inputs.environment }}
-      run: terraform -chdir=$TERRAFORM_PATH apply -var-file="vars/${{ inputs.environment }}.tfvars" -auto-approve -no-color -input=false
+      run: terraform -chdir=$TERRAFORM_PATH apply -auto-approve -no-color -input=false
     - name: Reset Grafana Details
       id: delete-grafana-key
       if: ${{ always() && inputs.app-name != '' }}
