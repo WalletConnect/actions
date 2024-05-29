@@ -111,7 +111,13 @@ runs:
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
         TF_WORKSPACE: ${{ inputs.environment }}
-      run: terraform -chdir=$TERRAFORM_PATH init -no-color -input=false
+      run: |
+        VAR_FILE="vars/${{ inputs.environment }}.tfvars"
+        if [ -f "$VAR_FILE" ]; then
+          terraform -chdir=$TERRAFORM_PATH init -no-color -input=false -var-file="$VAR_FILE" 
+        else
+          terraform -chdir=$TERRAFORM_PATH init -no-color -input=false
+        fi
     - name: Terraform Plan
       id: plan
       shell: bash
@@ -123,7 +129,12 @@ runs:
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
         TF_WORKSPACE: ${{ inputs.environment }}
       run: |
-        terraform -chdir=$TERRAFORM_PATH plan -no-color -input=false -out=/tmp/plan.tfplan
+        VAR_FILE="vars/${{ inputs.environment }}.tfvars"
+        if [ -f "$VAR_FILE" ]; then
+          terraform -chdir=$TERRAFORM_PATH plan -no-color -input=false -out=/tmp/plan.tfplan -var-file="vars/${{ inputs.environment }}.tfvars"
+        else
+          terraform -chdir=$TERRAFORM_PATH plan -no-color -input=false -out=/tmp/plan.tfplan
+        fi
         echo "::set-output name=plan-file::/tmp/plan.tfplan"
         terraform -chdir=$TERRAFORM_PATH show -no-color /tmp/plan.tfplan > /tmp/plan.txt
         echo "::set-output name=output-file::/tmp/plan.txt"
