@@ -53,12 +53,18 @@ inputs:
     description: 'SSH key to fetch private Terraform modules'
     required: false
     default: ''
+  tfc_token:
+    description: 'Terraform Cloud API Token'
+    required: false
+    default: ''
 
 runs:
   using: "composite"
   steps:
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
+      with:
+        cli_config_credentials_token: ${{ inputs.tfc_token }}
     - uses: actions/setup-python@v5
       if: ${{ inputs.needs-python == 'true' }}
       with:

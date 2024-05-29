@@ -49,6 +49,10 @@ inputs:
     description: 'SSH key to fetch private Terraform modules'
     required: false
     default: ''
+  tfc_token:
+    description: 'Terraform Cloud API Token'
+    required: false
+    default: ''
 outputs:
   plan-file:
     description: "Plan File"
@@ -69,6 +73,8 @@ runs:
       if: ${{ inputs.needs-python == 'true' }}
       with:
         python-version: ${{ inputs.python-version }}
+      with:
+        cli_config_credentials_token: ${{ inputs.tfc_token }}
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
