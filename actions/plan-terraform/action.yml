@@ -110,17 +110,8 @@ runs:
         OP_CONNECT_TOKEN: ${{ inputs.onepassword-api-key }}
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
-      run: terraform -chdir=$TERRAFORM_PATH init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color
-    - name: Terraform Select Workspace
-      id: workspace
-      shell: bash
-      env:
-        GRAFANA_AUTH: ${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}
-        CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare-api-key }}
-        OP_CONNECT_TOKEN: ${{ inputs.onepassword-api-key }}
-        TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
-        TERRAFORM_PATH: ${{ inputs.terraform-path }}
-      run: terraform -chdir=$TERRAFORM_PATH workspace select ${{ inputs.environment }}
+        TF_WORKSPACE: ${{ inputs.environment }}
+      run: terraform -chdir=$TERRAFORM_PATH init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color -input=false
     - name: Terraform Plan
       id: plan
       shell: bash
@@ -130,6 +121,7 @@ runs:
         OP_CONNECT_TOKEN: ${{ inputs.onepassword-api-key }}
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
+        TF_WORKSPACE: ${{ inputs.environment }}
       run: |
         terraform -chdir=$TERRAFORM_PATH plan -var-file="vars/${{ inputs.environment }}.tfvars" -no-color -input=false -out=/tmp/plan.tfplan
         echo "::set-output name=plan-file::/tmp/plan.tfplan"
