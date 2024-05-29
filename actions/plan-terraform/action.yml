@@ -105,10 +105,10 @@ runs:
       id: init
       shell: bash
       env:
-        GRAFANA_AUTH: ${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}
         CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare-api-key }}
         OP_CONNECT_TOKEN: ${{ inputs.onepassword-api-key }}
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
+        TF_VAR_grafana_auth: ${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
         TF_WORKSPACE: ${{ inputs.environment }}
       run: |
@@ -122,10 +122,10 @@ runs:
       id: plan
       shell: bash
       env:
-        GRAFANA_AUTH: ${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}
         CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare-api-key }}
         OP_CONNECT_TOKEN: ${{ inputs.onepassword-api-key }}
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
+        TF_VAR_grafana_auth: ${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
         TF_WORKSPACE: ${{ inputs.environment }}
       run: |
