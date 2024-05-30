@@ -101,40 +101,43 @@ runs:
       uses: webfactory/ssh-agent@v0.9.0
       with:
         ssh-private-key: ${{ inputs.ssh-key }}
+    - name: Configure Terraform Variables
+      shell: bash
+      working-directory: ${{ inputs.terraform-path }}
+      run: |
+        echo 'grafana_auth="${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}"' >> "${{ inputs.environment }}.auto.tfvars"
     - name: Terraform Init
       id: init
       shell: bash
+      working-directory: ${{ inputs.terraform-path }}
       env:
         CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare-api-key }}
         OP_CONNECT_TOKEN: ${{ inputs.onepassword-api-key }}
-        TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
-        TF_VAR_grafana_auth: ${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}
-        TERRAFORM_PATH: ${{ inputs.terraform-path }}
         TF_WORKSPACE: ${{ inputs.environment }}
+        TF_INPUT: 0
       run: |
         VAR_FILE="vars/${{ inputs.environment }}.tfvars"
         if [ -f "$VAR_FILE" ]; then
-          terraform -chdir=$TERRAFORM_PATH init -no-color -input=false -var-file="$VAR_FILE" 
+          terraform init -no-color -var-file="$VAR_FILE" 
         else
-          terraform -chdir=$TERRAFORM_PATH init -no-color -input=false
+          terraform init -no-color
         fi
     - name: Terraform Plan
       id: plan
       shell: bash
+      working-directory: ${{ inputs.terraform-path }}
       env:
         CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare-api-key }}
         OP_CONNECT_TOKEN: ${{ inputs.onepassword-api-key }}
-        TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
-        TF_VAR_grafana_auth: ${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}
-        TERRAFORM_PATH: ${{ inputs.terraform-path }}
         TF_WORKSPACE: ${{ inputs.environment }}
+        TF_INPUT: 0
       run: |
         VAR_FILE="vars/${{ inputs.environment }}.tfvars"
         if [ -f "$VAR_FILE" ]; then
-          terraform -chdir=$TERRAFORM_PATH plan -no-color -input=false -out=/tmp/plan.tfplan -var-file="vars/${{ inputs.environment }}.tfvars"
+          terraform plan -no-color -out=/tmp/plan.tfplan -var-file="vars/${{ inputs.environment }}.tfvars"
         else
-          terraform -chdir=$TERRAFORM_PATH plan -no-color -input=false -out=/tmp/plan.tfplan
+          terraform plan -no-color -out=/tmp/plan.tfplan
         fi
         echo "::set-output name=plan-file::/tmp/plan.tfplan"
-        terraform -chdir=$TERRAFORM_PATH show -no-color /tmp/plan.tfplan > /tmp/plan.txt
+        terraform show -no-color /tmp/plan.tfplan > /tmp/plan.txt
         echo "::set-output name=output-file::/tmp/plan.txt"
