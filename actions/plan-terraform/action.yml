@@ -105,7 +105,12 @@ runs:
       shell: bash
       working-directory: ${{ inputs.terraform-path }}
       run: |
-        echo 'grafana_auth="${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}"' >> "${{ inputs.environment }}.auto.tfvars"
+        # Mask the sensitive key output
+        grafana_auth_key="${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}"
+        echo "::add-mask::$grafana_auth_key"
+        
+        # Append the key to the .auto.tfvars file
+        echo "grafana_auth=\"$grafana_auth_key\"" >> "${{ inputs.environment }}.auto.tfvars"
     - name: Terraform Init
       id: init
       shell: bash
