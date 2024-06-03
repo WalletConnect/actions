@@ -37,6 +37,14 @@ inputs:
     description: 'The path passed to Terraform e.g. -chdir=<terraform-path>'
     required: false
     default: 'terraform'
+  needs-python:
+    description: 'Whether Python is required'
+    required: false
+    default: 'false'
+  python-version:
+    description: 'The version of Python to use'
+    required: false
+    default: '3.9'
   ssh-key:
     description: 'SSH key to fetch private Terraform modules'
     required: false
@@ -57,6 +65,10 @@ runs:
   steps:
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
+    - uses: actions/setup-python@v5
+      if: ${{ inputs.needs-python == 'true' }}
+      with:
+        python-version: ${{ inputs.python-version }}
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
