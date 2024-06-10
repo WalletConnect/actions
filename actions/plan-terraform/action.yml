@@ -73,7 +73,6 @@ runs:
       if: ${{ inputs.needs-python == 'true' }}
       with:
         python-version: ${{ inputs.python-version }}
-      with:
         cli_config_credentials_token: ${{ inputs.tfc_token }}
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
