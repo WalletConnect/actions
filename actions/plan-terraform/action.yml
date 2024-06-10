@@ -49,6 +49,10 @@ inputs:
     description: 'SSH key to fetch private Terraform modules'
     required: false
     default: ''
+  tfc_token:
+    description: 'Terraform Cloud API Token'
+    required: false
+    default: ''
 outputs:
   plan-file:
     description: "Plan File"
@@ -69,6 +73,7 @@ runs:
       if: ${{ inputs.needs-python == 'true' }}
       with:
         python-version: ${{ inputs.python-version }}
+        cli_config_credentials_token: ${{ inputs.tfc_token }}
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
@@ -95,37 +100,48 @@ runs:
       uses: webfactory/ssh-agent@v0.9.0
       with:
         ssh-private-key: ${{ inputs.ssh-key }}
+    - name: Configure Terraform Variables
+      shell: bash
+      working-directory: ${{ inputs.terraform-path }}
+      run: |
+        # Mask the sensitive key output
+        grafana_auth_key="${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}"
+        echo "::add-mask::$grafana_auth_key"
+        
+        # Append the key to the .auto.tfvars file
+        echo "grafana_auth=\"$grafana_auth_key\"" >> "${{ inputs.environment }}.auto.tfvars"
     - name: Terraform Init
       id: init
       shell: bash
+      working-directory: ${{ inputs.terraform-path }}
       env:
-        GRAFANA_AUTH: ${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}
         CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare-api-key }}
         OP_CONNECT_TOKEN: ${{ inputs.onepassword-api-key }}
-        TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
-        TERRAFORM_PATH: ${{ inputs.terraform-path }}
-      run: terraform -chdir=$TERRAFORM_PATH init -var-file="vars/${{ inputs.environment }}.tfvars" -no-color
-    - name: Terraform Select Workspace
-      id: workspace
-      shell: bash
-      env:
-        GRAFANA_AUTH: ${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}
-        CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare-api-key }}
-        OP_CONNECT_TOKEN: ${{ inputs.onepassword-api-key }}
-        TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
-        TERRAFORM_PATH: ${{ inputs.terraform-path }}
-      run: terraform -chdir=$TERRAFORM_PATH workspace select ${{ inputs.environment }}
+        TF_WORKSPACE: ${{ inputs.environment }}
+        TF_INPUT: 0
+      run: |
+        VAR_FILE="vars/${{ inputs.environment }}.tfvars"
+        if [ -f "$VAR_FILE" ]; then
+          terraform init -no-color -var-file="$VAR_FILE" 
+        else
+          terraform init -no-color
+        fi
     - name: Terraform Plan
       id: plan
       shell: bash
+      working-directory: ${{ inputs.terraform-path }}
       env:
-        GRAFANA_AUTH: ${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}
         CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare-api-key }}
         OP_CONNECT_TOKEN: ${{ inputs.onepassword-api-key }}
-        TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
-        TERRAFORM_PATH: ${{ inputs.terraform-path }}
+        TF_WORKSPACE: ${{ inputs.environment }}
+        TF_INPUT: 0
       run: |
-        terraform -chdir=$TERRAFORM_PATH plan -var-file="vars/${{ inputs.environment }}.tfvars" -no-color -input=false -out=/tmp/plan.tfplan
+        VAR_FILE="vars/${{ inputs.environment }}.tfvars"
+        if [ -f "$VAR_FILE" ]; then
+          terraform plan -no-color -out=/tmp/plan.tfplan -var-file="vars/${{ inputs.environment }}.tfvars"
+        else
+          terraform plan -no-color -out=/tmp/plan.tfplan
+        fi
         echo "::set-output name=plan-file::/tmp/plan.tfplan"
-        terraform -chdir=$TERRAFORM_PATH show -no-color /tmp/plan.tfplan > /tmp/plan.txt
+        terraform show -no-color /tmp/plan.tfplan > /tmp/plan.txt
         echo "::set-output name=output-file::/tmp/plan.txt"
