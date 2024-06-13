@@ -118,7 +118,7 @@ runs:
         terraform -chdir=$TERRAFORM_PATH show -no-color /tmp/plan.tfplan > /tmp/plan.txt
         echo "::set-output name=output-file::/tmp/plan.txt"
     - name: Terraform graph -draw-cycles
-      id: graph
+      id: graph-draw-cycles
       shell: bash
       env:
         GRAFANA_AUTH: ${{ inputs.grafana-api-key != '' && inputs.grafana-api-key || steps.get-grafana-key.outputs.key }}
