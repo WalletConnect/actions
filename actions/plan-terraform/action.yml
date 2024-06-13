@@ -113,7 +113,7 @@ runs:
         TF_VAR_grafana_endpoint: ${{ inputs.grafana-endpoint != '' && inputs.grafana-endpoint || steps.get-grafana-key.outputs.endpoint }}
         TERRAFORM_PATH: ${{ inputs.terraform-path }}
       run: |
-        terraform -chdir=$TERRAFORM_PATH graph -draw-cycles
+        terraform -chdir=$TERRAFORM_PATH graph -type=plan -draw-cycles
     - name: Terraform graph
       id: graph
       shell: bash
