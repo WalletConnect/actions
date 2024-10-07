@@ -35,6 +35,10 @@ runs:
         mv /tmp/cargo.toml ./Cargo.toml
         mv /tmp/cargo.lock ./Cargo.lock
 
+    - name: Set GITHUB_TOKEN for Commit
+      run: echo "GITHUB_TOKEN=${{ inputs.token }}" >> $GITHUB_ENV
+      shell: bash
+
     - name: Commit version bump
       uses: stefanzweifel/git-auto-commit-action@v5
       with:
