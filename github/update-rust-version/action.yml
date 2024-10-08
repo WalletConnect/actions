@@ -5,6 +5,12 @@ inputs:
   token:
     description: 'A Github PAT with write access to the repository'
     required: true
+  bot-name:
+    default: 'github-actions[bot]'
+    required: false
+  bot-email:
+    default: 'github-actions[bot]@users.noreply.github.com'
+    required: false
 
 outputs:
   version:
@@ -22,8 +28,8 @@ runs:
         check: true
         check-latest-tag-only: true
         release: true
-        git-user: 'github-actions[bot]'
-        git-user-email: "github-actions[bot]@users.noreply.github.com"
+        git-user: ${{ inputs.bot-name }}
+        git-user-email: ${{ inputs.bot-email }}
 
     - name: Update version in Cargo.toml and Cargo.lock
       shell: bash
@@ -34,18 +40,21 @@ runs:
         sed -e "/^name = \"$package_name\"\$/{ n; s/^version = \".*\"\$/version = \"$version\"/g; }" ./Cargo.lock > /tmp/cargo.lock
         mv /tmp/cargo.toml ./Cargo.toml
         mv /tmp/cargo.lock ./Cargo.lock
-
-    - name: Set GITHUB_TOKEN for Commit
-      run: echo "GITHUB_TOKEN=${{ inputs.token }}" >> $GITHUB_ENV
+    
+    - name: Set up git authentication
       shell: bash
+      run: |
+        git config --global user.name "${{ inputs.bot-name }}"
+        git config --global user.email "${{ inputs.bot-email }}"
+        git remote set-url origin https://x-access-token:${{ inputs.token }}@github.com/${{ github.repository }}
 
     - name: Commit version bump
       uses: stefanzweifel/git-auto-commit-action@v5
       with:
         commit_message: "chore: Bump version for release"
         file_pattern: "Cargo.toml Cargo.lock"
-        commit_user_name: "github-actions[bot]"
-        commit_user_email: "github-actions[bot]@users.noreply.github.com"
+        commit_user_name: ${{ inputs.bot-name }}
+        commit_user_email: ${{ inputs.bot-email }}
 
     - name: Install Rust
       uses: WalletConnect/actions-rs/toolchain@2.0.0
