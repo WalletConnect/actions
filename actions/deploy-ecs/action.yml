@@ -74,7 +74,7 @@ runs:
 
     - name: Deploy to Amazon ECS
       id: deploy
-      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v2
       with:
         task-definition: ${{ steps.task-def.outputs.task-definition }}
         service: ${{ steps.service-name.outputs.service }}
