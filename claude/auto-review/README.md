@@ -283,10 +283,33 @@ jobs:
 
 ## Security Considerations
 
-- API keys are securely handled through GitHub Secrets
+### Access Control
+- Only users with repository write access can trigger the Claude Code Action
+- GitHub Apps and bots are blocked by default for additional security
+- Authentication tokens are short-lived and scoped to the specific repository
+
+### Required GitHub App Permissions
+The Claude GitHub App requires these specific permissions:
+- **Pull Requests**: Read/write access to create and update pull request reviews
+- **Issues**: Read/write access to respond to issue comments  
+- **Contents**: Read/write access to analyze and modify repository files
+
+### Credential Security
+⚠️ **CRITICAL**: Never hardcode your Anthropic API key or OAuth token in workflow files!
+
+- ✅ **Correct**: Always store credentials in GitHub Secrets: `${{ secrets.ANTHROPIC_API_KEY }}`
+- ❌ **Incorrect**: Embedding API keys directly in workflow YAML files
+- API keys are securely handled through GitHub Secrets infrastructure
+- All communication between the action and Anthropic's API uses HTTPS
+
+### Additional Security Features
+- All commits made by Claude are automatically signed for authenticity verification
 - The action only has read access to code and write access to PR comments
-- No code or sensitive data is stored by the action
-- All communication uses HTTPS
+- No code or sensitive data is stored by the action beyond the GitHub workflow execution
+- Short-lived tokens ensure minimal security exposure window
+
+### For Complete Security Details
+For comprehensive security information and best practices, see the [official Claude Code Action security documentation](https://github.com/anthropics/claude-code-action/blob/main/docs/security.md).
 
 ## Support
 
