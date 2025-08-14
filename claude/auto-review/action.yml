@@ -1,0 +1,90 @@
+name: "Claude Auto Review"
+description: "Automated code review using Claude AI with configurable project context"
+author: "WalletConnect"
+
+inputs:
+  anthropic_api_key:
+    description: "Anthropic API key for Claude access"
+    required: true
+  model:
+    description: "Claude model to use for reviews"
+    required: false
+    default: "claude-sonnet-4-20250514"
+  timeout_minutes:
+    description: "Timeout in minutes for the review process"
+    required: false
+    default: "60"
+  custom_prompt:
+    description: "Complete custom prompt override. If provided, all other prompt-related inputs are ignored."
+    required: false
+  project_context:
+    description: "Additional project-specific context to help Claude understand your codebase"
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up review prompt
+      shell: bash
+      run: |
+        if [[ -n "${{ inputs.custom_prompt }}" ]]; then
+          # Use custom prompt directly
+          PROMPT="${{ inputs.custom_prompt }}"
+        else
+          # Build dynamic prompt based on inputs
+          PROMPT="Review this pull request with focus on code quality, security, and best practices.
+
+        **IMPORTANT: For PR synchronize events (subsequent pushes), be incremental:**
+        1. First, check existing review comments in this PR thread
+        2. Only flag **new** issues in the latest commits that haven't been mentioned before
+        3. Note if any previously flagged issues have been resolved
+        4. Avoid repeating feedback already given in previous reviews
+
+        **For initial PR reviews or if no previous comments exist, provide a full review.**
+
+        Focus on:
+        - **Code quality and best practices** for the technologies used in this project
+        - **Potential bugs or issues** especially in critical code paths and async operations
+        - **Performance considerations** for both frontend and backend code
+        - **Security implications** particularly for authentication, API endpoints, and data handling
+        - **Test coverage** and quality of test implementations
+        - **Documentation updates** if needed for significant changes
+        - **Type safety** and proper usage of type systems
+        - **Error handling** and edge cases
+        - **Code maintainability** and readability"
+
+
+          # Add project context
+          if [[ -n "${{ inputs.project_context }}" ]]; then
+            PROMPT="$PROMPT
+
+        **Project-specific context:**
+        ${{ inputs.project_context }}"
+          fi
+
+          # Add response format guidelines
+          PROMPT="$PROMPT
+
+        **Response Format:**
+        - For incremental reviews: Start with \"🔄 Incremental Review:\" and focus only on changes since last review
+        - For full reviews: Be concise - only mention problems that need fixing
+        - If no new issues found: \"✅ No new issues found in latest commits\"
+        - Do not praise or describe what is working well
+
+        Provide constructive feedback with specific suggestions for improvement.
+        Use inline comments to highlight specific areas of concern.
+        Consider the impact on the overall system architecture and user experience."
+        fi
+
+        # Set environment variable for the next step
+        echo "REVIEW_PROMPT<<EOF" >> $GITHUB_ENV
+        echo "$PROMPT" >> $GITHUB_ENV
+        echo "EOF" >> $GITHUB_ENV
+
+    - name: Automatic PR Review
+      uses: anthropics/claude-code-action@beta
+      with:
+        model: ${{ inputs.model }}
+        anthropic_api_key: ${{ inputs.anthropic_api_key }}
+        timeout_minutes: ${{ inputs.timeout_minutes }}
+        direct_prompt: ${{ env.REVIEW_PROMPT }}
