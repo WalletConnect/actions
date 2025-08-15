@@ -53,7 +53,7 @@ jobs:
           fetch-depth: 0
 
       - name: Claude Review
-        uses: your-org/your-repo/.github/actions/claude-auto-review@main
+        uses: WalletConnect/actions/claude/auto-review@2b2c5b87b4375cddade164ca0c78d6faae417256
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
@@ -184,7 +184,7 @@ jobs:
 
 ### Incremental Reviews
 
-For PR updates (`synchronize` events), Claude:
+For PR updates (`synchronize` events) or manual `@claude review` triggers after the initial review, Claude:
 
 - ✅ Checks existing review comments
 - ✅ Only flags **new** issues in latest commits
@@ -284,17 +284,21 @@ jobs:
 ## Security Considerations
 
 ### Access Control
+
 - Only users with repository write access can trigger the Claude Code Action
 - GitHub Apps and bots are blocked by default for additional security
 - Authentication tokens are short-lived and scoped to the specific repository
 
 ### Required GitHub App Permissions
+
 The Claude GitHub App requires these specific permissions:
+
 - **Pull Requests**: Read/write access to create and update pull request reviews
-- **Issues**: Read/write access to respond to issue comments  
+- **Issues**: Read/write access to respond to issue comments
 - **Contents**: Read/write access to analyze and modify repository files
 
 ### Credential Security
+
 ⚠️ **CRITICAL**: Never hardcode your Anthropic API key or OAuth token in workflow files!
 
 - ✅ **Correct**: Always store credentials in GitHub Secrets: `${{ secrets.ANTHROPIC_API_KEY }}`
@@ -303,12 +307,14 @@ The Claude GitHub App requires these specific permissions:
 - All communication between the action and Anthropic's API uses HTTPS
 
 ### Additional Security Features
+
 - All commits made by Claude are automatically signed for authenticity verification
 - The action only has read access to code and write access to PR comments
 - No code or sensitive data is stored by the action beyond the GitHub workflow execution
 - Short-lived tokens ensure minimal security exposure window
 
 ### For Complete Security Details
+
 For comprehensive security information and best practices, see the [official Claude Code Action security documentation](https://github.com/anthropics/claude-code-action/blob/main/docs/security.md).
 
 ## Support
@@ -318,4 +324,3 @@ For issues with the action itself, please check:
 1. GitHub Actions logs for detailed error messages
 2. Anthropic API status and quotas
 3. Repository permissions and secrets configuration
-
