@@ -37,7 +37,7 @@ runs:
         **IMPORTANT: For PR synchronize events (subsequent pushes), be incremental:**
         1. First, examine all existing review comments in this PR thread for context
         2. For each issue mentioned in previous comments (from any tool), **validate if it still exists** in the current code state
-        3. **Only report previously mentioned issues if you can confirm they still exist** by examining the actual current code
+        3. **CRITICAL: Only report previously mentioned issues if you can confirm they still exist** by examining the actual current code
         4. Clearly note when previously flagged issues have been resolved since the last review
         5. Flag any genuinely **new** issues found in the latest commits
         6. When referencing issues originally identified by other tools (GitHub Copilot, Cursor, etc.), explicitly validate their current relevance and state \"Confirmed still present\" or \"Resolved since previous review\"
