@@ -53,7 +53,7 @@ jobs:
           fetch-depth: 0
 
       - name: Claude Review
-        uses: WalletConnect/actions/claude/auto-review@2b2c5b87b4375cddade164ca0c78d6faae417256
+        uses: WalletConnect/actions/claude/auto-review@main
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
@@ -76,7 +76,7 @@ jobs:
 
 ```yaml
 - name: Claude Review
-  uses: your-org/your-repo/.github/actions/claude-auto-review@main
+  uses: WalletConnect/actions/claude/auto-review@main
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
@@ -85,7 +85,7 @@ jobs:
 
 ```yaml
 - name: Claude Review
-  uses: your-org/your-repo/.github/actions/claude-auto-review@main
+  uses: WalletConnect/actions/claude/auto-review@main
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     project_context: |
@@ -105,7 +105,7 @@ jobs:
 
 ```yaml
 - name: Claude Review
-  uses: your-org/your-repo/.github/actions/claude-auto-review@main
+  uses: WalletConnect/actions/claude/auto-review@main
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     model: claude-sonnet-4-20250514
@@ -116,7 +116,7 @@ jobs:
 
 ```yaml
 - name: Claude Review
-  uses: your-org/your-repo/.github/actions/claude-auto-review@main
+  uses: WalletConnect/actions/claude/auto-review@main
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     custom_prompt: |
