@@ -6,6 +6,8 @@ A reusable GitHub Action for managing Copyright Transfer Agreement (CTA) signatu
 
 This action automates the process of collecting CTA signatures from contributors to your repository. It integrates with pull requests to ensure all contributors have signed your CTA before their contributions can be merged.
 
+This is a reusable wrapper around the upstream [contributor-assistant/github-action](https://github.com/contributor-assistant/github-action) that provides CTA-specific configuration and terminology for WalletConnect repositories.
+
 ## Features
 
 - Automated CTA signature collection
