@@ -45,6 +45,10 @@ inputs:
     description: "Lock pull request after merging"
     required: false
     default: "true"
+  allowlist:
+    description: "Additional users to allowlist (appends to existing WalletConnect team allowlist)"
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -54,6 +58,7 @@ runs:
       uses: contributor-assistant/github-action@v2.6.1
       env:
         GITHUB_TOKEN: ${{ github.token }}
+        STATIC_ALLOWLIST: '*[bot],ganchoradkov,tomiir,svenvoskamp,enesozturk,zoruka,Cali93,Boidushya,pedrouid,ennmichael,segunadebayo,gooxpf,ksingh,celinedev,ignaciosantise,rtomas,magiziz,0xasimetriq,glitch,lukaisailovic,arein,bkrem,chris13524,quetool,rohit-710,alexander-lsvk,radek-novak,Elyniss,andrew-vant,Talhaali00,flypaper0,skibitsky,geekbrother,JonathanConn,HarryET,finessevanes,ffrizzo,Rakowskiii,xav,llbartekll,jackpooleywc,jakubuid,farazdagi,chadyj,nopestack,heilhead,crypblizz,xDarksome'
       with:
         path-to-signatures: ${{ inputs.signatures-path }}
         path-to-document: ${{ inputs.cta-document-url }}
@@ -66,4 +71,4 @@ runs:
         remote-organization-name: ${{ inputs.remote-organization-name }}
         remote-repository-name: ${{ inputs.remote-repository-name }}
         lock-pullrequest-aftermerge: ${{ inputs.lock-pullrequest-aftermerge }}
-        allowlist: \*\[bot\],ganchoradkov,tomiir,svenvoskamp,enesozturk,zoruka,Cali93,Boidushya,pedrouid,ennmichael,segunadebayo,gooxpf,ksingh,celinedev,ignaciosantise,rtomas,magiziz,0xasimetriq,glitch,lukaisailovic,arein,bkrem,chris13524,quetool,rohit-710,alexander-lsvk,radek-novak,Elyniss,andrew-vant,Talhaali00,flypaper0,skibitsky,geekbrother,JonathanConn,HarryET,finessevanes,ffrizzo,Rakowskiii,xav,llbartekll,jackpooleywc,jakubuid,farazdagi,chadyj,nopestack,heilhead,crypblizz,xDarksome
+        allowlist: ${{ format('{0}{1}', env.STATIC_ALLOWLIST, inputs.allowlist && format(',{0}', inputs.allowlist) || '') }}

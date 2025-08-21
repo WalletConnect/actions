@@ -65,6 +65,7 @@ steps:
       remote-organization-name: 'your-org'
       remote-repository-name: 'cta-signatures'
       lock-pullrequest-aftermerge: 'false'
+      allowlist: 'external-contributor1,external-contributor2'
 ```
 
 ## Inputs
@@ -82,6 +83,7 @@ steps:
 | `remote-organization-name` | Remote org for signature storage | No | - |
 | `remote-repository-name` | Remote repo for signature storage | No | - |
 | `lock-pullrequest-aftermerge` | Lock PR after merge | No | `true` |
+| `allowlist` | Additional users to allowlist (appends to existing WalletConnect team allowlist) | No | `""` |
 
 ## How It Works
 
@@ -98,6 +100,17 @@ The workflow requires these permissions:
 - `contents: write` - Commit signature files (or `read` if using remote storage)
 - `pull-requests: write` - Comment on PRs
 - `statuses: write` - Update PR status checks
+
+## Allowlist Configuration
+
+The action includes a built-in allowlist of WalletConnect team members and bots who are exempt from signing the CTA. You can append additional users using the `allowlist` input:
+
+```yaml
+with:
+  allowlist: 'external-contributor1,external-contributor2,contractor-*'
+```
+
+**Important:** Your allowlist will be appended to (not replace) the existing WalletConnect team allowlist, which includes all bot users and current team members.
 
 ## Remote Storage
 
