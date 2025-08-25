@@ -1,0 +1,74 @@
+name: "CTA Assistant"
+description: "Automated Copyright Transfer Agreement (CTA) assistant for managing contributor signatures"
+author: "WalletConnect"
+
+inputs:
+  cta-document-url:
+    description: "URL to the CTA document that contributors must read and sign"
+    required: false
+    default: "https://github.com/reown-com/copyright-transfer-agreement/blob/main/copyright-transfer-agreement/v1/Copyright-Transfer-Agreement-GITHUB.pdf"
+  signatures-path:
+    description: "Path to store the CTA signatures file"
+    required: false
+    default: "signatures/version1/cta.json"
+  signatures-branch:
+    description: "Branch to store the CTA signatures (should not be protected)"
+    required: false
+    default: "cta-signatures"
+  create-file-commit-message:
+    description: "Commit message when creating the signatures file"
+    required: false
+    default: "Creating file for storing CTA Signatures"
+  signed-commit-message:
+    description: "Commit message when a contributor signs the CTA"
+    required: false
+    default: "@$contributorName has signed the CTA"
+  custom-pr-sign-comment:
+    description: "Comment that contributors must use to sign the CTA"
+    required: false
+    default: "I have read the CTA Document and I hereby sign the CTA"
+  custom-allsigned-prcomment:
+    description: "Comment posted when all contributors have signed the CTA"
+    required: false
+    default: "All contributors have signed the CTA ✍️ ✅"
+  custom-notsigned-prcomment:
+    description: "Custom message for contributors who haven't signed the CTA"
+    required: false
+    default: ""
+  remote-organization-name:
+    description: "Remote organization name for storing signatures (optional)"
+    required: false
+  remote-repository-name:
+    description: "Remote repository name for storing signatures (optional)"
+    required: false
+  lock-pullrequest-aftermerge:
+    description: "Lock pull request after merging"
+    required: false
+    default: "true"
+  allowlist:
+    description: "Additional users to allowlist (appends to existing WalletConnect team allowlist)"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: "CTA Assistant"
+      if: (github.event.comment.body == 'recheck' || github.event.comment.body == inputs.custom-pr-sign-comment) || github.event_name == 'pull_request_target'
+      uses: contributor-assistant/github-action@v2.6.1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        STATIC_ALLOWLIST: "*[bot],ganchoradkov,tomiir,svenvoskamp,enesozturk,zoruka,Cali93,Boidushya,pedrouid,ennmichael,segunadebayo,gooxpf,ksingh,celinedev,ignaciosantise,rtomas,magiziz,0xasimetriq,glitch,lukaisailovic,arein,bkrem,chris13524,quetool,rohit-710,alexander-lsvk,radek-novak,Elyniss,andrew-vant,Talhaali00,flypaper0,skibitsky,geekbrother,JonathanConn,HarryET,finessevanes,ffrizzo,Rakowskiii,xav,llbartekll,jackpooleywc,jakubuid,farazdagi,chadyj,nopestack,heilhead,crypblizz,xDarksome"
+      with:
+        path-to-signatures: ${{ inputs.signatures-path }}
+        path-to-document: ${{ inputs.cta-document-url }}
+        branch: ${{ inputs.signatures-branch }}
+        create-file-commit-message: ${{ inputs.create-file-commit-message }}
+        signed-commit-message: ${{ inputs.signed-commit-message }}
+        custom-notsigned-prcomment: ${{ inputs.custom-notsigned-prcomment || format('Thank you for your contribution! We ask that you please read and sign our [CTA Document]({0}) before we can accept your contribution. You can sign the CTA simply by posting a Pull Request Comment with the following text:', inputs.cta-document-url) }}
+        custom-pr-sign-comment: ${{ inputs.custom-pr-sign-comment }}
+        custom-allsigned-prcomment: ${{ inputs.custom-allsigned-prcomment }}
+        remote-organization-name: ${{ inputs.remote-organization-name }}
+        remote-repository-name: ${{ inputs.remote-repository-name }}
+        lock-pullrequest-aftermerge: ${{ inputs.lock-pullrequest-aftermerge }}
+        allowlist: ${{ format('{0}{1}', env.STATIC_ALLOWLIST, inputs.allowlist && format(',{0}', inputs.allowlist) || '') }}
