@@ -21,7 +21,14 @@ This is a reusable wrapper around the upstream [contributor-assistant/github-act
 
 ### Basic Setup
 
-1. Create a workflow file in your repository (e.g., `.github/workflows/cta.yml`):
+1. **Create the signatures branch** in your repository:
+
+   ```bash
+   git checkout -b cta-signatures
+   git push -u origin cta-signatures
+   ```
+
+2. Create a workflow file in your repository (e.g., `.github/workflows/cta.yml`):
 
 ```yaml
 name: "CTA Assistant"
@@ -42,18 +49,16 @@ jobs:
   CTA:
     runs-on: ubuntu-latest
     steps:
-      - uses: walletconnect/actions/github/cta-assistant@v1
+      - uses: walletconnect/actions/github/cta-assistant@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Required only for remote signature storage:
-          # PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
 ```
 
 ### Advanced Configuration
 
 ```yaml
 steps:
-  - uses: walletconnect/actions/github/cta-assistant@v1
+  - uses: walletconnect/actions/github/cta-assistant@master
     with:
       cta-document-url: "https://your-domain.com/cta-document"
       signatures-path: "legal/signatures/cta.json"
@@ -62,8 +67,6 @@ steps:
       signed-commit-message: "docs: @$contributorName signed the CTA"
       custom-pr-sign-comment: "I have read and agree to the CTA terms"
       custom-allsigned-prcomment: "All contributors have signed the CTA! 🎉"
-      remote-organization-name: "your-org"
-      remote-repository-name: "cta-signatures"
       lock-pullrequest-aftermerge: "false"
       allowlist: "external-contributor1,external-contributor2"
 ```
@@ -113,19 +116,9 @@ with:
 
 **Important:** Your allowlist will be appended to (not replace) the existing WalletConnect team allowlist, which includes all bot users and current team members.
 
-## Remote Storage
-
-For organizations managing multiple repositories, you can store signatures in a centralized location:
-
-1. Create a dedicated repository for signatures
-2. Generate a Personal Access Token with `repo` scope
-3. Add it as `PERSONAL_ACCESS_TOKEN` secret
-4. Configure `remote-organization-name` and `remote-repository-name`
-
 ## Environment Variables
 
 - `GITHUB_TOKEN` - Required (automatically provided)
-- `PERSONAL_ACCESS_TOKEN` - Required only for remote signature storage
 
 ## Troubleshooting
 
@@ -138,8 +131,7 @@ For organizations managing multiple repositories, you can store signatures in a 
 ### Signatures Not Persisting
 
 - Check write permissions to the repository
-- Ensure the signatures branch is not protected
-- Verify `PERSONAL_ACCESS_TOKEN` if using remote storage
+- Ensure the signatures branch exists and is not protected
 
 ### Status Not Updating
 
