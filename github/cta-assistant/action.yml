@@ -6,7 +6,7 @@ inputs:
   cta-document-url:
     description: "URL to the CTA document that contributors must read and sign"
     required: false
-    default: "https://gist.github.com/bkrem/a4233ab5e431d485e9836db072fda44c"
+    default: "https://github.com/reown-com/copyright-transfer-agreement/blob/main/copyright-transfer-agreement/v1/Copyright-Transfer-Agreement-GITHUB.pdf"
   signatures-path:
     description: "Path to store the CTA signatures file"
     required: false

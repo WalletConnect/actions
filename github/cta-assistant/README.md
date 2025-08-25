@@ -55,40 +55,40 @@ jobs:
 steps:
   - uses: walletconnect/actions/github/cta-assistant@v1
     with:
-      cta-document-url: 'https://your-domain.com/cta-document'
-      signatures-path: 'legal/signatures/cta.json'
-      signatures-branch: 'cta-signatures'
-      create-file-commit-message: 'docs: initialize CTA signatures file'
-      signed-commit-message: 'docs: @$contributorName signed the CTA'
-      custom-pr-sign-comment: 'I have read and agree to the CTA terms'
-      custom-allsigned-prcomment: 'All contributors have signed the CTA! 🎉'
-      remote-organization-name: 'your-org'
-      remote-repository-name: 'cta-signatures'
-      lock-pullrequest-aftermerge: 'false'
-      allowlist: 'external-contributor1,external-contributor2'
+      cta-document-url: "https://your-domain.com/cta-document"
+      signatures-path: "legal/signatures/cta.json"
+      signatures-branch: "cta-signatures"
+      create-file-commit-message: "docs: initialize CTA signatures file"
+      signed-commit-message: "docs: @$contributorName signed the CTA"
+      custom-pr-sign-comment: "I have read and agree to the CTA terms"
+      custom-allsigned-prcomment: "All contributors have signed the CTA! 🎉"
+      remote-organization-name: "your-org"
+      remote-repository-name: "cta-signatures"
+      lock-pullrequest-aftermerge: "false"
+      allowlist: "external-contributor1,external-contributor2"
 ```
 
 ## Inputs
 
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `cta-document-url` | URL to the CTA document | No | `https://gist.github.com/bkrem/a4233ab5e431d485e9836db072fda44c` |
-| `signatures-path` | Path to store signatures | No | `signatures/version1/cta.json` |
-| `signatures-branch` | Branch for signatures (should not be protected) | No | `signatures` |
-| `create-file-commit-message` | Commit message when creating signatures file | No | `Creating file for storing CTA Signatures` |
-| `signed-commit-message` | Commit message when contributor signs | No | `@$contributorName has signed the CTA` |
-| `custom-pr-sign-comment` | Comment contributors use to sign | No | `I have read the CTA Document and I hereby sign the CTA` |
-| `custom-allsigned-prcomment` | Comment when all have signed | No | `All contributors have signed the CTA ✍️ ✅` |
-| `custom-notsigned-prcomment` | Custom message for unsigned contributors | No | Auto-generated |
-| `remote-organization-name` | Remote org for signature storage | No | - |
-| `remote-repository-name` | Remote repo for signature storage | No | - |
-| `lock-pullrequest-aftermerge` | Lock PR after merge | No | `true` |
-| `allowlist` | Additional users to allowlist (appends to existing WalletConnect team allowlist) | No | `""` |
+| Input                         | Description                                                                      | Required | Default                                                                                                                                       |
+| ----------------------------- | -------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cta-document-url`            | URL to the CTA document                                                          | No       | `https://github.com/reown-com/copyright-transfer-agreement/blob/main/copyright-transfer-agreement/v1/Copyright-Transfer-Agreement-GITHUB.pdf` |
+| `signatures-path`             | Path to store signatures                                                         | No       | `signatures/version1/cta.json`                                                                                                                |
+| `signatures-branch`           | Branch for signatures (should not be protected)                                  | No       | `signatures`                                                                                                                                  |
+| `create-file-commit-message`  | Commit message when creating signatures file                                     | No       | `Creating file for storing CTA Signatures`                                                                                                    |
+| `signed-commit-message`       | Commit message when contributor signs                                            | No       | `@$contributorName has signed the CTA`                                                                                                        |
+| `custom-pr-sign-comment`      | Comment contributors use to sign                                                 | No       | `I have read the CTA Document and I hereby sign the CTA`                                                                                      |
+| `custom-allsigned-prcomment`  | Comment when all have signed                                                     | No       | `All contributors have signed the CTA ✍️ ✅`                                                                                                  |
+| `custom-notsigned-prcomment`  | Custom message for unsigned contributors                                         | No       | Auto-generated                                                                                                                                |
+| `remote-organization-name`    | Remote org for signature storage                                                 | No       | -                                                                                                                                             |
+| `remote-repository-name`      | Remote repo for signature storage                                                | No       | -                                                                                                                                             |
+| `lock-pullrequest-aftermerge` | Lock PR after merge                                                              | No       | `true`                                                                                                                                        |
+| `allowlist`                   | Additional users to allowlist (appends to existing WalletConnect team allowlist) | No       | `""`                                                                                                                                          |
 
 ## How It Works
 
 1. When a pull request is opened, the action checks if all contributors have signed the CTA
-2. If not signed, a comment is posted with instructions and a link to the CTA document  
+2. If not signed, a comment is posted with instructions and a link to the CTA document
 3. Contributors sign by posting the specified comment text in the PR
 4. Once all contributors have signed, the PR is marked as compliant
 5. Signatures are stored in the specified branch and path
@@ -96,6 +96,7 @@ steps:
 ## Required Permissions
 
 The workflow requires these permissions:
+
 - `actions: write` - Update workflow status
 - `contents: write` - Commit signature files (or `read` if using remote storage)
 - `pull-requests: write` - Comment on PRs
@@ -107,7 +108,7 @@ The action includes a built-in allowlist of WalletConnect team members and bots 
 
 ```yaml
 with:
-  allowlist: 'external-contributor1,external-contributor2,contractor-*'
+  allowlist: "external-contributor1,external-contributor2,contractor-*"
 ```
 
 **Important:** Your allowlist will be appended to (not replace) the existing WalletConnect team allowlist, which includes all bot users and current team members.
@@ -129,15 +130,18 @@ For organizations managing multiple repositories, you can store signatures in a 
 ## Troubleshooting
 
 ### Contributors Can't Sign
+
 - Ensure the comment text matches `custom-pr-sign-comment` exactly
 - Check that the workflow has proper permissions
 - Verify the signatures branch exists and is not protected
 
-### Signatures Not Persisting  
+### Signatures Not Persisting
+
 - Check write permissions to the repository
 - Ensure the signatures branch is not protected
 - Verify `PERSONAL_ACCESS_TOKEN` if using remote storage
 
 ### Status Not Updating
+
 - Confirm `statuses: write` permission is granted
 - Check that the workflow triggers on the correct events
