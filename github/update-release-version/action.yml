@@ -1,0 +1,50 @@
+name: Update Release Version
+description: "Generate the release notes and bump the GitHub release"
+
+inputs:
+  token:
+    description: 'A GitHub PAT with write access to the repository'
+    required: true
+  bot-name:
+    default: 'github-actions[bot]'
+    required: false
+  bot-email:
+    default: 'github-actions[bot]@users.noreply.github.com'
+    required: false
+
+outputs:
+  version:
+    description: The release version
+    value: ${{ steps.clean_version.outputs.version }}
+
+runs:
+  using: composite
+
+  steps:
+    - name: Cocogitto Release
+      id: release
+      uses: cocogitto/cocogitto-action@v3
+      with:
+        check: true
+        check-latest-tag-only: true
+        release: true
+        git-user: ${{ inputs.bot-name }}
+        git-user-email: ${{ inputs.bot-email }}
+
+    - name: Generate Changelog
+      shell: bash
+      run: cog changelog --at ${{ steps.release.outputs.version }} -t full_hash > GITHUB_CHANGELOG.md
+
+    - name: Update GitHub release notes
+      uses: softprops/action-gh-release@v1
+      with:
+        body_path: GITHUB_CHANGELOG.md
+        tag_name: ${{ steps.release.outputs.version }}
+        token: ${{ inputs.token }}
+
+    - name: Clean Version
+      id: clean_version
+      shell: bash
+      run: |
+        version=$(echo "${{ steps.release.outputs.version }}" | sed 's/v//g')
+        echo "version=$version" >> $GITHUB_OUTPUT
