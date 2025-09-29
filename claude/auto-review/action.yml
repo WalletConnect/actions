@@ -53,7 +53,16 @@ runs:
         - **Documentation updates** if needed for significant changes
         - **Type safety** and proper usage of type systems
         - **Error handling** and edge cases
-        - **Code maintainability** and readability"
+        - **Code maintainability** and readability
+
+        **EXTERNAL DOMAIN URL DETECTION:**
+        Scan all changed files for URLs matching the pattern 'https?://(?:www\.)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'. If any URLs are found pointing to domains other than the approved company domains (reown.com, walletconnect.com, walletconnect.org), report them using this exact format:
+
+        🔒 **External Domain URL Detected** (Non-blocking)
+        **URL:** [detected_url]
+        **File:** [file_path:line_number]
+
+        This change introduces URLs pointing to external domains. Please verify that these external dependencies are intentional and review for potential security, privacy, or compliance implications. Approved company domains are: reown.com, walletconnect.com, walletconnect.org"
 
 
           # Add project context
