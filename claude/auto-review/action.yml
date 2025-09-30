@@ -9,7 +9,7 @@ inputs:
   model:
     description: "Claude model to use for reviews"
     required: false
-    default: "claude-sonnet-4-20250514"
+    default: "claude-sonnet-4-5-20250929"
   timeout_minutes:
     description: "Timeout in minutes for the review process"
     required: false
