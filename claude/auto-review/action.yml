@@ -11,7 +11,7 @@ inputs:
     required: false
     default: "claude-sonnet-4-5-20250929"
   timeout_minutes:
-    description: "Timeout in minutes for the review process"
+    description: "Timeout in minutes for the review process (DEPRECATED: Use job-level timeout-minutes instead)"
     required: false
     default: "60"
   custom_prompt:
@@ -93,9 +93,8 @@ runs:
         echo "EOF" >> $GITHUB_ENV
 
     - name: Automatic PR Review
-      uses: anthropics/claude-code-action@beta
+      uses: anthropics/claude-code-action@v1
       with:
-        model: ${{ inputs.model }}
         anthropic_api_key: ${{ inputs.anthropic_api_key }}
-        timeout_minutes: ${{ inputs.timeout_minutes }}
-        direct_prompt: ${{ env.REVIEW_PROMPT }}
+        prompt: ${{ env.REVIEW_PROMPT }}
+        claude_args: --model ${{ inputs.model }}

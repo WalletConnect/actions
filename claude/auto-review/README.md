@@ -34,6 +34,7 @@ on:
 jobs:
   review:
     runs-on: ubuntu-latest
+    timeout-minutes: 60  # Recommended: control timeout at job level
     if: |
       github.event_name == 'pull_request'
       || (
@@ -62,13 +63,13 @@ jobs:
 
 ### Inputs
 
-| Input               | Required | Default                      | Description                                                                  |
-| ------------------- | -------- | ---------------------------- | ---------------------------------------------------------------------------- |
-| `anthropic_api_key` | ✅       | -                            | Your Anthropic API key for Claude access                                     |
-| `model`             | ❌       | `claude-sonnet-4-5-20250929` | Claude model to use for reviews                                              |
-| `timeout_minutes`   | ❌       | `60`                         | Timeout in minutes for the review process                                    |
-| `custom_prompt`     | ❌       | -                            | Complete custom prompt override. Ignores all other prompt inputs if provided |
-| `project_context`   | ❌       | -                            | Additional project-specific context to help Claude understand your codebase  |
+| Input               | Required | Default                      | Description                                                                                           |
+| ------------------- | -------- | ---------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `anthropic_api_key` | ✅       | -                            | Your Anthropic API key for Claude access                                                              |
+| `model`             | ❌       | `claude-sonnet-4-5-20250929` | Claude model to use for reviews                                                                       |
+| `timeout_minutes`   | ❌       | `60`                         | ⚠️ DEPRECATED: Use job-level `timeout-minutes` instead. Kept for backward compatibility               |
+| `custom_prompt`     | ❌       | -                            | Complete custom prompt override. Ignores all other prompt inputs if provided                          |
+| `project_context`   | ❌       | -                            | Additional project-specific context to help Claude understand your codebase                           |
 
 ## Usage Examples
 
@@ -104,12 +105,16 @@ jobs:
 ### With Custom Model and Timeout
 
 ```yaml
-- name: Claude Review
-  uses: WalletConnect/actions/claude/auto-review@master
-  with:
-    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    model: claude-sonnet-4-5-20250929
-    timeout_minutes: "90"
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90  # Job-level timeout (recommended)
+    steps:
+      - name: Claude Review
+        uses: WalletConnect/actions/claude/auto-review@master
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: claude-sonnet-4-5-20250929
 ```
 
 ### With Complete Custom Prompt
