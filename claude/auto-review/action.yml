@@ -11,7 +11,7 @@ inputs:
     required: false
     default: "claude-sonnet-4-5-20250929"
   timeout_minutes:
-    description: "Timeout in minutes for the review process (DEPRECATED: Use job-level timeout-minutes instead)"
+    description: "DEPRECATED: Accepted but ignored by v1 (no effect). Use job-level timeout-minutes instead."
     required: false
     default: "60"
   custom_prompt:
@@ -91,6 +91,13 @@ runs:
         echo "REVIEW_PROMPT<<EOF" >> $GITHUB_ENV
         echo "$PROMPT" >> $GITHUB_ENV
         echo "EOF" >> $GITHUB_ENV
+
+    - name: Check timeout_minutes deprecation
+      shell: bash
+      run: |
+        if [[ "${{ inputs.timeout_minutes }}" != "60" ]]; then
+          echo "::warning::The 'timeout_minutes' input is deprecated and has no effect in claude-code-action@v1. Please use job-level 'timeout-minutes' instead. See: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idtimeout-minutes"
+        fi
 
     - name: Automatic PR Review
       uses: anthropics/claude-code-action@v1
