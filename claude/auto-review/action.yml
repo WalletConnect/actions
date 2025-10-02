@@ -13,7 +13,6 @@ inputs:
   timeout_minutes:
     description: "DEPRECATED: Accepted but ignored by v1 (no effect). Use job-level timeout-minutes instead."
     required: false
-    default: "60"
   custom_prompt:
     description: "Complete custom prompt override. If provided, all other prompt-related inputs are ignored."
     required: false
@@ -95,7 +94,7 @@ runs:
     - name: Check timeout_minutes deprecation
       shell: bash
       run: |
-        if [[ "${{ inputs.timeout_minutes }}" != "60" ]]; then
+        if [[ -n "${{ inputs.timeout_minutes }}" ]]; then
           echo "::warning::The 'timeout_minutes' input is deprecated and has no effect in claude-code-action@v1. Please use job-level 'timeout-minutes' instead. See: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idtimeout-minutes"
         fi
 

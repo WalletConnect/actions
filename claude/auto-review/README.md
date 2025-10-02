@@ -67,7 +67,7 @@ jobs:
 | ------------------- | -------- | ---------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `anthropic_api_key` | ✅       | -                            | Your Anthropic API key for Claude access                                                              |
 | `model`             | ❌       | `claude-sonnet-4-5-20250929` | Claude model to use for reviews                                                                       |
-| `timeout_minutes`   | ❌       | `60`                         | ⚠️ DEPRECATED: Accepted but ignored by v1 (no effect). Use job-level `timeout-minutes` instead.       |
+| `timeout_minutes`   | ❌       | -                            | ⚠️ DEPRECATED: Accepted but ignored by v1 (no effect). Use job-level `timeout-minutes` instead.       |
 | `custom_prompt`     | ❌       | -                            | Complete custom prompt override. Ignores all other prompt inputs if provided                          |
 | `project_context`   | ❌       | -                            | Additional project-specific context to help Claude understand your codebase                           |
 
