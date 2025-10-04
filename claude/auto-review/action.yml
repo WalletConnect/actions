@@ -26,12 +26,18 @@ runs:
     - name: Set up review prompt
       shell: bash
       run: |
+        # Create prompt header with context
+        PROMPT_HEADER="REPO: ${{ github.repository }}
+        PR NUMBER: ${{ github.event.pull_request.number }}
+
+        "
+
         if [[ -n "${{ inputs.custom_prompt }}" ]]; then
-          # Use custom prompt directly
-          PROMPT="${{ inputs.custom_prompt }}"
+          # Use custom prompt directly with header
+          PROMPT="${PROMPT_HEADER}${{ inputs.custom_prompt }}"
         else
           # Build dynamic prompt based on inputs
-          PROMPT="Review this pull request with focus on code quality, security, and best practices.
+          PROMPT="${PROMPT_HEADER}Review this pull request with focus on code quality, security, and best practices.
 
         **IMPORTANT: For PR synchronize events (subsequent pushes), be incremental:**
         1. First, examine all existing review comments in this PR thread for context
