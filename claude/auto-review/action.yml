@@ -105,3 +105,4 @@ runs:
         prompt: ${{ env.REVIEW_PROMPT }}
         track_progress: true
         claude_args: --model ${{ inputs.model }}
+        allowed_bots: devin-ai-integration[bot]
