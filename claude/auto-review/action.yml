@@ -11,9 +11,8 @@ inputs:
     required: false
     default: "claude-sonnet-4-5-20250929"
   timeout_minutes:
-    description: "Timeout in minutes for the review process"
+    description: "DEPRECATED: Accepted but ignored by v1 (no effect). Use job-level timeout-minutes instead."
     required: false
-    default: "60"
   custom_prompt:
     description: "Complete custom prompt override. If provided, all other prompt-related inputs are ignored."
     required: false
@@ -27,12 +26,18 @@ runs:
     - name: Set up review prompt
       shell: bash
       run: |
+        # Create prompt header with context
+        PROMPT_HEADER="REPO: ${{ github.repository }}
+        PR NUMBER: ${{ github.event.pull_request.number }}
+
+        "
+
         if [[ -n "${{ inputs.custom_prompt }}" ]]; then
-          # Use custom prompt directly
-          PROMPT="${{ inputs.custom_prompt }}"
+          # Use custom prompt directly with header
+          PROMPT="${PROMPT_HEADER}${{ inputs.custom_prompt }}"
         else
           # Build dynamic prompt based on inputs
-          PROMPT="Review this pull request with focus on code quality, security, and best practices.
+          PROMPT="${PROMPT_HEADER}Review this pull request with focus on code quality, security, and best practices.
 
         **IMPORTANT: For PR synchronize events (subsequent pushes), be incremental:**
         1. First, examine all existing review comments in this PR thread for context
@@ -92,10 +97,18 @@ runs:
         echo "$PROMPT" >> $GITHUB_ENV
         echo "EOF" >> $GITHUB_ENV
 
+    - name: Check timeout_minutes deprecation
+      shell: bash
+      run: |
+        if [[ -n "${{ inputs.timeout_minutes }}" ]]; then
+          echo "::warning::The 'timeout_minutes' input is deprecated and has no effect in claude-code-action@v1. Please use job-level 'timeout-minutes' instead. See: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idtimeout-minutes"
+        fi
+
     - name: Automatic PR Review
-      uses: anthropics/claude-code-action@beta
+      uses: anthropics/claude-code-action@v1
       with:
-        model: ${{ inputs.model }}
         anthropic_api_key: ${{ inputs.anthropic_api_key }}
-        timeout_minutes: ${{ inputs.timeout_minutes }}
-        direct_prompt: ${{ env.REVIEW_PROMPT }}
+        prompt: ${{ env.REVIEW_PROMPT }}
+        track_progress: true
+        claude_args: --model ${{ inputs.model }}
+        allowed_bots: devin-ai-integration[bot]
