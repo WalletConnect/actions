@@ -207,6 +207,8 @@ The default prompt emphasizes:
 - **Type Safety** - Proper usage of type systems
 - **Error Handling** - Edge cases and error scenarios
 - **Maintainability** - Code readability and structure
+- **Static Resource Caching** - Validates Cache-Control headers for static immutable resources (fonts, images, CSS, JS) to ensure proper caching (1 year minimum for immutable assets)
+- **External Dependencies** - Flags URLs pointing to domains outside approved company domains
 
 ## Best Practices
 
