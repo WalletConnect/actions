@@ -65,7 +65,7 @@ runs:
       uses: hashicorp/setup-terraform@v3
       with:
         cli_config_credentials_token: ${{ inputs.tfc_token }}
-    - uses: actions/setup-python@v5
+    - uses: actions/setup-python@v6
       if: ${{ inputs.needs-python == 'true' }}
       with:
         python-version: ${{ inputs.python-version }}
