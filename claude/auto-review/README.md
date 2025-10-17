@@ -11,6 +11,27 @@ This GitHub Action provides automated code reviews for your pull requests using 
 - **Multiple trigger modes** - Automatic on PR open or manual via comments
 - **Security-focused** - Built-in emphasis on security, performance, and best practices
 
+## Review Mode & Capabilities
+
+This action operates in **read-only review mode** to ensure safe and reliable operation in CI/CD environments.
+
+### What Claude Can Do ✅
+
+- **Analyze code changes** - Review all code modifications in pull requests
+- **Read project files** - Access repository files for context
+- **Provide feedback** - Post detailed review comments and suggestions
+- **Identify issues** - Detect bugs, security concerns, and best practice violations
+- **Track incremental changes** - Compare new commits against previous reviews
+- **Understand context** - Read existing comments and PR discussions
+
+### What Claude Cannot Do ❌
+
+- **Execute shell commands** - No npm install, build scripts, or CLI tools
+- **Set up environments** - No dependency installation or environment configuration
+- **Run tests or builds** - Code execution is not permitted
+- **Modify local files** - Read-only access to the repository
+- **Clone repositories** - No external resource fetching
+
 ## Prerequisites
 
 1. **Anthropic API Key**: Obtain an API key from [Anthropic Console](https://console.anthropic.com/)

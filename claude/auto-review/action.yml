@@ -37,7 +37,23 @@ runs:
           PROMPT="${PROMPT_HEADER}${{ inputs.custom_prompt }}"
         else
           # Build dynamic prompt based on inputs
-          PROMPT="${PROMPT_HEADER}Review this pull request with focus on code quality, security, and best practices.
+          PROMPT="${PROMPT_HEADER}**CRITICAL - REVIEW ONLY MODE:**
+        You are operating in a READ-ONLY review context within a GitHub Actions environment. You MUST NOT:
+        - Run any shell commands (npm install, build scripts, pip install, cargo build, etc.)
+        - Set up development environments or install dependencies
+        - Execute tests, builds, or any code compilation
+        - Attempt to run code or scripts
+        - Use any Bash/terminal/shell tools
+        - Clone repositories or fetch external resources
+        - Modify the local filesystem beyond reading files
+
+        Your role is EXCLUSIVELY to:
+        - Analyze the provided PR code changes
+        - Review existing code context
+        - Provide constructive feedback and suggestions
+        - Identify potential issues through code analysis only
+
+        Review this pull request with focus on code quality, security, and best practices.
 
         **IMPORTANT: For PR synchronize events (subsequent pushes), be incremental:**
         1. First, examine all existing review comments in this PR thread for context
