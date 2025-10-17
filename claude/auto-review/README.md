@@ -32,16 +32,6 @@ This action operates in **read-only review mode** to ensure safe and reliable op
 - **Modify local files** - Read-only access to the repository
 - **Clone repositories** - No external resource fetching
 
-### Why Read-Only Mode?
-
-This design ensures:
-- **Reliability** - No failures from missing CLI tools or dependencies
-- **Security** - Prevents unintended code execution in CI/CD pipelines
-- **Performance** - Faster reviews focused purely on code analysis
-- **Predictability** - Consistent behavior across all environments
-
-Claude provides value through intelligent code analysis, not by running your code. For automated testing and builds, use dedicated CI/CD tools alongside Claude reviews.
-
 ## Prerequisites
 
 1. **Anthropic API Key**: Obtain an API key from [Anthropic Console](https://console.anthropic.com/)
