@@ -66,7 +66,7 @@ jobs:
 
             ### 3. Credential Management Pattern
             - **Temporary credentials**: Grafana API keys created on-demand with short TTL (300-900 seconds)
-            - **Cleanup guarantee**: Cleanup steps use `if: ${{ always() }}` to ensure credential deletion
+            - **Cleanup guarantee**: Cleanup steps use `if: always()` to ensure credential deletion
             - **Secret masking**: Sensitive values masked with `echo "::add-mask::$value"`
             - **Environment-based injection**: Credentials injected into `.auto.tfvars` files at runtime
 
@@ -187,7 +187,7 @@ jobs:
             5. Add `shell: bash` to all script steps
             6. Use `$GITHUB_OUTPUT` for outputs (not deprecated `::set-output`)
             7. Follow 2-space indentation and 80-character line length
-            8. Add cleanup steps with `if: ${{ always() }}` for resources
+            8. Add cleanup steps with `if: always()` for resources
             9. Mask sensitive values with `echo "::add-mask::$value"`
             10. Document the action in a README.md file
 
