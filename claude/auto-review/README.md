@@ -113,7 +113,7 @@ jobs:
     project_context: |
       This is a React TypeScript application using:
       - Next.js with App Router
-      - PostgreSQL with Prisma ORM  
+      - PostgreSQL with Prisma ORM
       - tRPC for API layer
       - Jest for testing
 
@@ -246,10 +246,12 @@ project_context: |
 
   Focus Areas:
   - MongoDB query optimization
-  - React performance patterns  
+  - React performance patterns
   - Proper error boundaries usage
   - Docker security practices
 ```
+
+⚠️ **Important**: The `project_context` content is inserted into a bash script during execution. Avoid using backticks, dollar signs followed by parentheses, or other shell-interpretable syntax as they will be executed as shell commands and cause the action to fail. Use plain text descriptions without code formatting markers.
 
 ### 2. Use Branch Protection
 

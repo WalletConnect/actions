@@ -34,156 +34,34 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           project_context: |
-            # WalletConnect/Reown GitHub Actions Repository
+            WalletConnect Actions Repository
 
-            ## Repository Purpose & Architecture
-            This is a centralized library of reusable GitHub Actions and workflows for the WalletConnect/Reown organization. The repository provides standardized automation for infrastructure deployment, container orchestration, code quality enforcement, and release management across multiple projects in the organization.
+            Purpose: Reusable GitHub composite actions and workflows for Terraform infrastructure, AWS ECS deployments, release automation, and AI PR reviews.
 
-            ## Technology Stack & Frameworks
-            - **GitHub Actions Composite Actions**: All actions use the `composite` pattern, combining multiple run steps into reusable units
-            - **Terraform**: Infrastructure as Code (IaC) for multi-cloud deployments (AWS, Cloudflare, OnePassword, Terraform Cloud)
-            - **AWS Services**: ECS (container orchestration), Grafana (monitoring), IAM (authentication)
-            - **Shell Scripting**: Bash scripts for orchestration, credential management, and AWS CLI operations
-            - **YAML**: Action definitions and workflow configurations
-            - **Python**: Optional support for Terraform configurations requiring Python providers
-            - **Rust**: Cargo-based release management with semantic versioning
-            - **Git Tools**: cocogitto for conventional commits and semantic versioning
+            Primary Entry Points
+            - actions/deploy-terraform and actions/plan-terraform for infrastructure workflows
+            - actions/deploy-ecs for ECS service deployments
+            - terraform/ and aws/ directories contain lower-level building blocks
+            - claude/auto-review wraps Anthropics claude-code-action for PR reviews
 
-            ## Key Architectural Patterns
+            Key Conventions for Review
+            - All actions are composite with bash steps
+            - Inputs use kebab-case; outputs are written via the GITHUB_OUTPUT file
+            - Consumers should pin actions to a full 40-character commit SHA, not a branch
+            - Prefer the working-directory field in steps over changing directories in scripts
+            - Terraform usage: select environment via TF_WORKSPACE, run non-interactively, apply with auto-approve, and disable color output in CI
+            - AWS usage: configure credentials with aws-actions/configure-aws-credentials v4 and require an explicit region
+            - Grafana integration: temporary keys with short TTL and guaranteed cleanup using always
 
-            ### 1. Composite Action Pattern
-            All actions follow the composite pattern with these conventions:
-            - Actions are defined in `action.yml` files
-            - Use `runs.using: "composite"` declaration
-            - Steps use `shell: bash` for script execution
-            - Inputs are strongly typed with descriptions and required flags
-            - Outputs use `$GITHUB_OUTPUT` for setting values (modern syntax, not deprecated `::set-output`)
+            Security and Compliance Expectations
+            - Do not print or commit secrets; mask sensitive values in logs
+            - Ensure cleanup of temporary credentials and keys
+            - External domains in code or configs should be limited to reown.com, walletconnect.com, walletconnect.org
 
-            ### 2. Layered Action Architecture
-            The repository uses a two-tier architecture:
-            - **High-level actions** (`actions/` directory): User-facing composite actions that orchestrate multiple lower-level actions (e.g., `actions/deploy-terraform/`, `actions/plan-terraform/`, `actions/deploy-ecs/`)
-            - **Low-level actions** (domain directories): Building blocks used by high-level actions (e.g., `terraform/init/`, `terraform/apply/`, `aws/ecs/deploy-image/`)
-
-            ### 3. Credential Management Pattern
-            - **Temporary credentials**: Grafana API keys created on-demand with short TTL (300-900 seconds)
-            - **Cleanup guarantee**: Cleanup steps use `if: always()` to ensure credential deletion
-            - **Secret masking**: Sensitive values masked with `echo "::add-mask::$value"`
-            - **Environment-based injection**: Credentials injected into `.auto.tfvars` files at runtime
-
-            ### 4. Environment Isolation Pattern
-            - **Workspace-based**: Terraform workspaces map to environments (dev, staging, prod)
-            - **Variable files**: Environment-specific `.tfvars` files in `vars/` directory
-            - **Tag-based discovery**: AWS resources discovered via tags (e.g., `Env` tag for Grafana workspaces)
-
-            ## Critical Coding Conventions
-
-            ### YAML Formatting
-            - **Indentation**: 2 spaces (enforced by `.editorconfig`)
-            - **Line length**: Maximum 80 characters
-            - **Line endings**: LF (Unix-style)
-            - **Trailing whitespace**: Not allowed
-            - **Final newline**: Required in all files
-
-            ### Input/Output Conventions
-            - **Input naming**: kebab-case (e.g., `aws-access-key-id`, `task-definition-name`)
-            - **Output naming**: kebab-case (e.g., `plan-file`, `output-file`)
-            - **Boolean defaults**: Use string `'true'` or `'false'`, not bare booleans
-            - **Default values**: Always provide defaults for optional inputs
-            - **Backward compatibility**: Mark inputs as `required: false` with defaults when adding new features
-
-            ### Shell Script Conventions
-            - **Error handling**: Use `set -e` implicitly (GitHub Actions default)
-            - **Variable quoting**: Always quote variables: `"$VARIABLE"`
-            - **Conditional checks**: Use `[[ ]]` for bash conditionals
-            - **Output capture**: Use `$(command)` for command substitution
-            - **JSON parsing**: Use `jq` for JSON manipulation
-            - **Array handling**: Use bash arrays for parsing (e.g., `PARTS=($(echo $VAR | tr '\/' "\n"))`)
-
-            ### Terraform-Specific Conventions
-            - **Working directory**: Use `working-directory` in steps, not `cd` commands
-            - **No color output**: Always use `-no-color` flag for CI/CD compatibility
-            - **Auto-approve**: Use `-auto-approve` for apply operations in CI/CD
-            - **Variable files**: Check for existence before using: `if [ -f "$VAR_FILE" ]; then`
-            - **Workspace selection**: Set via `TF_WORKSPACE` environment variable
-            - **Non-interactive**: Set `TF_INPUT=0` to prevent interactive prompts
-
-            ### AWS-Specific Conventions
-            - **Credential configuration**: Use `aws-actions/configure-aws-credentials@v4`
-            - **Session tokens**: Support optional session tokens for temporary credentials
-            - **Region specification**: Always require explicit region specification
-            - **Service discovery**: Use AWS CLI with `jq` for resource discovery
-            - **ARN parsing**: Parse ARNs by splitting on `/` delimiter
-
-            ## Security Considerations
-
-            ### Credential Security
-            - **Never commit secrets**: Pre-commit hooks detect AWS credentials and private keys
-            - **Short-lived credentials**: Grafana keys have 5-15 minute TTL
-            - **Automatic cleanup**: Credentials deleted in `always()` steps
-            - **Secret masking**: All sensitive values masked in logs
-            - **No hardcoded values**: All secrets passed via GitHub Secrets
-
-            ### Access Control
-            - **Least privilege**: Actions request minimal required permissions
-            - **Environment-based**: Credentials scoped to specific environments
-            - **Tag-based filtering**: Resources filtered by environment tags
-            - **Bot allowlisting**: CTA assistant has explicit bot allowlist
-
-            ### Pre-commit Validation
-            The repository enforces these security checks:
-            - `detect-aws-credentials`: Prevents AWS credential commits
-            - `detect-private-key`: Prevents private key commits
-            - `check-merge-conflict`: Prevents merge conflict markers
-            - `no-commit-to-branch`: Prevents direct commits to protected branches
-
-            ## Domain-Specific Knowledge
-
-            ### Infrastructure Deployment (Terraform)
-            - **Multi-provider support**: AWS, Cloudflare, OnePassword, Terraform Cloud
-            - **Provider credentials**: Injected via environment variables (e.g., `CLOUDFLARE_API_TOKEN`, `OP_CONNECT_TOKEN`)
-            - **SSH key support**: Private Terraform modules accessed via SSH keys using `webfactory/ssh-agent`
-            - **Python support**: Optional Python environment for Terraform providers requiring Python
-            - **Plan artifacts**: Binary plan files (`.tfplan`) and human-readable text files generated
-
-            ### Container Deployment (ECS)
-            - **Zero-downtime deployments**: `wait-for-service-stability: true` ensures stable deployments
-            - **Task definition pattern**: Download current → update image → deploy new revision
-            - **Service name resolution**: Extract service name from ARN by parsing
-            - **Container naming**: Container name matches task definition name
-
-            ### Release Management
-            - **Conventional commits**: Use cocogitto for semantic versioning
-            - **Rust releases**: Update `Cargo.toml` and `Cargo.lock` with version bumps
-            - **Changelog generation**: Automated via `cog changelog` command
-            - **GitHub releases**: Automated release creation with changelog
-            - **Version format**: Support both `v1.2.3` and `1.2.3` formats (clean version output)
-
-            ### Code Quality & Review
-            - **AI-powered reviews**: Claude AI for intelligent code analysis
-            - **Incremental reviews**: Track previous feedback to avoid repetition
-            - **Custom validations**: External domain detection, cache-control verification
-            - **CTA enforcement**: Copyright Transfer Agreement via PR comments
-            - **Allowlist management**: Static allowlist of WalletConnect team members
-
-            ## Performance Considerations
-            - **Caching**: Rust actions use `Swatinem/rust-cache@v2` for cargo registry caching
-            - **Conditional execution**: Use `if` conditions to skip unnecessary steps
-            - **Path filtering**: `paths-filter` action for intelligent CI optimization
-            - **Parallel execution**: Actions designed to run independently when possible
-
-            ## Testing Approaches
-            - **Pre-commit hooks**: Local validation before commits
-            - **YAML validation**: Automated YAML syntax checking
-            - **Format checking**: Terraform format validation (`terraform fmt -check`)
-            - **Merge conflict detection**: Automated conflict detection
-
-            ## Review Focus Areas for This Repository
-            - **Security**: Credential handling, secret masking, cleanup steps
-            - **Backward compatibility**: Ensure changes don't break existing consumers
-            - **Error handling**: Proper error messages and exit codes
-            - **Documentation**: Clear descriptions for inputs/outputs
-            - **Idempotency**: Actions should be safe to run multiple times
-            - **Resource cleanup**: Ensure temporary resources are always cleaned up
-            - **Shell script safety**: Proper quoting, error handling, and validation
-            - **YAML formatting**: Adherence to `.editorconfig` standards
-            - **Conventional commits**: PR titles should follow conventional commit format
+            Reviewer Focus for This Repository
+            - Backward compatibility of action inputs and outputs
+            - Safe bash practices including robust quoting and clear error handling
+            - Secret handling and masking throughout steps
+            - Idempotency and deterministic behavior of composite actions
+            - Correct commit SHA pinning for any referenced actions
+            - PR titles follow conventional commit format
