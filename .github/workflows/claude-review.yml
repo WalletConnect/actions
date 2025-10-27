@@ -29,8 +29,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # WARNING: Do not use backticks, dollar signs, or shell-like syntax in project_context
-      # as it is inserted into a bash script and will be interpreted as shell commands
       - name: Claude Review
         uses: WalletConnect/actions/claude/auto-review@master
         with:
