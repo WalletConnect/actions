@@ -117,10 +117,14 @@ runs:
 
           # Add project context
           if [[ -n "${{ inputs.project_context }}" ]]; then
+            PROJECT_CONTEXT=$(cat <<'CTX'
+        ${{ inputs.project_context }}
+        CTX
+        )
             PROMPT="$PROMPT
 
         **Project-specific context:**
-        ${{ inputs.project_context }}"
+        $PROJECT_CONTEXT"
           fi
 
           # Add response format guidelines
