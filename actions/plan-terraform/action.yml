@@ -49,6 +49,10 @@ inputs:
     description: 'SSH key to fetch private Terraform modules'
     required: false
     default: ''
+  anthropic_api_key:
+    description: 'The Anthropic API key to use for the plan review. If not provided, the review step will be skipped.'
+    required: false
+    default: ''
   tfc_token:
     description: 'Terraform Cloud API Token'
     required: false
@@ -136,12 +140,34 @@ runs:
         TF_WORKSPACE: ${{ inputs.environment }}
         TF_INPUT: 0
       run: |
+        set -o pipefail
         VAR_FILE="vars/${{ inputs.environment }}.tfvars"
         if [ -f "$VAR_FILE" ]; then
-          terraform plan -no-color -out=/tmp/plan.tfplan -var-file="vars/${{ inputs.environment }}.tfvars"
+          terraform plan -no-color -out=/tmp/plan.tfplan -var-file="vars/${{ inputs.environment }}.tfvars" 2>&1 | tee /tmp/plan.log
         else
-          terraform plan -no-color -out=/tmp/plan.tfplan
+          terraform plan -no-color -out=/tmp/plan.tfplan 2>&1 | tee /tmp/plan.log
         fi
         echo "::set-output name=plan-file::/tmp/plan.tfplan"
         terraform show -no-color /tmp/plan.tfplan > /tmp/plan.txt
         echo "::set-output name=output-file::/tmp/plan.txt"
+
+        PLAN_CONTENT=$(cat /tmp/plan.txt)
+        echo "plan_content<<EOF" >> $GITHUB_OUTPUT
+        echo "$PLAN_CONTENT" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+        # Plan raw logs (warnings/errors)
+        if [ -f /tmp/plan.log ]; then
+          PLAN_LOG=$(cat /tmp/plan.log)
+          echo "plan_log<<EOF" >> $GITHUB_OUTPUT
+          echo "$PLAN_LOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Claude Terraform Plan Review
+      if: ${{ inputs.anthropic_api_key != '' }}
+      uses: WalletConnect/actions/claude/terraform-plan-review@master
+      with:
+        anthropic_api_key: ${{ inputs.anthropic_api_key }}
+        terraform_plan: ${{ steps.plan.outputs.plan_content }}
+        terraform_plan_log: ${{ steps.plan.outputs.plan_log }}
