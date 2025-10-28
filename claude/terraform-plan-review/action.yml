@@ -86,15 +86,29 @@ runs:
           3. Count ALL resources being added, changed, and destroyed
           4. Identify any unexpected changes, potential issues, or risky operations
 
-          Please provide your analysis in the following structure:
+          CRITICAL OUTPUT FORMAT:
+          Your response MUST follow this exact structure to keep PRs clean and scannable:
 
-          ## Plan Summary
+          1. Start with a concise summary section (NOT in a details block)
+          2. Put the full detailed analysis inside a collapsible <details> section
+
+          ## 📊 Terraform Plan Review
+
+          **Summary:**
+          - X resources to add, Y to change, Z to destroy
+          - Verdict: ✅ Plan matches code changes OR ⚠️ Mismatch detected
+          - Risk Level: [Low/Medium/High] - [Brief one-line risk summary]
+
+          <details>
+          <summary><b>📋 Full Analysis</b> (click to expand)</summary>
+
+          ### Plan Summary
           - X resources to add
           - Y resources to change  
           - Z resources to destroy
           - Cost Impact: [Estimate if possible]
 
-          ## Alignment Check
+          ### Alignment Check
           ✅ **Expected** (matches PR code changes)
           - List ALL resources whose changes align with the PR diff
 
@@ -102,7 +116,7 @@ runs:
           - List changes not directly explained by the PR
           - Suggest possible causes (drift, implicit dependencies, provider changes, etc.)
 
-          ## Risk Assessment
+          ### Risk Assessment
           🔍 **Potential Drift / Hidden Dependencies**
           - Items from state drift or indirect effects
 
@@ -112,13 +126,12 @@ runs:
           🧭 **Warnings/Errors**
           - Provider warnings, deprecations, errors
 
-          ## Verdict
-          - ✅ Plan matches code changes OR ⚠️ Mismatch detected (explain why)
+          ### Detailed Changes
+          List EVERY resource being added, changed, or destroyed. Group by operation type (add/change/destroy).
 
-          ## Detailed Changes (grouped by type)
-          List EVERY resource being added, changed, or destroyed. Don't truncate or summarize the list.
+          </details>
 
-          Be thorough but concise. Use emojis for readability.
+          Be thorough in the detailed section but keep the top summary concise (2-3 lines max). Use emojis for readability.
         track_progress: true
         claude_args: --model ${{ inputs.model }} --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(*)"
         allowed_bots: devin-ai-integration[bot]
