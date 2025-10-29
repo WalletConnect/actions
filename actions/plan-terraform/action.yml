@@ -63,6 +63,12 @@ outputs:
   plan:
     description: "Human Readable plan of action"
     value: ${{ steps.plan.outputs.stdout }}
+  plan-text-file:
+    description: "Path to the human-readable plan text file for Claude review"
+    value: ${{ steps.planout.outputs.plan_file }}
+  plan-log-file:
+    description: "Path to the plan log file for Claude review"
+    value: ${{ steps.planout.outputs.plan_log_file }}
 
 runs:
   using: "composite"
@@ -93,8 +99,8 @@ runs:
         KEY_NAME="$APP_NAME-$RANDOM"
         echo "Deploying with $KEY_NAME"
         KEY=$(aws grafana create-workspace-api-key --key-name "$KEY_NAME" --key-role "ADMIN" --seconds-to-live 300 --workspace-id "$WORKSPACE_ID" | jq -r .key)
-        echo "::set-output name=endpoint::$ENDPOINT"
-        echo "::set-output name=key::$KEY"
+        echo "endpoint=$ENDPOINT" >> $GITHUB_OUTPUT
+        echo "key=$KEY" >> $GITHUB_OUTPUT
     - name: Setup SSH key
       if: ${{ inputs.ssh-key != '' }}
       uses: webfactory/ssh-agent@v0.9.0
@@ -136,12 +142,31 @@ runs:
         TF_WORKSPACE: ${{ inputs.environment }}
         TF_INPUT: 0
       run: |
+        set -o pipefail
         VAR_FILE="vars/${{ inputs.environment }}.tfvars"
         if [ -f "$VAR_FILE" ]; then
-          terraform plan -no-color -out=/tmp/plan.tfplan -var-file="vars/${{ inputs.environment }}.tfvars"
+          terraform plan -no-color -out=/tmp/plan.tfplan -var-file="vars/${{ inputs.environment }}.tfvars" 2>&1 | tee /tmp/plan.log
         else
-          terraform plan -no-color -out=/tmp/plan.tfplan
+          terraform plan -no-color -out=/tmp/plan.tfplan 2>&1 | tee /tmp/plan.log
         fi
-        echo "::set-output name=plan-file::/tmp/plan.tfplan"
+        echo "plan-file=/tmp/plan.tfplan" >> $GITHUB_OUTPUT
         terraform show -no-color /tmp/plan.tfplan > /tmp/plan.txt
-        echo "::set-output name=output-file::/tmp/plan.txt"
+        echo "output-file=/tmp/plan.txt" >> $GITHUB_OUTPUT
+
+    - name: Capture Terraform plan file paths
+      id: planout
+      shell: bash
+      run: |
+        # Store the absolute paths to the plan files for optional Claude review
+        PLAN_FILE_PATH="/tmp/plan.txt"
+        LOG_FILE_PATH="/tmp/plan.log"
+        
+        echo "plan_file=$PLAN_FILE_PATH" >> $GITHUB_OUTPUT
+        echo "plan_log_file=$LOG_FILE_PATH" >> $GITHUB_OUTPUT
+        echo "Terraform plan saved to: $PLAN_FILE_PATH"
+        if [[ -f "$PLAN_FILE_PATH" ]]; then
+          echo "Plan file size: $(wc -c < "$PLAN_FILE_PATH") bytes"
+        fi
+        if [[ -f "$LOG_FILE_PATH" ]]; then
+          echo "Log file size: $(wc -c < "$LOG_FILE_PATH") bytes"
+        fi

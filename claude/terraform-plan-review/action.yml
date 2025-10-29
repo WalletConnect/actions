@@ -1,0 +1,137 @@
+name: "Claude Terraform Plan Review"
+description: "Automated Terraform plan review using Claude AI"
+author: "Reown"
+
+inputs:
+  anthropic_api_key:
+    description: "Anthropic API key for Claude access"
+    required: true
+  model:
+    description: "Claude model to use for reviews"
+    required: false
+    default: "claude-sonnet-4-5-20250929"
+  terraform_plan_file:
+    description: "Path to file containing the terraform plan output to be reviewed"
+    required: true
+  terraform_plan_log_file:
+    description: "Optional: Path to file containing raw terraform plan logs (warnings/errors) for diagnostics"
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Upload Terraform Plan to PR
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        # Create a comment with the plan attached
+        {
+          echo "## 🤖 Terraform Plan Review Request"
+          echo ""
+          echo "A Terraform plan has been generated and needs review. The plan is attached below:"
+          echo ""
+          echo "<details><summary>Terraform Plan Output (click to expand)</summary>"
+          echo ""
+          echo '```hcl'
+          if [[ -f "${{ inputs.terraform_plan_file }}" ]]; then
+            # Limit to first 50000 characters to avoid hitting GitHub API limits
+            head -c 50000 "${{ inputs.terraform_plan_file }}"
+            if [[ $(wc -c < "${{ inputs.terraform_plan_file }}") -gt 50000 ]]; then
+              echo ""
+              echo "... (plan truncated, see full output in workflow logs)"
+            fi
+          else
+            echo "ERROR: Plan file not found"
+          fi
+          echo '```'
+          echo ""
+          echo "</details>"
+          
+          if [[ -n "${{ inputs.terraform_plan_log_file }}" && -f "${{ inputs.terraform_plan_log_file }}" ]]; then
+            echo ""
+            echo "<details><summary>Terraform Plan Logs (click to expand)</summary>"
+            echo ""
+            echo '```'
+            head -c 10000 "${{ inputs.terraform_plan_log_file }}"
+            if [[ $(wc -c < "${{ inputs.terraform_plan_log_file }}") -gt 10000 ]]; then
+              echo ""
+              echo "... (logs truncated)"
+            fi
+            echo '```'
+            echo ""
+            echo "</details>"
+          fi
+        } > /tmp/plan_comment.md
+        
+        # Post as a PR comment
+        if [[ -n "${{ github.event.pull_request.number }}" ]]; then
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --body-file /tmp/plan_comment.md || echo "Failed to post plan comment"
+        fi
+    
+    - name: Automatic PR Review with Claude
+      uses: anthropics/claude-code-action@v1
+      with:
+        anthropic_api_key: ${{ inputs.anthropic_api_key }}
+        prompt: |
+          As a staff DevOps engineer, analyze the Terraform plan for PR #${{ github.event.pull_request.number }} in repo ${{ github.repository }}.
+
+          IMPORTANT: The full Terraform plan is available at this file path: ${{ inputs.terraform_plan_file }}
+          
+          To review the plan:
+          1. Use bash commands to read the FULL plan file at ${{ inputs.terraform_plan_file }} (don't rely on the truncated PR comment)
+          2. Compare the planned changes against the PR's code diff
+          3. Count ALL resources being added, changed, and destroyed
+          4. Identify any unexpected changes, potential issues, or risky operations
+
+          CRITICAL OUTPUT FORMAT:
+          Your response MUST follow this exact structure to keep PRs clean and scannable:
+
+          1. Start with a concise summary section (NOT in a details block)
+          2. Put the full detailed analysis inside a collapsible <details> section
+
+          ## 📊 Terraform Plan Review
+
+          **Summary:**
+          - X resources to add, Y to change, Z to destroy
+          - Verdict: ✅ Plan matches code changes OR ⚠️ Mismatch detected
+          - Risk Level: [Low/Medium/High] - [Brief one-line risk summary]
+
+          <details>
+          <summary><b>📋 Full Analysis</b> (click to expand)</summary>
+
+          ### Plan Summary
+          - X resources to add
+          - Y resources to change  
+          - Z resources to destroy
+          - Cost Impact: [Estimate if possible]
+
+          ### Alignment Check
+          ✅ **Expected** (matches PR code changes)
+          - List ALL resources whose changes align with the PR diff
+
+          ⚠️ **Unexpected** (not explained by PR code changes)
+          - List changes not directly explained by the PR
+          - Suggest possible causes (drift, implicit dependencies, provider changes, etc.)
+
+          ### Risk Assessment
+          🔍 **Potential Drift / Hidden Dependencies**
+          - Items from state drift or indirect effects
+
+          🔥 **Risky/Destructive Changes**
+          - Data loss risks, downtime, force replacements, IAM changes
+
+          🧭 **Warnings/Errors**
+          - Provider warnings, deprecations, errors
+
+          ### Detailed Changes
+          List EVERY resource being added, changed, or destroyed. Group by operation type (add/change/destroy).
+
+          </details>
+
+          Be thorough in the detailed section but keep the top summary concise (2-3 lines max). Use emojis for readability.
+        track_progress: true
+        claude_args: --model ${{ inputs.model }} --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(*)"
+        allowed_bots: devin-ai-integration[bot]
