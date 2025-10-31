@@ -39,6 +39,8 @@ runs:
           # Build dynamic prompt based on inputs
           PROMPT="${PROMPT_HEADER}## CRITICAL - OPERATING CONSTRAINTS
 
+        In all interactions be extremely concise and sacrifice grammar for the sake of concision.
+
         **REVIEW ONLY MODE:**
         You are operating in a READ-ONLY review context within a GitHub Actions environment. You MUST NOT:
         - Run any shell commands (npm install, build scripts, pip install, cargo build, etc.)
