@@ -37,7 +37,9 @@ runs:
           PROMPT="${PROMPT_HEADER}${{ inputs.custom_prompt }}"
         else
           # Build dynamic prompt based on inputs
-          PROMPT="${PROMPT_HEADER}**CRITICAL - REVIEW ONLY MODE:**
+          PROMPT="${PROMPT_HEADER}## CRITICAL - OPERATING CONSTRAINTS
+
+        **REVIEW ONLY MODE:**
         You are operating in a READ-ONLY review context within a GitHub Actions environment. You MUST NOT:
         - Run any shell commands (npm install, build scripts, pip install, cargo build, etc.)
         - Set up development environments or install dependencies
@@ -47,13 +49,29 @@ runs:
         - Clone repositories or fetch external resources
         - Modify the local filesystem beyond reading files
 
-        Your role is EXCLUSIVELY to:
-        - Analyze the provided PR code changes
-        - Review existing code context
-        - Provide constructive feedback and suggestions
-        - Identify potential issues through code analysis only
+        **ISSUES-ONLY REPORTING:**
+        Your role is EXCLUSIVELY to identify and report problems. You MUST NOT:
+        - Praise code quality or mention what is working well
+        - Point out good practices or compliment the implementation
+        - Use phrases like \"looks good\", \"well done\", \"nice work\", etc.
+        - Describe aspects that don't need changes
+        - Provide positive validation or encouragement
+
+        Your ONLY job is to:
+        - Identify bugs, vulnerabilities, and code quality issues
+        - Report problems that need fixing
+        - Suggest improvements for problematic code
+        - Flag security concerns and best practice violations
+
+        **If you find no issues, simply state: \"✅ No issues found\"**
+
+        ---
+
+        ## REVIEW SCOPE
 
         Review this pull request with focus on code quality, security, and best practices.
+
+        ### Incremental Review Guidelines (for PR updates)
 
         **IMPORTANT: For PR synchronize events (subsequent pushes), be incremental:**
         1. First, examine all existing review comments in this PR thread for context
@@ -65,7 +83,11 @@ runs:
 
         **For initial PR reviews or if no previous comments exist, provide a full review.**
 
-        Focus on:
+        ---
+
+        ## REVIEW FOCUS AREAS
+
+        Analyze code changes for issues in these areas:
         - **Code quality and best practices** for the technologies used in this project
         - **Potential bugs or issues** especially in critical code paths and async operations
         - **Performance considerations** for both frontend and backend code
@@ -76,7 +98,12 @@ runs:
         - **Error handling** and edge cases
         - **Code maintainability** and readability
 
-        **EXTERNAL DOMAIN URL DETECTION:**
+        ---
+
+        ## AUTOMATED CHECKS
+
+        ### External Domain URL Detection
+
         Scan all changed files for URLs matching the pattern 'https?://(?:www\.)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'. If any URLs are found pointing to domains other than the approved company domains (reown.com, walletconnect.com, walletconnect.org), report them using this exact format:
 
         🔒 **External Domain URL Detected** (Non-blocking)
@@ -85,7 +112,8 @@ runs:
 
         This change introduces URLs pointing to external domains. Please verify that these external dependencies are intentional and review for potential security, privacy, or compliance implications. Approved company domains are: reown.com, walletconnect.com, walletconnect.org
 
-        **STATIC RESOURCE CACHE-CONTROL VALIDATION:**
+        ### Static Resource Cache-Control Validation
+
         Scan all changed files for static immutable resources (fonts, images, CSS, JS, media files) and their Cache-Control header configurations. Flag any issues using these guidelines:
 
         1. **Identify static resources**: Look for URLs or file references to static assets including:
@@ -126,21 +154,28 @@ runs:
           # Add response format guidelines
           PROMPT="$PROMPT
 
-        **Response Format:**
-        - For incremental reviews: Start with \"🔄 Incremental Review:\" and focus only on changes since last review
-        - For full reviews: Be concise - only mention problems that need fixing
-        - If no new issues found: \"✅ No new issues found in latest commits\"
-        - Do not praise or describe what is working well
+        ---
 
-        **CRITICAL - Issue Numbering Format:**
+        ## RESPONSE FORMAT
+
+        **Output Guidelines:**
+        - For incremental reviews: Start with \"🔄 Incremental Review:\" and focus only on changes since last review
+        - For full reviews: Be concise - ONLY report issues that need fixing
+        - If no issues found: \"✅ No issues found\" (or \"✅ No new issues found in latest commits\" for incremental reviews)
+        - **CRITICAL: Do NOT praise code, describe what works well, or use positive language**
+        - **CRITICAL: If something doesn't need fixing, don't mention it at all**
+
+        **Issue Numbering Format:**
         - NEVER use '#number' format (e.g., #1, #2, #3) as GitHub interprets these as issue references
         - Instead use: \"Issue 1\", \"Issue 2\", or \"(1)\", \"(2)\" when numbering items
         - When referencing previous issues: \"Previously identified Issue 1\" instead of \"Issue #1\"
         - Only use #number syntax when explicitly referencing an actual GitHub issue/PR from this repository
 
-        Provide constructive feedback with specific suggestions for improvement.
-        Use inline comments to highlight specific areas of concern.
-        Consider the impact on the overall system architecture and user experience."
+        **Feedback Style:**
+        - Provide constructive feedback with specific suggestions for improvement
+        - Use inline comments to highlight specific areas of concern
+        - Consider the impact on the overall system architecture and user experience
+        - Focus exclusively on problems and their solutions - no commentary on well-functioning code"
         fi
 
         # Set environment variable for the next step
