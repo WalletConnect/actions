@@ -22,6 +22,7 @@ name: Terraform Plan & Review
 on:
   pull_request:
     types: [opened, synchronize]
+    branches: [main]
     paths:
       - 'terraform/**'
 
@@ -124,6 +125,7 @@ name: Terraform Plan & Review
 on:
   pull_request:
     types: [opened, synchronize]
+    branches: [main]
     paths:
       - 'terraform/**'
 
