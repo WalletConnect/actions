@@ -106,7 +106,9 @@ runs:
 
         ### External Domain URL Detection
 
-        Scan all changed files for URLs matching the pattern 'https?://(?:www\.)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'. If any URLs are found pointing to domains other than the approved company domains (reown.com, walletconnect.com, walletconnect.org), report them using this exact format:
+        Scan all changed files for URLs matching the pattern 'https?://(?:www\.)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'. **ONLY report if URLs are found** pointing to domains other than the approved company domains (reown.com, walletconnect.com, walletconnect.org). **If no external domain URLs are detected, do not mention this check at all.**
+
+        If external domain URLs are found, report them using this exact format:
 
         🔒 **External Domain URL Detected** (Non-blocking)
         **URL:** [detected_url]
@@ -116,7 +118,9 @@ runs:
 
         ### Static Resource Cache-Control Validation
 
-        Scan all changed files for static immutable resources (fonts, images, CSS, JS, media files) and their Cache-Control header configurations. Flag any issues using these guidelines:
+        Scan all changed files for static immutable resources (fonts, images, CSS, JS, media files) and their Cache-Control header configurations. **ONLY report if issues are found.** **If no cache-control issues are detected, do not mention this check at all.**
+
+        Flag any issues using these guidelines:
 
         1. **Identify static resources**: Look for URLs or file references to static assets including:
            - Font files: .woff, .woff2, .ttf, .otf, .eot
