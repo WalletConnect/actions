@@ -236,7 +236,7 @@ runs:
           exit 0
         fi
 
-        SCRIPT_PATH="${{ github.action_path }}/claude/auto-review/scripts/comment-pr-findings.js"
+        SCRIPT_PATH="${{ github.action_path }}/scripts/comment-pr-findings.js"
 
         if [[ ! -f "$SCRIPT_PATH" ]]; then
           echo "::warning::Inline comment script not found at $SCRIPT_PATH"

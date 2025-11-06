@@ -83,7 +83,13 @@ function ghApi(endpoint, method = "GET", data = null) {
   }
 
   const output = result.stdout?.trim();
-  return output ? JSON.parse(output) : null;
+  if (!output) return null;
+
+  try {
+    return JSON.parse(output);
+  } catch (parseError) {
+    throw new Error(`Failed to parse gh CLI response: ${parseError.message}`);
+  }
 }
 
 // ---- Main execution ------------------------------------------------------
