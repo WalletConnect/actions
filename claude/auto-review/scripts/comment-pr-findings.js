@@ -86,23 +86,6 @@ function ghApi(endpoint, method = "GET", data = null) {
   return output ? JSON.parse(output) : null;
 }
 
-function addReactions(commentId, context, isReviewComment = true) {
-  const baseEndpoint = isReviewComment
-    ? `/repos/${context.repo.owner}/${context.repo.repo}/pulls/comments/${commentId}/reactions`
-    : `/repos/${context.repo.owner}/${context.repo.repo}/issues/comments/${commentId}/reactions`;
-
-  for (const reaction of ["+1", "-1"]) {
-    try {
-      ghApi(baseEndpoint, "POST", { content: reaction });
-      console.log(`Added ${reaction} reaction to comment ${commentId}`);
-    } catch (error) {
-      console.error(
-        `Failed to add ${reaction} reaction to comment ${commentId}: ${error.message}`
-      );
-    }
-  }
-}
-
 // ---- Main execution ------------------------------------------------------
 
 function main() {
@@ -232,16 +215,6 @@ function main() {
       console.log(
         `Created review with ${reviewComments.length} inline comments.`
       );
-      const reviewId = reviewResponse.id;
-      const reviewCommentsResponse =
-        ghApi(
-          `/repos/${context.repo.owner}/${context.repo.repo}/pulls/${context.issue.number}/reviews/${reviewId}/comments`
-        ) || [];
-      for (const comment of reviewCommentsResponse) {
-        if (comment.id) {
-          addReactions(comment.id, context, true);
-        }
-      }
     }
   } catch (error) {
     console.error(
@@ -262,10 +235,6 @@ function main() {
             commit_id: context.payload.pull_request?.head?.sha,
           }
         );
-
-        if (response?.id) {
-          addReactions(response.id, context, true);
-        }
       } catch (fallbackError) {
         console.error(
           `Could not create comment on ${comment.path}:${comment.line}: ${fallbackError.message}`
