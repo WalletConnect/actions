@@ -19,6 +19,10 @@ inputs:
   project_context:
     description: "Additional project-specific context to help Claude understand your codebase"
     required: false
+  comment_pr_findings:
+    description: "Post inline PR comments generated from findings.json"
+    required: false
+    default: "true"
 
 runs:
   using: "composite"
@@ -200,3 +204,44 @@ runs:
         track_progress: true
         claude_args: --model ${{ inputs.model }}
         allowed_bots: devin-ai-integration[bot]
+
+    - name: Ensure GitHub CLI for inline comments
+      if: github.event_name == 'pull_request' && inputs.comment_pr_findings == 'true'
+      shell: bash
+      run: |
+        if ! command -v gh >/dev/null 2>&1; then
+          echo "::group::Installing GitHub CLI"
+          if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y gh
+          elif command -v brew >/dev/null 2>&1; then
+            brew install gh
+          else
+            echo "::warning::Unable to auto-install GitHub CLI on this runner. Please ensure gh is available."
+          fi
+          echo "::endgroup::"
+        else
+          echo "GitHub CLI already available"
+        fi
+
+    - name: Post inline findings comments
+      if: github.event_name == 'pull_request' && inputs.comment_pr_findings == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_TOKEN: ${{ github.token }}
+        SILENCE_AUTO_REVIEW_COMMENTS: ${{ env.SILENCE_AUTO_REVIEW_COMMENTS }}
+      run: |
+        if [[ ! -f findings.json ]]; then
+          echo "findings.json not present, skipping inline comment step."
+          exit 0
+        fi
+
+        SCRIPT_PATH="${{ github.action_path }}/claude/auto-review/scripts/comment-pr-findings.js"
+
+        if [[ ! -f "$SCRIPT_PATH" ]]; then
+          echo "::warning::Inline comment script not found at $SCRIPT_PATH"
+          exit 0
+        fi
+
+        chmod +x "$SCRIPT_PATH"
+        node "$SCRIPT_PATH"

@@ -55,7 +55,7 @@ on:
 jobs:
   review:
     runs-on: ubuntu-latest
-    timeout-minutes: 60  # Recommended: control timeout at job level
+    timeout-minutes: 60 # Recommended: control timeout at job level
     if: |
       github.event_name == 'pull_request'
       || (
@@ -84,13 +84,14 @@ jobs:
 
 ### Inputs
 
-| Input               | Required | Default                      | Description                                                                                           |
-| ------------------- | -------- | ---------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `anthropic_api_key` | ✅       | -                            | Your Anthropic API key for Claude access                                                              |
-| `model`             | ❌       | `claude-sonnet-4-5-20250929` | Claude model to use for reviews                                                                       |
-| `timeout_minutes`   | ❌       | -                            | ⚠️ DEPRECATED: Accepted but ignored by v1 (no effect). Use job-level `timeout-minutes` instead.       |
-| `custom_prompt`     | ❌       | -                            | Complete custom prompt override. Ignores all other prompt inputs if provided                          |
-| `project_context`   | ❌       | -                            | Additional project-specific context to help Claude understand your codebase                           |
+| Input                 | Required | Default                      | Description                                                                                     |
+| --------------------- | -------- | ---------------------------- | ----------------------------------------------------------------------------------------------- |
+| `anthropic_api_key`   | ✅       | -                            | Your Anthropic API key for Claude access                                                        |
+| `model`               | ❌       | `claude-sonnet-4-5-20250929` | Claude model to use for reviews                                                                 |
+| `timeout_minutes`     | ❌       | -                            | ⚠️ DEPRECATED: Accepted but ignored by v1 (no effect). Use job-level `timeout-minutes` instead. |
+| `custom_prompt`       | ❌       | -                            | Complete custom prompt override. Ignores all other prompt inputs if provided                    |
+| `project_context`     | ❌       | -                            | Additional project-specific context to help Claude understand your codebase                     |
+| `comment_pr_findings` | ❌       | `true`                       | Automatically post inline PR comments for findings saved to `findings.json`                     |
 
 ## Usage Examples
 
@@ -129,7 +130,7 @@ jobs:
 jobs:
   review:
     runs-on: ubuntu-latest
-    timeout-minutes: 90  # Job-level timeout (recommended)
+    timeout-minutes: 90 # Job-level timeout (recommended)
     steps:
       - name: Claude Review
         uses: WalletConnect/actions/claude/auto-review@master
@@ -231,6 +232,14 @@ The default prompt emphasizes:
 - **Static Resource Caching** - Validates Cache-Control headers for static immutable resources (fonts, images, CSS, JS) to ensure proper caching (1 year minimum for immutable assets)
 - **External Dependencies** - Flags URLs pointing to domains outside approved company domains
 
+### Inline Findings Comments (New)
+
+- `anthropics/claude-code-action` persists detected issues to `findings.json`
+- This action now parses those findings and posts inline PR review comments automatically
+- Reactions (👍/👎) are added to each comment for quick triage feedback
+- Disable this behaviour with `comment_pr_findings: 'false'` or by exporting `SILENCE_AUTO_REVIEW_COMMENTS=true`
+- Requires `pull-requests: write` permission and GitHub CLI (`gh`) availability on the runner
+
 ## Best Practices
 
 ### 1. Provide Project Context
@@ -297,6 +306,8 @@ jobs:
 
 - Check GitHub token permissions include `pull-requests: write`
 - Verify workflow triggers are configured correctly
+- Confirm `gh` CLI is available on the runner (install via `sudo apt-get install gh` or `brew install gh`)
+- Ensure `findings.json` exists in the workspace root—large PRs with no issues will skip inline comments
 
 **"Review quality is generic"**
 
