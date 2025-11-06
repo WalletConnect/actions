@@ -21,7 +21,9 @@ name: Terraform Plan & Review
 
 on:
   pull_request:
-    branches: [main]
+    types: [opened, synchronize]
+    paths:
+      - 'terraform/**'
 
 permissions:
   id-token: write
@@ -121,7 +123,9 @@ name: Terraform Plan & Review
 
 on:
   pull_request:
-    branches: [main]
+    types: [opened, synchronize]
+    paths:
+      - 'terraform/**'
 
 permissions:
   id-token: write
@@ -326,7 +330,7 @@ The action posts a **concise summary** at the top of the comment with full detai
 Click "📋 Full Analysis" to expand and see:
 
 - **Plan Summary**: Resource counts and cost impact
-- **Alignment Check**: 
+- **Alignment Check**:
   - ✅ Expected changes matching PR code modifications
   - ⚠️ Unexpected changes not explained by PR diff
 - **Risk Assessment**:
