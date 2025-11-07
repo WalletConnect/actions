@@ -65,7 +65,7 @@ jobs:
     needs: plan
     if: ${{ always() && needs.plan.result != 'cancelled' && github.event_name == 'pull_request' }}
     continue-on-error: true
-    timeout-minutes: 15
+    timeout-minutes: 30
     permissions:
       id-token: write
       contents: read
@@ -173,7 +173,7 @@ jobs:
     needs: plan
     if: ${{ always() && needs.plan.result != 'cancelled' && github.event_name == 'pull_request' }}
     continue-on-error: true  # Non-blocking: failures won't prevent PR merge
-    timeout-minutes: 15
+    timeout-minutes: 30
     permissions:
       id-token: write
       contents: read
@@ -245,7 +245,7 @@ jobs:
     needs: plan
     if: ${{ always() && needs.plan.result != 'cancelled' && github.event_name == 'pull_request' }}
     continue-on-error: true
-    timeout-minutes: 15
+    timeout-minutes: 30
     permissions:
       id-token: write
       contents: read
@@ -287,7 +287,7 @@ Include Terraform logs for more comprehensive reviews:
       terraform/plan_output.txt
     retention-days: 1
 
-# In review job (add timeout-minutes: 15 at job level):
+# In review job (add timeout-minutes: 30 at job level):
 - name: Download Terraform Plan
   uses: actions/download-artifact@v4
   with:
@@ -330,7 +330,7 @@ If you're using the `plan-terraform` composite action, you need to copy the plan
     terraform_plan_log_file: ./terraform-plans/plan_log.txt
 ```
 
-**Note:** The copy step is necessary because Claude can only read files inside the workspace directory. Add `timeout-minutes: 15` to the job containing these steps.
+**Note:** The copy step is necessary because Claude can only read files inside the workspace directory. Add `timeout-minutes: 30` to the job containing these steps.
 
 ## Review Output
 
@@ -507,7 +507,7 @@ If you're upgrading from an older version that used `terraform_plan` (content) i
     path: plan.txt
     retention-days: 1
 
-# In review job (add timeout-minutes: 15 at job level):
+# In review job (add timeout-minutes: 30 at job level):
 - name: Download Plan
   uses: actions/download-artifact@v4
   with:
