@@ -52,6 +52,7 @@ jobs:
           terraform plan -no-color 2>&1 | tee plan_output.txt
 
       - name: Upload Plan for Review
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: terraform-plan
@@ -62,8 +63,9 @@ jobs:
     name: AI Plan Review
     runs-on: ubuntu-latest
     needs: plan
-    if: ${{ always() && needs.plan.result != 'cancelled' }}
+    if: ${{ always() && needs.plan.result != 'cancelled' && github.event_name == 'pull_request' }}
     continue-on-error: true
+    timeout-minutes: 15
     permissions:
       id-token: write
       contents: read
@@ -76,13 +78,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: terraform-plan
-          path: /tmp
+          path: ./terraform-plans
 
       - name: Claude Terraform Plan Review
         uses: WalletConnect/actions/claude/terraform-plan-review@master
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          terraform_plan_file: /tmp/plan_output.txt
+          terraform_plan_file: ./terraform-plans/plan_output.txt
 ```
 
 ## Prerequisites
@@ -169,8 +171,9 @@ jobs:
     name: AI Plan Review
     runs-on: ubuntu-latest
     needs: plan
-    if: ${{ always() && needs.plan.result != 'cancelled' }}
+    if: ${{ always() && needs.plan.result != 'cancelled' && github.event_name == 'pull_request' }}
     continue-on-error: true  # Non-blocking: failures won't prevent PR merge
+    timeout-minutes: 15
     permissions:
       id-token: write
       contents: read
@@ -183,13 +186,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: terraform-plan
-          path: /tmp
+          path: ./terraform-plans
 
       - name: Claude Terraform Plan Review
         uses: WalletConnect/actions/claude/terraform-plan-review@master
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          terraform_plan_file: /tmp/plan_output.txt
+          terraform_plan_file: ./terraform-plans/plan_output.txt
 ```
 
 **Benefits:**
@@ -229,6 +232,7 @@ jobs:
           terraform plan -no-color 2>&1 | tee plan_output.txt
 
       - name: Upload Plan for Review
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: terraform-plan
@@ -239,8 +243,9 @@ jobs:
     name: AI Plan Review
     runs-on: ubuntu-latest
     needs: plan
-    if: ${{ always() && needs.plan.result != 'cancelled' }}
+    if: ${{ always() && needs.plan.result != 'cancelled' && github.event_name == 'pull_request' }}
     continue-on-error: true
+    timeout-minutes: 15
     permissions:
       id-token: write
       contents: read
@@ -253,13 +258,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: terraform-plan
-          path: /tmp
+          path: ./terraform-plans
 
       - name: Claude Terraform Plan Review
         uses: WalletConnect/actions/claude/terraform-plan-review@master
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          terraform_plan_file: /tmp/plan_output.txt
+          terraform_plan_file: ./terraform-plans/plan_output.txt
 ```
 
 ### With Plan Logs (Warnings/Errors)
@@ -274,6 +279,7 @@ Include Terraform logs for more comprehensive reviews:
     terraform plan -no-color 2>&1 | tee plan_output.txt
 
 - name: Upload Plan and Logs
+  if: ${{ always() }}
   uses: actions/upload-artifact@v4
   with:
     name: terraform-plan
@@ -281,18 +287,24 @@ Include Terraform logs for more comprehensive reviews:
       terraform/plan_output.txt
     retention-days: 1
 
-# In review job:
+# In review job (add timeout-minutes: 15 at job level):
+- name: Download Terraform Plan
+  uses: actions/download-artifact@v4
+  with:
+    name: terraform-plan
+    path: ./terraform-plans
+
 - name: Claude Terraform Plan Review
   uses: WalletConnect/actions/claude/terraform-plan-review@master
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    terraform_plan_file: /tmp/plan_output.txt
-    terraform_plan_log_file: /tmp/plan_output.txt  # Same file contains both
+    terraform_plan_file: ./terraform-plans/plan_output.txt
+    terraform_plan_log_file: ./terraform-plans/plan_output.txt  # Same file contains both
 ```
 
 ### Using with plan-terraform Action
 
-If you're using the `plan-terraform` composite action, you can access the plan files via outputs:
+If you're using the `plan-terraform` composite action, you need to copy the plan files into the workspace before review (the action outputs point to `/tmp` which Claude cannot access):
 
 ```yaml
 - name: Terraform Plan
@@ -304,13 +316,21 @@ If you're using the `plan-terraform` composite action, you can access the plan f
     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     aws-region: us-east-1
 
+- name: Prepare plan files for review
+  run: |
+    mkdir -p ./terraform-plans
+    cp "${{ steps.plan.outputs.plan-text-file }}" ./terraform-plans/plan_output.txt
+    [ -f "${{ steps.plan.outputs.plan-log-file }}" ] && cp "${{ steps.plan.outputs.plan-log-file }}" ./terraform-plans/plan_log.txt || true
+
 - name: Claude Review
   uses: WalletConnect/actions/claude/terraform-plan-review@master
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    terraform_plan_file: ${{ steps.plan.outputs.plan-text-file }}
-    terraform_plan_log_file: ${{ steps.plan.outputs.plan-log-file }}
+    terraform_plan_file: ./terraform-plans/plan_output.txt
+    terraform_plan_log_file: ./terraform-plans/plan_log.txt
 ```
+
+**Note:** The copy step is necessary because Claude can only read files inside the workspace directory. Add `timeout-minutes: 15` to the job containing these steps.
 
 ## Review Output
 
@@ -415,7 +435,7 @@ permissions:
 This should not occur with the file-based approach. Ensure you're passing file paths, not content:
 ```yaml
 # ✅ Correct
-terraform_plan_file: /tmp/plan_output.txt
+terraform_plan_file: ./terraform-plans/plan_output.txt
 
 # ❌ Incorrect (deprecated)
 terraform_plan: ${{ steps.plan.outputs.stdout }}
@@ -477,13 +497,28 @@ If you're upgrading from an older version that used `terraform_plan` (content) i
 **After:**
 ```yaml
 - name: Save Plan
-  run: terraform plan -no-color > /tmp/plan.txt
+  run: terraform plan -no-color > plan.txt
+
+- name: Upload Plan
+  if: ${{ always() }}
+  uses: actions/upload-artifact@v4
+  with:
+    name: terraform-plan
+    path: plan.txt
+    retention-days: 1
+
+# In review job (add timeout-minutes: 15 at job level):
+- name: Download Plan
+  uses: actions/download-artifact@v4
+  with:
+    name: terraform-plan
+    path: ./terraform-plans
 
 - name: Claude Review
   uses: WalletConnect/actions/claude/terraform-plan-review@master
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    terraform_plan_file: /tmp/plan.txt
+    terraform_plan_file: ./terraform-plans/plan.txt
 ```
 
 ## Support
