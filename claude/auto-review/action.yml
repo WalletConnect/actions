@@ -238,7 +238,7 @@ runs:
         allowed_bots: devin-ai-integration[bot]
 
     - name: Extract findings from Claude's comment
-      if: github.event_name == 'pull_request' && inputs.comment_pr_findings == 'true'
+      if: inputs.comment_pr_findings == 'true'
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
@@ -258,7 +258,7 @@ runs:
         node "$SCRIPT_PATH"
 
     - name: Ensure GitHub CLI and jq for inline comments
-      if: github.event_name == 'pull_request' && inputs.comment_pr_findings == 'true'
+      if: inputs.comment_pr_findings == 'true'
       shell: bash
       run: |
         # Install GitHub CLI if needed
@@ -292,7 +292,7 @@ runs:
         fi
 
     - name: Post inline findings comments
-      if: github.event_name == 'pull_request' && inputs.comment_pr_findings == 'true'
+      if: inputs.comment_pr_findings == 'true'
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
