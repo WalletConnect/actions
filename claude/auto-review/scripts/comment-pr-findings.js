@@ -46,9 +46,21 @@ function loadGitHubContext() {
     }
   }
 
-  const pullRequest = payload.pull_request || {};
+  // Handle both pull_request events and issue_comment events on PRs
+  let pullRequest = payload.pull_request || {};
+  let issueNumber = pullRequest.number || 0;
+
+  // For issue_comment events, check if the issue is a PR
+  if (!issueNumber && payload.issue) {
+    // issue_comment events have issue.pull_request if the issue is a PR
+    if (payload.issue.pull_request) {
+      issueNumber = payload.issue.number;
+      pullRequest = payload.issue;
+    }
+  }
+
   const issue = {
-    number: pullRequest.number || 0,
+    number: issueNumber,
   };
 
   return {
