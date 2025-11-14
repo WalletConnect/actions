@@ -234,11 +234,11 @@ The default prompt emphasizes:
 
 ### Inline Findings Comments (New)
 
-- `anthropics/claude-code-action` persists detected issues to `findings.json`
-- This action now parses those findings and posts inline PR review comments automatically
-- Reactions (👍/👎) are added to each comment for quick triage feedback
+- After Claude reviews the PR, this action automatically extracts findings from Claude's comment
+- Findings are parsed and structured into `findings.json` format
+- Inline PR review comments are posted automatically for each finding with file/line context
 - Disable this behaviour with `comment_pr_findings: 'false'` or by exporting `SILENCE_AUTO_REVIEW_COMMENTS=true`
-- Requires `pull-requests: write` permission and GitHub CLI (`gh`) availability on the runner
+- Requires `pull-requests: write` permission, GitHub CLI (`gh`), and `jq` on the runner (auto-installed if missing)
 
 ## Best Practices
 
@@ -306,8 +306,8 @@ jobs:
 
 - Check GitHub token permissions include `pull-requests: write`
 - Verify workflow triggers are configured correctly
-- Confirm `gh` CLI is available on the runner (install via `sudo apt-get install gh` or `brew install gh`)
-- Ensure `findings.json` exists in the workspace root—large PRs with no issues will skip inline comments
+- Confirm `gh` CLI and `jq` are available on the runner (auto-installed on Ubuntu/macOS)
+- Inline comments require Claude to find issues—PRs with no issues will only have a summary comment
 
 **"Review quality is generic"**
 

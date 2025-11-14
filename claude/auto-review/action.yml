@@ -205,10 +205,31 @@ runs:
         claude_args: --model ${{ inputs.model }}
         allowed_bots: devin-ai-integration[bot]
 
-    - name: Ensure GitHub CLI for inline comments
+    - name: Extract findings from Claude's comment
+      if: github.event_name == 'pull_request' && inputs.comment_pr_findings == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        echo "Extracting findings from Claude's PR comment..."
+
+        SCRIPT_PATH="${{ github.action_path }}/scripts/extract-findings-from-comment.js"
+
+        if [[ ! -f "$SCRIPT_PATH" ]]; then
+          echo "::warning::Extract findings script not found at $SCRIPT_PATH"
+          echo "[]" > findings.json
+          exit 0
+        fi
+
+        chmod +x "$SCRIPT_PATH"
+        node "$SCRIPT_PATH"
+
+    - name: Ensure GitHub CLI and jq for inline comments
       if: github.event_name == 'pull_request' && inputs.comment_pr_findings == 'true'
       shell: bash
       run: |
+        # Install GitHub CLI if needed
         if ! command -v gh >/dev/null 2>&1; then
           echo "::group::Installing GitHub CLI"
           if command -v apt-get >/dev/null 2>&1; then
@@ -223,6 +244,21 @@ runs:
           echo "GitHub CLI already available"
         fi
 
+        # Install jq if needed
+        if ! command -v jq >/dev/null 2>&1; then
+          echo "::group::Installing jq"
+          if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y jq
+          elif command -v brew >/dev/null 2>&1; then
+            brew install jq
+          else
+            echo "::warning::Unable to auto-install jq on this runner. Please ensure jq is available."
+          fi
+          echo "::endgroup::"
+        else
+          echo "jq already available"
+        fi
+
     - name: Post inline findings comments
       if: github.event_name == 'pull_request' && inputs.comment_pr_findings == 'true'
       shell: bash
@@ -235,6 +271,15 @@ runs:
           echo "findings.json not present, skipping inline comment step."
           exit 0
         fi
+
+        # Check if findings.json has any findings
+        FINDINGS_COUNT=$(jq 'length' findings.json 2>/dev/null || echo "0")
+        if [[ "$FINDINGS_COUNT" -eq 0 ]]; then
+          echo "No findings to comment on (findings.json is empty)."
+          exit 0
+        fi
+
+        echo "Found $FINDINGS_COUNT findings to comment on."
 
         SCRIPT_PATH="${{ github.action_path }}/scripts/comment-pr-findings.js"
 
