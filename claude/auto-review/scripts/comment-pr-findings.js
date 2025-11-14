@@ -104,6 +104,17 @@ function ghApi(endpoint, method = "GET", data = null) {
   }
 }
 
+function generateFindingHash(file, description) {
+  const crypto = require("crypto");
+  // Use file + description (not line) to handle code shifts
+  const content = `${file}::${description}`;
+  return crypto
+    .createHash("sha256")
+    .update(content)
+    .digest("hex")
+    .substring(0, 16);
+}
+
 // ---- Main execution ------------------------------------------------------
 
 function main() {
@@ -162,7 +173,11 @@ function main() {
     const severity = finding.severity || "MEDIUM";
     const category = finding.category || "code_issue";
 
-    let body = `🤖 **Auto Review Issue: ${message}**\n\n`;
+    // Generate hash for duplicate detection
+    const findingHash = generateFindingHash(file, message);
+
+    let body = `<!-- finding-id: ${findingHash} -->\n`;
+    body += `🤖 **Auto Review Issue: ${message}**\n\n`;
     body += `**Severity:** ${severity}\n`;
     body += `**Category:** ${category}\n`;
     body += `**Tool:** Claude Auto Review\n`;
@@ -204,19 +219,42 @@ function main() {
     ghApi(
       `/repos/${context.repo.owner}/${context.repo.repo}/pulls/${context.issue.number}/comments`
     ) || [];
-  const existingBotComments = existingComments.filter(
-    (comment) =>
-      comment.user?.type === "Bot" &&
-      typeof comment.body === "string" &&
-      comment.body.includes("🤖 **Auto Review Issue:")
+
+  // Extract finding IDs from existing bot comments
+  const existingFindingIds = new Set();
+  existingComments.forEach((comment) => {
+    if (comment.user?.type === "Bot" && comment.body) {
+      const match = comment.body.match(/<!-- finding-id: ([a-f0-9]+) -->/);
+      if (match) {
+        existingFindingIds.add(match[1]);
+      }
+    }
+  });
+
+  console.log(
+    `Found ${existingFindingIds.size} existing auto-review findings on this PR.`
   );
 
-  if (existingBotComments.length > 0) {
-    console.log(
-      `Detected ${existingBotComments.length} existing auto-review comments. Skipping to avoid duplicates.`
-    );
+  // Filter out findings that already have comments
+  const newReviewComments = reviewComments.filter((comment) => {
+    const match = comment.body.match(/<!-- finding-id: ([a-f0-9]+) -->/);
+    if (match && existingFindingIds.has(match[1])) {
+      console.log(`Skipping duplicate finding: ${match[1]}`);
+      return false;
+    }
+    return true;
+  });
+
+  if (newReviewComments.length === 0) {
+    console.log("No new findings to comment on (all are duplicates).");
     return;
   }
+
+  console.log(
+    `Posting ${newReviewComments.length} new findings (${
+      reviewComments.length - newReviewComments.length
+    } duplicates skipped).`
+  );
 
   try {
     const reviewResponse = ghApi(
@@ -225,13 +263,13 @@ function main() {
       {
         commit_id: context.payload.pull_request?.head?.sha,
         event: "COMMENT",
-        comments: reviewComments,
+        comments: newReviewComments,
       }
     );
 
     if (reviewResponse?.id) {
       console.log(
-        `Created review with ${reviewComments.length} inline comments.`
+        `Created review with ${newReviewComments.length} inline comments.`
       );
     }
   } catch (error) {
@@ -240,7 +278,7 @@ function main() {
     );
     console.log("Attempting fallback to create individual review comments...");
 
-    for (const comment of reviewComments) {
+    for (const comment of newReviewComments) {
       try {
         const response = ghApi(
           `/repos/${context.repo.owner}/${context.repo.repo}/pulls/${context.issue.number}/comments`,
