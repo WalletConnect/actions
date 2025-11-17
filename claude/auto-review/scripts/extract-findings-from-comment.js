@@ -150,14 +150,14 @@ function parseClaudeComment(commentBody) {
       finding.category = categoryMatch[1].trim();
     }
 
-    // Extract recommendation if available
-    const recommendationMatch = content.match(/\*\*(?:Recommendation|Fix):\*\*\s+([^\n]+(?:\n(?!\*\*)[^\n]+)*)/i);
+    // Extract recommendation if available (capture everything including code blocks with blank lines)
+    const recommendationMatch = content.match(/\*\*(?:Recommendation|Fix):\*\*\s+((?:(?!(?:\*\*|####)).|\n)*?)(?=\n\n(?:\*\*|####)|$)/is);
     if (recommendationMatch) {
       finding.recommendation = recommendationMatch[1].trim();
     }
 
-    // Extract exploit scenario if available
-    const exploitMatch = content.match(/\*\*Exploit Scenario:\*\*\s+([^\n]+(?:\n(?!\*\*)[^\n]+)*)/i);
+    // Extract exploit scenario if available (capture everything including multi-line descriptions)
+    const exploitMatch = content.match(/\*\*Exploit Scenario:\*\*\s+((?:(?!(?:\*\*|####)).|\n)*?)(?=\n\n(?:\*\*|####)|$)/is);
     if (exploitMatch) {
       finding.exploit_scenario = exploitMatch[1].trim();
     }
