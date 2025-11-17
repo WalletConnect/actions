@@ -201,8 +201,33 @@ runs:
 
         **Optional fields:**
         - Category: e.g., \\\"**Category:** security\\\", \\\"**Category:** performance\\\", \\\"**Category:** code_quality\\\"
-        - Recommendation: Use \\\"**Recommendation:**\\\" or \\\"**Fix:**\\\" followed by suggested solution
+        - Recommendation: Use \\\"**Recommendation:**\\\" or \\\"**Fix:**\\\" followed by suggested solution (see Recommendation Guidelines below)
         - Exploit Scenario: Use \\\"**Exploit Scenario:**\\\" for security issues
+
+        **Recommendation Guidelines:**
+        When providing recommendations, ALWAYS include a concrete code snippet when there is a clear, specific fix:
+        - **DO** provide minimal, focused code snippets showing the exact fix
+        - **DO** show before/after comparisons when helpful
+        - **DO** include only the relevant lines that need to change
+        - **DON'T** provide entire example implementations or reference code
+        - **DON'T** include boilerplate or unrelated code
+        - **DON'T** provide general advice without code when a specific fix exists
+
+        **Code Snippet Format:**
+        Use markdown code blocks with language identifier. Keep snippets minimal (1-10 lines typically).
+
+        **Examples of Good Recommendations:**
+        - \\\"Use parameterized queries:\\\`\\\`\\\`typescript
+          const result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+          \\\`\\\`\\\`\\\"
+        - \\\"Add input validation:\\\`\\\`\\\`javascript
+          if (!email || !email.match(/^[^@]+@[^@]+$/)) {
+            throw new Error('Invalid email');
+          }
+          \\\`\\\`\\\`\\\"
+        - \\\"Increase max-age to 1 year:\\\`\\\`\\\`javascript
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          \\\`\\\`\\\`\\\"
 
         **ID Generation Rules:**
         Generate a stable, deterministic ID for each issue using this format: {file-slug}-{semantic-slug}-{hash}
@@ -240,7 +265,14 @@ runs:
 
         The query concatenates user input directly without parameterization, allowing SQL injection attacks.
 
-        **Recommendation:** Use parameterized queries or an ORM to prevent SQL injection.
+        **Recommendation:** Use parameterized queries to prevent SQL injection:
+        \\\`\\\`\\\`typescript
+        // Replace this:
+        const result = await db.query(\\\`SELECT * FROM users WHERE id = '\${userId}'\\\`);
+
+        // With this:
+        const result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+        \\\`\\\`\\\`
 
         **Feedback Style:**
         - Provide constructive feedback with specific suggestions for improvement
