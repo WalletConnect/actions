@@ -110,10 +110,18 @@ function parseClaudeComment(commentBody) {
     const content = issues[i + 1] || "";
 
     const finding = {
+      id: null,
       description: title,
       severity: "MEDIUM",
       category: "code_issue",
     };
+
+    // Extract ID if present
+    // Format: **ID:** file-slug-semantic-slug-hash
+    const idMatch = content.match(/\*\*ID:\*\*\s+([a-z0-9\-]+)/i);
+    if (idMatch) {
+      finding.id = idMatch[1].trim().toLowerCase();
+    }
 
     // Extract file path and line number
     // Format: **File:** path/to/file.js:123

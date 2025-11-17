@@ -81,11 +81,20 @@ runs:
 
         **IMPORTANT: For PR synchronize events (subsequent pushes), be incremental:**
         1. First, examine all existing review comments in this PR thread for context
-        2. For each issue mentioned in previous comments (from any tool), **validate if it still exists** in the current code state
-        3. **CRITICAL: Only report previously mentioned issues if you can confirm they still exist** by examining the actual current code
-        4. Clearly note when previously flagged issues have been resolved since the last review
-        5. Flag any genuinely **new** issues found in the latest commits
-        6. When referencing issues originally identified by other tools (GitHub Copilot, Cursor, etc.), explicitly validate their current relevance and state \"Confirmed still present\" or \"Resolved since previous review\"
+        2. **Extract existing issue IDs** from previous auto-review comments (look for **ID:** fields in comments starting with \\\"🤖 **Auto Review Issue:\\\")
+        3. For each previously reported issue:
+           - Check if the issue still exists in the current code state
+           - If it **STILL EXISTS**: Reuse the EXACT SAME ID from the previous review (even if the line number changed)
+           - If it's **RESOLVED**: Note it in your summary with the ID (don't create a new issue entry for it)
+        4. **CRITICAL: Only report previously mentioned issues if you can confirm they still exist** by examining the actual current code
+        5. For genuinely **NEW** issues: Generate a new ID using the ID Generation Rules
+        6. Clearly note when previously flagged issues have been resolved since the last review
+        7. When referencing issues originally identified by other tools (GitHub Copilot, Cursor, etc.), explicitly validate their current relevance and state \"Confirmed still present\" or \"Resolved since previous review\"
+
+        **ID Reuse Example:**
+        Previous review had: **ID:** login-sql-injection-f3a2 at line 42
+        Current review finds same issue at line 48 → Use SAME ID: **ID:** login-sql-injection-f3a2
+        (Update the line number to 48, but keep the ID unchanged)
 
         **For initial PR reviews or if no previous comments exist, provide a full review.**
 
@@ -175,6 +184,7 @@ runs:
         Each issue MUST use this exact format for automated parsing:
 
         #### Issue 1: Brief description of the issue
+        **ID:** file-slug-semantic-slug-hash
         **File:** path/to/file.js:123
         **Severity:** HIGH
         **Category:** security
@@ -185,6 +195,7 @@ runs:
 
         **Required fields:**
         - Issue header: MUST start with \\\"#### Issue N:\\\" where N is the issue number (1, 2, 3, etc.)
+        - ID: MUST follow format \\\"{file-slug}-{semantic-slug}-{hash}\\\" (see ID Generation Rules below)
         - File reference: MUST use format \\\"**File:** path/to/file.ext:lineNumber\\\" (e.g., \\\"**File:** src/index.ts:42\\\")
         - Severity: MUST be one of HIGH, MEDIUM, or LOW (use \\\"**Severity:** HIGH\\\")
 
@@ -192,6 +203,26 @@ runs:
         - Category: e.g., \\\"**Category:** security\\\", \\\"**Category:** performance\\\", \\\"**Category:** code_quality\\\"
         - Recommendation: Use \\\"**Recommendation:**\\\" or \\\"**Fix:**\\\" followed by suggested solution
         - Exploit Scenario: Use \\\"**Exploit Scenario:**\\\" for security issues
+
+        **ID Generation Rules:**
+        Generate a stable, deterministic ID for each issue using this format: {file-slug}-{semantic-slug}-{hash}
+
+        1. **file-slug**: Extract the filename (without extension) from the File path, take first 12 chars, lowercase, remove special chars
+           - Example: \\\"src/auth/login.ts\\\" → \\\"login\\\" or \\\"src/payment-api.js\\\" → \\\"payment-api\\\"
+
+        2. **semantic-slug**: Extract 2-4 key terms from the issue description, lowercase, hyphen-separated
+           - Example: \\\"SQL injection vulnerability\\\" → \\\"sql-injection\\\"
+           - Example: \\\"Missing input validation\\\" → \\\"missing-validation\\\"
+           - Example: \\\"Weak cryptographic algorithm\\\" → \\\"weak-crypto\\\"
+
+        3. **hash**: Take the first 4 characters of SHA256(file_path + description)
+           - This ensures uniqueness even for similar issues
+           - Example: SHA256(\\\"src/auth/login.ts:SQL injection\\\").substring(0,4) → \\\"f3a2\\\"
+
+        **ID Examples:**
+        - File: \\\"src/auth/login.ts\\\", Issue: \\\"SQL injection in user query\\\" → **ID:** login-sql-injection-f3a2
+        - File: \\\"api/payment.js\\\", Issue: \\\"Missing input validation\\\" → **ID:** payment-missing-validation-8b91
+        - File: \\\"lib/crypto.ts\\\", Issue: \\\"Weak algorithm in encryption\\\" → **ID:** crypto-weak-algorithm-c4d5
 
         **Format Rules:**
         - NEVER use '#number' format (e.g., #1, #2, #3) as GitHub interprets these as issue references
@@ -202,6 +233,7 @@ runs:
 
         **Example:**
         #### Issue 1: SQL injection vulnerability in user query
+        **ID:** users-sql-injection-f3a2
         **File:** src/database/users.ts:45
         **Severity:** HIGH
         **Category:** security

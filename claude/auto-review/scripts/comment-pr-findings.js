@@ -104,9 +104,15 @@ function ghApi(endpoint, method = "GET", data = null) {
   }
 }
 
-function generateFindingHash(file, description) {
+function generateFindingHash(file, description, claudeId = null) {
   const crypto = require("crypto");
-  // Use file + description (not line) to handle code shifts
+
+  // Prefer Claude's ID if available (already semantic and stable)
+  if (claudeId && claudeId.length > 0) {
+    return claudeId;
+  }
+
+  // Fallback to hash for backward compatibility
   const content = `${file}::${description}`;
   return crypto
     .createHash("sha256")
@@ -173,8 +179,9 @@ function main() {
     const severity = finding.severity || "MEDIUM";
     const category = finding.category || "code_issue";
 
-    // Generate hash for duplicate detection
-    const findingHash = generateFindingHash(file, message);
+    // Generate hash for duplicate detection (prefer Claude's ID if available)
+    const claudeId = finding.id || null;
+    const findingHash = generateFindingHash(file, message, claudeId);
 
     let body = `<!-- finding-id: ${findingHash} -->\n`;
     body += `🤖 **Auto Review Issue: ${message}**\n\n`;
