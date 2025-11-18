@@ -3,18 +3,11 @@ name: Test Claude Auto Review
 on:
   push:
     paths:
-      - 'claude/auto-review/scripts/**'
-      - 'claude/auto-review/package.json'
-      - 'claude/auto-review/pnpm-lock.yaml'
-      - 'claude/auto-review/vitest.config.js'
-      - '.github/workflows/test-claude-auto-review.yml'
-  pull_request:
-    paths:
-      - 'claude/auto-review/scripts/**'
-      - 'claude/auto-review/package.json'
-      - 'claude/auto-review/pnpm-lock.yaml'
-      - 'claude/auto-review/vitest.config.js'
-      - '.github/workflows/test-claude-auto-review.yml'
+      - "claude/auto-review/scripts/**"
+      - "claude/auto-review/package.json"
+      - "claude/auto-review/pnpm-lock.yaml"
+      - "claude/auto-review/vitest.config.js"
+      - ".github/workflows/test-claude-auto-review.yml"
 
 jobs:
   test:
@@ -28,7 +21,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
