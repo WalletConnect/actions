@@ -1,0 +1,21 @@
+[
+  {
+    "id": "users-sql-injection-f3a2",
+    "description": "SQL injection vulnerability in user query",
+    "severity": "HIGH",
+    "category": "security",
+    "file": "src/database/users.ts",
+    "line": 45,
+    "recommendation": "Use parameterized queries:\n```typescript\nconst result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);\n```",
+    "exploit_scenario": "An attacker could inject malicious SQL by passing a crafted userId."
+  },
+  {
+    "id": "auth-missing-validation-8b91",
+    "description": "Missing input validation",
+    "severity": "MEDIUM",
+    "category": "security",
+    "file": "src/auth/login.ts",
+    "line": 23,
+    "recommendation": "Add email validation before processing."
+  }
+]
