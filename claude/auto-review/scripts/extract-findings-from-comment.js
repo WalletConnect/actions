@@ -7,84 +7,8 @@
  * to extract issues/findings, and outputs them as structured JSON.
  */
 
-const { spawnSync } = require("child_process");
-const fs = require("fs");
-const path = require("path");
-
-// ---- Utility helpers -----------------------------------------------------
-
-function ghApi(endpoint, method = "GET", data = null) {
-  const args = ["api", endpoint, "--method", method];
-
-  if (data) {
-    args.push("--input", "-");
-  }
-
-  const result = spawnSync("gh", args, {
-    encoding: "utf8",
-    input: data ? JSON.stringify(data) : undefined,
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-
-  if (result.error) {
-    throw new Error(`Failed to invoke gh CLI: ${result.error.message}`);
-  }
-
-  if (result.status !== 0) {
-    const stderr = result.stderr?.trim();
-    throw new Error(
-      `gh CLI exited with code ${result.status}${stderr ? `: ${stderr}` : ""}`
-    );
-  }
-
-  const output = result.stdout?.trim();
-  if (!output) return null;
-
-  try {
-    return JSON.parse(output);
-  } catch (parseError) {
-    throw new Error(`Failed to parse gh CLI response: ${parseError.message}`);
-  }
-}
-
-function loadGitHubContext() {
-  const repository = process.env.GITHUB_REPOSITORY || "";
-  const [owner = "", repo = ""] = repository.split("/");
-
-  let payload = {};
-  const eventPath = process.env.GITHUB_EVENT_PATH;
-  if (eventPath && fs.existsSync(eventPath)) {
-    try {
-      payload = JSON.parse(fs.readFileSync(eventPath, "utf8"));
-    } catch (error) {
-      console.error(`Unable to parse GitHub event payload: ${error.message}`);
-      throw error;
-    }
-  }
-
-  // Handle both pull_request events and issue_comment events on PRs
-  let pullRequest = payload.pull_request || {};
-  let issueNumber = pullRequest.number || 0;
-
-  // For issue_comment events, check if the issue is a PR
-  if (!issueNumber && payload.issue) {
-    // issue_comment events have issue.pull_request if the issue is a PR
-    if (payload.issue.pull_request) {
-      issueNumber = payload.issue.number;
-      pullRequest = payload.issue;
-    }
-  }
-
-  const issue = {
-    number: issueNumber,
-  };
-
-  return {
-    repo: { owner, repo },
-    issue,
-    payload,
-  };
-}
+import fs from 'fs';
+import { ghApi, loadGitHubContext } from './lib/github-utils.js';
 
 // ---- Finding extraction --------------------------------------------------
 
@@ -96,8 +20,11 @@ function loadGitHubContext() {
  * **File:** path/to/file.js:123
  * **Severity:** HIGH/MEDIUM/LOW
  * Description text...
+ *
+ * @param {string} commentBody - The markdown comment body from Claude
+ * @returns {Array} Array of finding objects
  */
-function parseClaudeComment(commentBody) {
+export function parseClaudeComment(commentBody) {
   const findings = [];
 
   // Split by issue headers (#### Issue, #### Issue 1:, etc.)
@@ -180,8 +107,10 @@ function parseClaudeComment(commentBody) {
 
 /**
  * Find the latest Claude bot comment on the PR
+ * @param {Object} context - GitHub context object
+ * @returns {Object|null} Latest Claude comment or null if not found
  */
-function getLatestClaudeComment(context) {
+export function getLatestClaudeComment(context) {
   const comments = ghApi(
     `/repos/${context.repo.owner}/${context.repo.repo}/issues/${context.issue.number}/comments`
   ) || [];
@@ -206,7 +135,10 @@ function getLatestClaudeComment(context) {
 
 // ---- Main execution ------------------------------------------------------
 
-function main() {
+/**
+ * Main entry point for the script
+ */
+export function main() {
   console.log("Extracting findings from Claude's PR comment...");
 
   const context = loadGitHubContext();
@@ -242,11 +174,14 @@ function main() {
   console.log("Successfully created findings.json");
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(`Error extracting findings: ${error.message}`);
-  // Create empty findings file so the action doesn't fail
-  fs.writeFileSync("findings.json", JSON.stringify([], null, 2));
-  process.exit(0); // Exit successfully even on error
+// Execute main() only when run directly (not when imported for testing)
+if (import.meta.url === `file://${process.argv[1]}`) {
+  try {
+    main();
+  } catch (error) {
+    console.error(`Error extracting findings: ${error.message}`);
+    // Create empty findings file so the action doesn't fail
+    fs.writeFileSync("findings.json", JSON.stringify([], null, 2));
+    process.exit(0); // Exit successfully even on error
+  }
 }

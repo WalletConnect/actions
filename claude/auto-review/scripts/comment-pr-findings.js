@@ -7,13 +7,19 @@
  * so that any upstream improvements can be ported with minimal friction.
  */
 
-const fs = require("fs");
-const path = require("path");
-const { spawnSync } = require("child_process");
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
+import { ghApi, loadGitHubContext } from './lib/github-utils.js';
 
 // ---- Utility helpers -----------------------------------------------------
 
-function readJsonFile(filePath) {
+/**
+ * Read and parse a JSON file
+ * @param {string} filePath - Path to JSON file
+ * @returns {Object|null} Parsed JSON data or null if file doesn't exist
+ */
+export function readJsonFile(filePath) {
   try {
     const data = fs.readFileSync(filePath, "utf8");
     return JSON.parse(data);
@@ -31,82 +37,14 @@ function readJsonFile(filePath) {
   }
 }
 
-function loadGitHubContext() {
-  const repository = process.env.GITHUB_REPOSITORY || "";
-  const [owner = "", repo = ""] = repository.split("/");
-
-  let payload = {};
-  const eventPath = process.env.GITHUB_EVENT_PATH;
-  if (eventPath && fs.existsSync(eventPath)) {
-    try {
-      payload = JSON.parse(fs.readFileSync(eventPath, "utf8"));
-    } catch (error) {
-      console.error(`Unable to parse GitHub event payload: ${error.message}`);
-      throw error;
-    }
-  }
-
-  // Handle both pull_request events and issue_comment events on PRs
-  let pullRequest = payload.pull_request || {};
-  let issueNumber = pullRequest.number || 0;
-
-  // For issue_comment events, check if the issue is a PR
-  if (!issueNumber && payload.issue) {
-    // issue_comment events have issue.pull_request if the issue is a PR
-    if (payload.issue.pull_request) {
-      issueNumber = payload.issue.number;
-      pullRequest = payload.issue;
-    }
-  }
-
-  const issue = {
-    number: issueNumber,
-  };
-
-  return {
-    repo: { owner, repo },
-    issue,
-    payload,
-  };
-}
-
-function ghApi(endpoint, method = "GET", data = null) {
-  const args = ["api", endpoint, "--method", method];
-
-  if (data) {
-    args.push("--input", "-");
-  }
-
-  const result = spawnSync("gh", args, {
-    encoding: "utf8",
-    input: data ? JSON.stringify(data) : undefined,
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-
-  if (result.error) {
-    throw new Error(`Failed to invoke gh CLI: ${result.error.message}`);
-  }
-
-  if (result.status !== 0) {
-    const stderr = result.stderr?.trim();
-    throw new Error(
-      `gh CLI exited with code ${result.status}${stderr ? `: ${stderr}` : ""}`
-    );
-  }
-
-  const output = result.stdout?.trim();
-  if (!output) return null;
-
-  try {
-    return JSON.parse(output);
-  } catch (parseError) {
-    throw new Error(`Failed to parse gh CLI response: ${parseError.message}`);
-  }
-}
-
-function generateFindingHash(file, description, claudeId = null) {
-  const crypto = require("crypto");
-
+/**
+ * Generate a stable hash for finding deduplication
+ * @param {string} file - File path
+ * @param {string} description - Finding description
+ * @param {string|null} claudeId - Claude-generated semantic ID (preferred)
+ * @returns {string} Finding hash/ID
+ */
+export function generateFindingHash(file, description, claudeId = null) {
   // Prefer Claude's ID if available (already semantic and stable)
   if (claudeId && claudeId.length > 0) {
     return claudeId;
@@ -123,7 +61,10 @@ function generateFindingHash(file, description, claudeId = null) {
 
 // ---- Main execution ------------------------------------------------------
 
-function main() {
+/**
+ * Main entry point for the script
+ */
+export function main() {
   const silence = process.env.SILENCE_AUTO_REVIEW_COMMENTS === "true";
   if (silence) {
     console.log(
@@ -228,10 +169,11 @@ function main() {
     ) || [];
 
   // Extract finding IDs from existing bot comments
+  // Fixed regex to match semantic IDs with hyphens (e.g., "users-sql-injection-f3a2")
   const existingFindingIds = new Set();
   existingComments.forEach((comment) => {
     if (comment.user?.type === "Bot" && comment.body) {
-      const match = comment.body.match(/<!-- finding-id: ([a-f0-9]+) -->/);
+      const match = comment.body.match(/<!-- finding-id: ([a-z0-9\-]+) -->/);
       if (match) {
         existingFindingIds.add(match[1]);
       }
@@ -244,7 +186,7 @@ function main() {
 
   // Filter out findings that already have comments
   const newReviewComments = reviewComments.filter((comment) => {
-    const match = comment.body.match(/<!-- finding-id: ([a-f0-9]+) -->/);
+    const match = comment.body.match(/<!-- finding-id: ([a-z0-9\-]+) -->/);
     if (match && existingFindingIds.has(match[1])) {
       console.log(`Skipping duplicate finding: ${match[1]}`);
       return false;
@@ -307,4 +249,7 @@ function main() {
   }
 }
 
-main();
+// Execute main() only when run directly (not when imported for testing)
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}
