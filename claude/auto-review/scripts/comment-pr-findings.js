@@ -7,10 +7,10 @@
  * so that any upstream improvements can be ported with minimal friction.
  */
 
-import fs from 'fs';
-import path from 'path';
-import crypto from 'crypto';
-import { ghApi, loadGitHubContext } from './lib/github-utils.js';
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
+import { ghApi, loadGitHubContext } from "./lib/github-utils.js";
 
 // ---- Utility helpers -----------------------------------------------------
 
@@ -205,12 +205,14 @@ export function main() {
     } duplicates skipped).`
   );
 
+  const commitId = context.payload.pull_request?.head?.sha || null;
+
   try {
     const reviewResponse = ghApi(
       `/repos/${context.repo.owner}/${context.repo.repo}/pulls/${context.issue.number}/reviews`,
       "POST",
       {
-        commit_id: context.payload.pull_request?.head?.sha,
+        commit_id: commitId,
         event: "COMMENT",
         comments: newReviewComments,
       }
@@ -225,26 +227,24 @@ export function main() {
     console.error(
       `Failed to create review with inline comments: ${error.message}`
     );
-    console.log("Attempting fallback to create individual review comments...");
-
-    for (const comment of newReviewComments) {
-      try {
-        const response = ghApi(
-          `/repos/${context.repo.owner}/${context.repo.repo}/pulls/${context.issue.number}/comments`,
-          "POST",
-          {
-            path: comment.path,
-            line: comment.line,
-            side: comment.side,
-            body: comment.body,
-            commit_id: context.payload.pull_request?.head?.sha,
-          }
-        );
-      } catch (fallbackError) {
-        console.error(
-          `Could not create comment on ${comment.path}:${comment.line}: ${fallbackError.message}`
-        );
-      }
+    console.error(
+      "Review request debug details:",
+      JSON.stringify(
+        {
+          repo: context.repo,
+          issueNumber: context.issue.number,
+          commitId,
+          findings: newReviewComments.length,
+          firstFinding: newReviewComments[0],
+          envGitHubSha: process.env.GITHUB_SHA || null,
+          ghEndpoint: `/repos/${context.repo.owner}/${context.repo.repo}/pulls/${context.issue.number}/reviews`,
+        },
+        null,
+        2
+      )
+    );
+    if (error.stack) {
+      console.error(error.stack);
     }
   }
 }
