@@ -254,7 +254,23 @@ export function main() {
     } duplicates skipped).`
   );
 
-  const commitId = context.payload.pull_request?.head?.sha || null;
+  // Get commit ID - for issue_comment events we need to fetch PR data
+  let commitId = context.payload.pull_request?.head?.sha || null;
+  if (!commitId) {
+    // Fetch PR data to get head SHA (needed for issue_comment events)
+    const prData = ghApi(
+      `/repos/${context.repo.owner}/${context.repo.repo}/pulls/${context.issue.number}`
+    );
+    commitId = prData?.head?.sha || null;
+    if (commitId) {
+      console.log(`Fetched commit ID from PR data: ${commitId}`);
+    }
+  }
+
+  if (!commitId) {
+    console.error("Unable to determine commit ID for PR review comments.");
+    return;
+  }
 
   try {
     const reviewResponse = ghApi(
