@@ -15,6 +15,41 @@ import { ghApi, loadGitHubContext } from "./lib/github-utils.js";
 // ---- Utility helpers -----------------------------------------------------
 
 /**
+ * Parse diff patch to extract valid line ranges for the RIGHT side (new file)
+ * @param {string} patch - The patch/diff string from GitHub API
+ * @returns {Array<{start: number, end: number}>} Array of valid line ranges
+ */
+export function parseDiffHunks(patch) {
+  if (!patch) return [];
+
+  const ranges = [];
+  // Match hunk headers like @@ -10,6 +13,8 @@ or @@ -0,0 +1,5 @@
+  const hunkPattern = /@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/g;
+
+  let match;
+  while ((match = hunkPattern.exec(patch)) !== null) {
+    const startLine = parseInt(match[1], 10);
+    const lineCount = match[2] ? parseInt(match[2], 10) : 1;
+    ranges.push({
+      start: startLine,
+      end: startLine + lineCount - 1
+    });
+  }
+
+  return ranges;
+}
+
+/**
+ * Check if a line number is within any of the diff hunk ranges
+ * @param {number} line - Line number to check
+ * @param {Array<{start: number, end: number}>} ranges - Array of valid ranges
+ * @returns {boolean} True if line is within a hunk
+ */
+export function isLineInDiff(line, ranges) {
+  return ranges.some(range => line >= range.start && line <= range.end);
+}
+
+/**
  * Read and parse a JSON file
  * @param {string} filePath - Path to JSON file
  * @returns {Object|null} Parsed JSON data or null if file doesn't exist
@@ -96,8 +131,13 @@ export function main() {
     ghApi(
       `/repos/${context.repo.owner}/${context.repo.repo}/pulls/${context.issue.number}/files?per_page=100`
     ) || [];
+
+  // Build file map with parsed diff hunk ranges
   const fileMap = repoFiles.reduce((acc, file) => {
-    acc[file.filename] = file;
+    acc[file.filename] = {
+      ...file,
+      diffRanges: parseDiffHunks(file.patch)
+    };
     return acc;
   }, {});
 
@@ -109,6 +149,15 @@ export function main() {
     if (!file || !fileMap[file]) {
       console.log(
         `Finding references file ${file} which is not present in PR diff; skipping.`
+      );
+      continue;
+    }
+
+    // Check if line is within a diff hunk (GitHub API only allows comments on lines in the diff)
+    const fileData = fileMap[file];
+    if (!isLineInDiff(line, fileData.diffRanges)) {
+      console.log(
+        `Finding references ${file}:${line} which is outside diff hunks; skipping. Valid ranges: ${JSON.stringify(fileData.diffRanges)}`
       );
       continue;
     }
@@ -205,7 +254,23 @@ export function main() {
     } duplicates skipped).`
   );
 
-  const commitId = context.payload.pull_request?.head?.sha || null;
+  // Get commit ID - for issue_comment events we need to fetch PR data
+  let commitId = context.payload.pull_request?.head?.sha || null;
+  if (!commitId) {
+    // Fetch PR data to get head SHA (needed for issue_comment events)
+    const prData = ghApi(
+      `/repos/${context.repo.owner}/${context.repo.repo}/pulls/${context.issue.number}`
+    );
+    commitId = prData?.head?.sha || null;
+    if (commitId) {
+      console.log(`Fetched commit ID from PR data: ${commitId}`);
+    }
+  }
+
+  if (!commitId) {
+    console.error("Unable to determine commit ID for PR review comments.");
+    return;
+  }
 
   try {
     const reviewResponse = ghApi(
