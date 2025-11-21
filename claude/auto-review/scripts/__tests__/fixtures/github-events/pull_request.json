@@ -1,0 +1,19 @@
+{
+  "action": "opened",
+  "number": 123,
+  "pull_request": {
+    "number": 123,
+    "head": {
+      "sha": "abc123def456"
+    },
+    "base": {
+      "ref": "main"
+    }
+  },
+  "repository": {
+    "owner": {
+      "login": "walletconnect"
+    },
+    "name": "test-repo"
+  }
+}

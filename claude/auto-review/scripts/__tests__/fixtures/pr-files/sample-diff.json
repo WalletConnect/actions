@@ -1,0 +1,25 @@
+[
+  {
+    "filename": "src/database/users.ts",
+    "status": "modified",
+    "additions": 5,
+    "deletions": 2,
+    "changes": 7,
+    "patch": "@@ -42,7 +42,10 @@ export class UserDatabase {\n-  const query = `SELECT * FROM users WHERE id = ${userId}`;\n+  const query = 'SELECT * FROM users WHERE id = $1';\n+  const result = await db.query(query, [userId]);\n   return result.rows[0];"
+  },
+  {
+    "filename": "src/auth/login.ts",
+    "status": "modified",
+    "additions": 3,
+    "deletions": 1,
+    "changes": 4,
+    "patch": "@@ -20,6 +20,9 @@ export async function login(email: string, password: string) {\n+  if (!isValidEmail(email)) {\n+    throw new Error('Invalid email');\n+  }\n   const user = await findUser(email);"
+  },
+  {
+    "filename": "src/utils/helpers.ts",
+    "status": "modified",
+    "additions": 1,
+    "deletions": 1,
+    "changes": 2
+  }
+]
