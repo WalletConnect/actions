@@ -119,7 +119,9 @@ runs:
 
         ### External Domain URL Detection
 
-        Scan all changed files for URLs matching the pattern 'https?://(?:www\.)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'. If any URLs are found pointing to domains other than the approved company domains (reown.com, walletconnect.com, walletconnect.org), report them using this exact format:
+        Scan all changed files for URLs matching the pattern 'https?://(?:www\.)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'. **ONLY report if URLs are found** pointing to domains other than the approved company domains (reown.com, walletconnect.com, walletconnect.org). **If no external domain URLs are detected, do not mention this check at all.**
+
+        If external domain URLs are found, report them using this exact format:
 
         <example-snippet>
         🔒 **External Domain URL Detected** (Non-blocking)
@@ -131,7 +133,9 @@ runs:
 
         ### Static Resource Cache-Control Validation
 
-        Scan all changed files for static immutable resources (fonts, images, CSS, JS, media files) and their Cache-Control header configurations. Flag any issues using these guidelines:
+        Scan all changed files for static immutable resources (fonts, images, CSS, JS, media files) and their Cache-Control header configurations. **ONLY report if issues are found.** **If no cache-control issues are detected, do not mention this check at all.**
+
+        Flag any issues using these guidelines:
 
         1. **Identify static resources**: Look for URLs or file references to static assets including:
            - Font files: .woff, .woff2, .ttf, .otf, .eot
@@ -159,7 +163,40 @@ runs:
            - Flag: Cache-Control headers set to less than 1 year for static immutable resources
            - Flag: Static resources where caching configuration is not visible in the changed code (ask reviewer to verify server/CDN configuration)
            - Don't flag: Dynamic/API endpoints or resources that change frequently
-           - Don't flag: Resources already configured with max-age >= 31536000"
+           - Don't flag: Resources already configured with max-age >= 31536000
+
+        ### GitHub Actions Workflow Security (Supply Chain Attack Prevention)
+
+        Scan all changed .github/workflows/*.yml or .github/workflows/*.yaml files for dangerous patterns that could enable supply chain attacks. **ONLY report if issues are found.** **If no workflow security issues are detected, do not mention this check at all.**
+
+        Flag using these guidelines:
+
+        1. **CRITICAL: pull_request_target with PR head checkout** - Flag ANY workflow that:
+           - Uses on: pull_request_target trigger AND
+           - Checks out the PR head using patterns like:
+             - ref: github.event.pull_request.head.sha
+             - ref: github.event.pull_request.head.ref
+             - ref: refs/pull/github.event.pull_request.number/merge
+             - Any checkout that references the pull request head rather than base
+           - **Severity: CRITICAL** - This combination allows attackers to run arbitrary code by modifying repository scripts in their PR
+
+        2. **HIGH: pull_request_target with script execution** - Flag workflows that:
+           - Use on: pull_request_target AND
+           - Execute repository scripts (.js, .sh, .py, .ts, etc.) after checkout
+           - **Severity: HIGH** - Could be exploited if checkout configuration changes
+
+        3. **MEDIUM: pull_request_target usage** - Flag ANY use of pull_request_target as requiring security review:
+           - This trigger runs with repository secrets access
+           - External contributors can trigger it via PRs
+           - **Severity: MEDIUM** - Requires careful review even without obvious vulnerabilities
+
+        Report format:
+        🚨 **GitHub Actions Security Risk** (Blocking)
+        **Severity:** [CRITICAL/HIGH/MEDIUM]
+        **File:** [file_path:line_number]
+        **Pattern:** [description of the dangerous pattern found]
+        **Risk:** [specific attack vector]
+        **Recommendation:** [specific fix - e.g., use pull_request trigger instead, or avoid checking out PR head, or use workflow_run pattern for external PRs]"
 
 
           # Add project context
