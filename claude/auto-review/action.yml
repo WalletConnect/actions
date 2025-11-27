@@ -123,11 +123,13 @@ runs:
 
         If external domain URLs are found, report them using this exact format:
 
+        <example-snippet>
         🔒 **External Domain URL Detected** (Non-blocking)
         **URL:** [detected_url]
         **File:** [file_path:line_number]
 
         This change introduces URLs pointing to external domains. Please verify that these external dependencies are intentional and review for potential security, privacy, or compliance implications. Approved company domains are: reown.com, walletconnect.com, walletconnect.org
+        </example-snippet>
 
         ### Static Resource Cache-Control Validation
 
@@ -147,19 +149,54 @@ runs:
            - **Missing or implicit headers**: If Cache-Control is not explicitly set in the code and may rely on server defaults
 
         3. **Report format for insufficient cache-control**:
+        <example-snippet>
         ⚠️ **Static Resource Cache-Control Issue**
         **Resource:** [URL or file path]
         **File:** [file_path:line_number]
         **Current Cache-Control:** [value or \"Not explicitly set (implicit)\"]
         **Recommendation:** Static immutable resources should have \"Cache-Control: public, max-age=31536000, immutable\" (1 year)
         **Rationale:** Improves performance by allowing browsers to cache static resources for extended periods. Use cache-busting techniques (versioned URLs/filenames) for updates.
+        </example-snippet>
 
         4. **When to flag**:
            - Flag: Static resource URLs being added/modified without proper cache headers
            - Flag: Cache-Control headers set to less than 1 year for static immutable resources
            - Flag: Static resources where caching configuration is not visible in the changed code (ask reviewer to verify server/CDN configuration)
            - Don't flag: Dynamic/API endpoints or resources that change frequently
-           - Don't flag: Resources already configured with max-age >= 31536000"
+           - Don't flag: Resources already configured with max-age >= 31536000
+
+        ### GitHub Actions Workflow Security (Supply Chain Attack Prevention)
+
+        Scan all changed .github/workflows/*.yml or .github/workflows/*.yaml files for dangerous patterns that could enable supply chain attacks. **ONLY report if issues are found.** **If no workflow security issues are detected, do not mention this check at all.**
+
+        Flag using these guidelines:
+
+        1. **CRITICAL: pull_request_target with PR head checkout** - Flag ANY workflow that:
+           - Uses on: pull_request_target trigger AND
+           - Checks out the PR head using patterns like:
+             - ref: github.event.pull_request.head.sha
+             - ref: github.event.pull_request.head.ref
+             - ref: refs/pull/github.event.pull_request.number/merge
+             - Any checkout that references the pull request head rather than base
+           - **Severity: CRITICAL** - This combination allows attackers to run arbitrary code by modifying repository scripts in their PR
+
+        2. **HIGH: pull_request_target with script execution** - Flag workflows that:
+           - Use on: pull_request_target AND
+           - Execute repository scripts (.js, .sh, .py, .ts, etc.) after checkout
+           - **Severity: HIGH** - Could be exploited if checkout configuration changes
+
+        3. **MEDIUM: pull_request_target usage** - Flag ANY use of pull_request_target as requiring security review:
+           - This trigger runs with repository secrets access
+           - External contributors can trigger it via PRs
+           - **Severity: MEDIUM** - Requires careful review even without obvious vulnerabilities
+
+        Report format:
+        🚨 **GitHub Actions Security Risk** (Blocking)
+        **Severity:** [CRITICAL/HIGH/MEDIUM]
+        **File:** [file_path:line_number]
+        **Pattern:** [description of the dangerous pattern found]
+        **Risk:** [specific attack vector]
+        **Recommendation:** [specific fix - e.g., use pull_request trigger instead, or avoid checking out PR head, or use workflow_run pattern for external PRs]"
 
 
           # Add project context
@@ -187,6 +224,7 @@ runs:
         **Issue Format (CRITICAL - MUST FOLLOW EXACTLY):**
         Each issue MUST use this exact format for automated parsing:
 
+        <example-snippet>
         #### Issue 1: Brief description of the issue
         **ID:** file-slug-semantic-slug-hash
         **File:** path/to/file.js:123
@@ -196,6 +234,7 @@ runs:
         Detailed explanation of the issue and why it's problematic.
 
         **Recommendation:** Specific steps to fix the issue.
+        </example-snippet>
 
         **Required fields:**
         - Issue header: MUST start with \\\"#### Issue N:\\\" where N is the issue number (1, 2, 3, etc.)
@@ -221,6 +260,7 @@ runs:
         Use markdown code blocks with language identifier. Keep snippets minimal (1-10 lines typically).
 
         **Examples of Good Recommendations:**
+        <example-snippet>
         - \\\"Use parameterized queries:\\\`\\\`\\\`typescript
           const result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
           \\\`\\\`\\\`\\\"
@@ -232,6 +272,7 @@ runs:
         - \\\"Increase max-age to 1 year:\\\`\\\`\\\`javascript
           res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
           \\\`\\\`\\\`\\\"
+        </example-snippet>
 
         **ID Generation Rules:**
         Generate a stable, deterministic ID for each issue using this format: {file-slug}-{semantic-slug}-{hash}
@@ -260,7 +301,7 @@ runs:
         - Severity must be uppercase: HIGH, MEDIUM, or LOW
         - Each issue must be separated by a blank line
 
-        **Example:**
+        <example-snippet>
         #### Issue 1: SQL injection vulnerability in user query
         **ID:** users-sql-injection-f3a2
         **File:** src/database/users.ts:45
@@ -277,6 +318,12 @@ runs:
         // With this:
         const result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
         \\\`\\\`\\\`
+
+        ---
+
+        ### Automated Checks
+        ✅ No external domain URLs detected
+        </example-snippet>
 
         **Feedback Style:**
         - Provide constructive feedback with specific suggestions for improvement
