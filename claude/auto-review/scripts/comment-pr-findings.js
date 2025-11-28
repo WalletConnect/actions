@@ -10,7 +10,9 @@
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
-import { ghApi, loadGitHubContext } from "./lib/github-utils.js";
+import { ghApi, loadGitHubContext, createLogger } from "./lib/github-utils.js";
+
+const logger = createLogger("comment-pr-findings.js");
 
 // ---- Utility helpers -----------------------------------------------------
 
@@ -32,7 +34,7 @@ export function parseDiffHunks(patch) {
     const lineCount = match[2] ? parseInt(match[2], 10) : 1;
     ranges.push({
       start: startLine,
-      end: startLine + lineCount - 1
+      end: startLine + lineCount - 1,
     });
   }
 
@@ -46,7 +48,7 @@ export function parseDiffHunks(patch) {
  * @returns {boolean} True if line is within a hunk
  */
 export function isLineInDiff(line, ranges) {
-  return ranges.some(range => line >= range.start && line <= range.end);
+  return ranges.some((range) => line >= range.start && line <= range.end);
 }
 
 /**
@@ -60,12 +62,12 @@ export function readJsonFile(filePath) {
     return JSON.parse(data);
   } catch (error) {
     if (error.code === "ENOENT") {
-      console.log(
+      logger.log(
         `Findings file not found at ${filePath}, skipping PR commenting.`
       );
       return null;
     }
-    console.error(
+    logger.error(
       `Failed to read findings file at ${filePath}: ${error.message}`
     );
     throw error;
@@ -102,7 +104,7 @@ export function generateFindingHash(file, description, claudeId = null) {
 export function main() {
   const silence = process.env.SILENCE_AUTO_REVIEW_COMMENTS === "true";
   if (silence) {
-    console.log(
+    logger.log(
       "Auto-review comments silenced via SILENCE_AUTO_REVIEW_COMMENTS=true."
     );
     return;
@@ -115,13 +117,13 @@ export function main() {
   const findings = readJsonFile(findingsPath);
 
   if (!findings || findings.length === 0) {
-    console.log("No findings to report, exiting without commenting.");
+    logger.log("No findings to report, exiting without commenting.");
     return;
   }
 
   const context = loadGitHubContext();
   if (!context.issue.number) {
-    console.log(
+    logger.log(
       "GitHub event is not a pull request, skipping PR commenting step."
     );
     return;
@@ -136,7 +138,7 @@ export function main() {
   const fileMap = repoFiles.reduce((acc, file) => {
     acc[file.filename] = {
       ...file,
-      diffRanges: parseDiffHunks(file.patch)
+      diffRanges: parseDiffHunks(file.patch),
     };
     return acc;
   }, {});
@@ -147,7 +149,7 @@ export function main() {
     const file = finding.file || finding.path;
     const line = finding.line || (finding.start && finding.start.line) || 1;
     if (!file || !fileMap[file]) {
-      console.log(
+      logger.log(
         `Finding references file ${file} which is not present in PR diff; skipping.`
       );
       continue;
@@ -156,8 +158,10 @@ export function main() {
     // Check if line is within a diff hunk (GitHub API only allows comments on lines in the diff)
     const fileData = fileMap[file];
     if (!isLineInDiff(line, fileData.diffRanges)) {
-      console.log(
-        `Finding references ${file}:${line} which is outside diff hunks; skipping. Valid ranges: ${JSON.stringify(fileData.diffRanges)}`
+      logger.log(
+        `Finding references ${file}:${line} which is outside diff hunks; skipping. Valid ranges: ${JSON.stringify(
+          fileData.diffRanges
+        )}`
       );
       continue;
     }
@@ -206,9 +210,7 @@ export function main() {
   }
 
   if (reviewComments.length === 0) {
-    console.log(
-      "No valid findings to comment on (filtered out-of-diff items)."
-    );
+    logger.log("No valid findings to comment on (filtered out-of-diff items).");
     return;
   }
 
@@ -229,7 +231,7 @@ export function main() {
     }
   });
 
-  console.log(
+  logger.log(
     `Found ${existingFindingIds.size} existing auto-review findings on this PR.`
   );
 
@@ -237,18 +239,18 @@ export function main() {
   const newReviewComments = reviewComments.filter((comment) => {
     const match = comment.body.match(/<!-- finding-id: ([a-z0-9\-]+) -->/);
     if (match && existingFindingIds.has(match[1])) {
-      console.log(`Skipping duplicate finding: ${match[1]}`);
+      logger.log(`Skipping duplicate finding: ${match[1]}`);
       return false;
     }
     return true;
   });
 
   if (newReviewComments.length === 0) {
-    console.log("No new findings to comment on (all are duplicates).");
+    logger.log("No new findings to comment on (all are duplicates).");
     return;
   }
 
-  console.log(
+  logger.log(
     `Posting ${newReviewComments.length} new findings (${
       reviewComments.length - newReviewComments.length
     } duplicates skipped).`
@@ -263,12 +265,12 @@ export function main() {
     );
     commitId = prData?.head?.sha || null;
     if (commitId) {
-      console.log(`Fetched commit ID from PR data: ${commitId}`);
+      logger.log(`Fetched commit ID from PR data: ${commitId}`);
     }
   }
 
   if (!commitId) {
-    console.error("Unable to determine commit ID for PR review comments.");
+    logger.error("Unable to determine commit ID for PR review comments.");
     return;
   }
 
@@ -284,15 +286,15 @@ export function main() {
     );
 
     if (reviewResponse?.id) {
-      console.log(
+      logger.log(
         `Created review with ${newReviewComments.length} inline comments.`
       );
     }
   } catch (error) {
-    console.error(
+    logger.error(
       `Failed to create review with inline comments: ${error.message}`
     );
-    console.error(
+    logger.error(
       "Review request debug details:",
       JSON.stringify(
         {
@@ -309,7 +311,7 @@ export function main() {
       )
     );
     if (error.stack) {
-      console.error(error.stack);
+      logger.error(error.stack);
     }
   }
 }

@@ -8,7 +8,9 @@
  */
 
 import fs from 'fs';
-import { ghApi, loadGitHubContext } from './lib/github-utils.js';
+import { ghApi, loadGitHubContext, createLogger } from './lib/github-utils.js';
+
+const logger = createLogger('extract-findings-from-comment.js');
 
 // ---- Finding extraction --------------------------------------------------
 
@@ -125,7 +127,7 @@ export function getLatestClaudeComment(context) {
   );
 
   if (claudeComments.length === 0) {
-    console.log("No Claude bot review comments found.");
+    logger.log("No Claude bot review comments found.");
     return null;
   }
 
@@ -139,12 +141,12 @@ export function getLatestClaudeComment(context) {
  * Main entry point for the script
  */
 export function main() {
-  console.log("Extracting findings from Claude's PR comment...");
+  logger.log("Extracting findings from Claude's PR comment...");
 
   const context = loadGitHubContext();
 
   if (!context.issue.number) {
-    console.log("Not a pull request event, skipping findings extraction.");
+    logger.log("Not a pull request event, skipping findings extraction.");
     return;
   }
 
@@ -152,26 +154,26 @@ export function main() {
   const claudeComment = getLatestClaudeComment(context);
 
   if (!claudeComment) {
-    console.log("No Claude review comment found. Creating empty findings.json.");
+    logger.log("No Claude review comment found. Creating empty findings.json.");
     fs.writeFileSync("findings.json", JSON.stringify([], null, 2));
     return;
   }
 
-  console.log(`Found Claude comment from ${claudeComment.created_at}`);
+  logger.log(`Found Claude comment from ${claudeComment.created_at}`);
 
   // Parse the comment to extract findings
   const findings = parseClaudeComment(claudeComment.body);
 
-  console.log(`Extracted ${findings.length} findings from Claude's comment.`);
+  logger.log(`Extracted ${findings.length} findings from Claude's comment.`);
 
   if (findings.length > 0) {
-    console.log("Sample finding:");
-    console.log(JSON.stringify(findings[0], null, 2));
+    logger.log("Sample finding:");
+    logger.log(JSON.stringify(findings[0], null, 2));
   }
 
   // Write findings to file
   fs.writeFileSync("findings.json", JSON.stringify(findings, null, 2));
-  console.log("Successfully created findings.json");
+  logger.log("Successfully created findings.json");
 }
 
 // Execute main() only when run directly (not when imported for testing)
@@ -179,7 +181,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   try {
     main();
   } catch (error) {
-    console.error(`Error extracting findings: ${error.message}`);
+    logger.error(`Error extracting findings: ${error.message}`);
     // Create empty findings file so the action doesn't fail
     fs.writeFileSync("findings.json", JSON.stringify([], null, 2));
     process.exit(0); // Exit successfully even on error
