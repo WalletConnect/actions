@@ -2,8 +2,21 @@
  * Shared GitHub utilities for Claude auto-review scripts
  */
 
-import { spawnSync } from 'child_process';
-import fs from 'fs';
+import { spawnSync } from "child_process";
+import fs from "fs";
+
+/**
+ * Create a logger with a script name prefix
+ * @param {string} scriptName - Name of the script to use as prefix
+ * @returns {Object} Logger object with log and error methods
+ */
+export function createLogger(scriptName) {
+  const prefix = `[${scriptName}]`;
+  return {
+    log: (...args) => console.log(prefix, ...args),
+    error: (...args) => console.error(prefix, ...args),
+  };
+}
 
 /**
  * Execute GitHub CLI API call
@@ -60,7 +73,9 @@ export function loadGitHubContext() {
     try {
       payload = JSON.parse(fs.readFileSync(eventPath, "utf8"));
     } catch (error) {
-      console.error(`Unable to parse GitHub event payload: ${error.message}`);
+      createLogger("github-utils.js").error(
+        `Unable to parse GitHub event payload: ${error.message}`
+      );
       throw error;
     }
   }
