@@ -36,7 +36,13 @@ export function parseClaudeComment(commentBody) {
   // Process each issue (skip first element which is text before first issue)
   for (let i = 1; i < issues.length; i += 2) {
     const title = issues[i].trim();
-    const content = issues[i + 1] || "";
+    let content = issues[i + 1] || "";
+
+    // Truncate content at horizontal rule dividers that separate issues from other sections
+    const dividerMatch = content.match(/\n---\s*\n/);
+    if (dividerMatch) {
+      content = content.substring(0, dividerMatch.index);
+    }
 
     const finding = {
       id: null,
