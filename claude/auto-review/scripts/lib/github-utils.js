@@ -39,7 +39,9 @@ export function ghApi(endpoint, method = "GET", data = null) {
   });
 
   if (result.error) {
-    throw new Error(`Failed to invoke gh CLI: ${result.error.message}`);
+    throw new Error(
+      `Failed to invoke gh CLI: ${result.error.message}. Ensure GitHub CLI is installed and available in PATH.`
+    );
   }
 
   if (result.status !== 0) {
