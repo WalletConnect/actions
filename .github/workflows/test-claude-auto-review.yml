@@ -45,10 +45,6 @@ jobs:
         working-directory: claude/auto-review
         run: pnpm install --frozen-lockfile
 
-      - name: Run tests
-        working-directory: claude/auto-review
-        run: pnpm test
-
       - name: Run tests with coverage
         working-directory: claude/auto-review
         run: pnpm test:coverage
