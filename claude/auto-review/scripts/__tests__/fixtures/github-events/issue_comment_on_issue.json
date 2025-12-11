@@ -1,0 +1,16 @@
+{
+  "action": "created",
+  "issue": {
+    "number": 456
+  },
+  "comment": {
+    "id": 987655,
+    "body": "Regular issue comment"
+  },
+  "repository": {
+    "owner": {
+      "login": "walletconnect"
+    },
+    "name": "test-repo"
+  }
+}

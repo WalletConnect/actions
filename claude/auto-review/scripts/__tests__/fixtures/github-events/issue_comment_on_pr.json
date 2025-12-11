@@ -1,0 +1,19 @@
+{
+  "action": "created",
+  "issue": {
+    "number": 123,
+    "pull_request": {
+      "url": "https://api.github.com/repos/walletconnect/test-repo/pulls/123"
+    }
+  },
+  "comment": {
+    "id": 987654,
+    "body": "@claude review"
+  },
+  "repository": {
+    "owner": {
+      "login": "walletconnect"
+    },
+    "name": "test-repo"
+  }
+}
