@@ -196,7 +196,49 @@ runs:
         **File:** [file_path:line_number]
         **Pattern:** [description of the dangerous pattern found]
         **Risk:** [specific attack vector]
-        **Recommendation:** [specific fix - e.g., use pull_request trigger instead, or avoid checking out PR head, or use workflow_run pattern for external PRs]"
+        **Recommendation:** [specific fix - e.g., use pull_request trigger instead, or avoid checking out PR head, or use workflow_run pattern for external PRs]
+
+        ### WalletConnect Pay Architecture Compliance
+
+        Scan changed files for SOA and reliability pattern violations. **ONLY report if violations found.** **If no violations detected, do not mention this check.**
+
+        1. **CRITICAL: Cross-Service Database Access**
+           - Imports of other services' DB models/DAOs/repositories
+           - SQL queries to tables outside service boundary
+           - Shared DB connections across services
+           **Report:** 🚨 **Architecture Violation: Cross-Service DB Access** (Blocking) - Services must expose data via APIs, not direct DB access
+
+        2. **HIGH: Missing Idempotency Key Validation**
+           - POST/PUT/PATCH/DELETE handlers without idempotency key extraction
+           - Payment/wallet/transaction mutations lacking idempotency store checks
+           - No duplicate request detection or payload fingerprint validation
+           **Report:** ⚠️ **Missing Idempotency Protection** - Recommend extracting idempotency key from request headers, checking against a store for duplicates, and returning cached response if already processed
+
+        3. **HIGH: External Calls Without Timeout/Retry**
+           - fetch()/axios/http.request() without explicit timeout
+           - External API calls without retry + exponential backoff
+           - Critical dependencies without circuit breaker
+           **Report:** ⚠️ **Missing Resilience Patterns** - Add timeout, retry with backoff, circuit breaker for cascading failure prevention
+
+        4. **HIGH: Non-Idempotent Event Consumers**
+           - Message queue consumers (SQS/SNS/Kafka) without message ID deduplication
+           - Event handlers mutating state without checking if already processed
+           - Webhook handlers lacking replay protection
+           **Report:** ⚠️ **Non-Idempotent Event Consumer** - Recommend checking event/message ID against processed events store before performing mutations to prevent duplicate processing
+
+        5. **MEDIUM: Missing Compensating Actions**
+           - Sequential cross-service calls without rollback logic
+           - Multi-step workflows (hold → settle → notify) without saga pattern
+           - Try-catch blocks not emitting compensating events on failure
+           **Report:** ⚠️ **Missing Saga Compensation** - Recommend adding catch blocks that release holds and emit compensating/reversal events on failure
+
+        6. **MEDIUM: State Transitions Without Trace Context**
+           - Payment/wallet state changes without structured logs + correlation IDs
+           - Cross-service calls missing trace ID propagation (X-Trace-Id header)
+           - State events not linked to originating operation
+           **Report:** ⚠️ **Missing Trace Context** - Recommend adding structured logging with traceId and correlationId for state changes, and propagating trace headers across service calls
+
+        **Scope:** Flag new code or modifications introducing anti-patterns in payment/wallet/transaction operations. Ignore read-only ops, utilities, tests."
 
 
           # Add project context
