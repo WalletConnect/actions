@@ -1,3 +1,6 @@
+<details>
+<summary>Found 1 issue(s)</summary>
+
 #### Issue 1: Incorrect async error handling
 **ID:** api-async-error-2f8a
 **File:** src/api/client.ts:67
@@ -22,3 +25,5 @@ async function fetchData() {
 ```
 
 **Exploit Scenario:** Unhandled promise rejections can crash the Node.js process in production.
+
+</details>

@@ -262,9 +262,26 @@ runs:
         - If no issues found: \"✅ No issues found\" (or \"✅ No new issues found in latest commits\" for incremental reviews)
         - **CRITICAL: Do NOT praise code, describe what works well, or use positive language**
         - **CRITICAL: If something doesn't need fixing, don't mention it at all**
+        - **CRITICAL: Wrap ALL issues in a collapsed \`<details>\` section** (see Collapsed Issues Format below)
+
+        **Collapsed Issues Format (REQUIRED):**
+        All issues MUST be wrapped in a collapsed details section. This keeps the main comment clean while issues are posted as inline comments.
+
+        <example-snippet>
+        <details>
+        <summary>Found N issue(s)</summary>
+
+        #### Issue 1: Brief description
+        ...issue details...
+
+        #### Issue 2: Another issue
+        ...issue details...
+
+        </details>
+        </example-snippet>
 
         **Issue Format (CRITICAL - MUST FOLLOW EXACTLY):**
-        Each issue MUST use this exact format for automated parsing:
+        Each issue inside the \`<details>\` block MUST use this exact format for automated parsing:
 
         <example-snippet>
         #### Issue 1: Brief description of the issue
@@ -344,6 +361,9 @@ runs:
         - Each issue must be separated by a blank line
 
         <example-snippet>
+        <details>
+        <summary>Found 1 issue(s)</summary>
+
         #### Issue 1: SQL injection vulnerability in user query
         **ID:** users-sql-injection-f3a2
         **File:** src/database/users.ts:45
@@ -360,6 +380,8 @@ runs:
         // With this:
         const result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
         \\\`\\\`\\\`
+
+        </details>
 
         ---
 

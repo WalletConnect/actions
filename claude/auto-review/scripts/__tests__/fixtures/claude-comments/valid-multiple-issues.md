@@ -1,5 +1,8 @@
 I've reviewed the PR and found the following issues:
 
+<details>
+<summary>Found 3 issue(s)</summary>
+
 #### Issue 1: SQL injection vulnerability in user query
 **ID:** users-sql-injection-f3a2
 **File:** src/database/users.ts:45
@@ -39,3 +42,5 @@ if (!isValidEmail(email)) {
 The lodash import is not used anywhere in the file.
 
 **Fix:** Remove the unused import to keep the code clean.
+
+</details>
