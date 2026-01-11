@@ -49,9 +49,16 @@ runs:
 
         ## REVIEW SCOPE
 
-        Focus: code quality, security, best practices (bugs, performance, authentication/APIs, tests, types, error handling, maintainability).
+        Focus on:
+        - Code quality/best practices for project technologies
+        - Bugs (especially critical paths, async ops)
+        - Performance (frontend/backend)
+        - Security (auth, APIs, data handling)
+        - Test coverage/quality
+        - Type safety, error handling, edge cases
+        - Maintainability/readability
 
-        **Incremental reviews:** Check previous comments for issue IDs. Reuse EXACT same ID if issue still exists (even if line changed). Generate new IDs for new issues. Note resolved issues
+        **Incremental reviews:** Check previous comments for issue IDs. Reuse EXACT same ID if issue still exists (even if line changed). Generate new IDs for new issues. Note resolved issues. Only report previously mentioned issues if confirmed they still exist in current code
 
         ---
 
@@ -101,7 +108,7 @@ runs:
 
         Wrap ALL issues in collapsed <details> section. No praise, issues-only.
 
-        Format:
+        **Issue Format:**
         <details>
         <summary>Found N issue(s)</summary>
 
@@ -119,7 +126,27 @@ runs:
         **ID Generation:** {filename}-{2-4-key-terms}-{SHA256(path+desc).substr(0,4)}
         Example: login-sql-injection-f3a2
 
-        **Rules:** Use \\\"Issue N:\\\" not \\\"#N\\\". Include line numbers. Include minimal code snippets in recommendations"
+        **Recommendation Guidelines:** Include focused code snippets showing exact fix. DO: show specific changes needed. DON'T: provide full implementations or boilerplate.
+
+        **Example:**
+        <details>
+        <summary>Found 1 issue(s)</summary>
+
+        #### Issue 1: SQL injection in user query
+        **ID:** users-sql-injection-f3a2
+        **File:** src/database/users.ts:45
+        **Severity:** HIGH
+        **Category:** security
+
+        Query concatenates user input without parameterization, allowing SQL injection.
+
+        **Recommendation:** Use parameterized queries:
+        \\\`\\\`\\\`typescript
+        const result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+        \\\`\\\`\\\`
+        </details>
+
+        **Rules:** Use \\\"Issue N:\\\" not \\\"#N\\\". Include line numbers. Include code snippets in recommendations"
         fi
 
         # Set environment variable for the next step
