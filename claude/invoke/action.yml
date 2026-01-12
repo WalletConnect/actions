@@ -113,25 +113,21 @@ runs:
         Use conventional commit style naming for branches (e.g., fix/..., feat/...)."
         fi
 
-        PROMPT="REPO: ${{ github.repository }}
-
-        ## OPERATING GUIDELINES
-
-        $SYSTEM_INSTRUCTIONS"
-
-        # Add project context if provided
-        if [[ -n "$PROJECT_CONTEXT" ]]; then
-          PROMPT="$PROMPT
-
-        ## PROJECT CONTEXT
-
-        $PROJECT_CONTEXT"
-        fi
-
-        # Write prompt to env for next step
-        echo "CLAUDE_PROMPT<<EOF" >> $GITHUB_ENV
-        echo "$PROMPT" >> $GITHUB_ENV
-        echo "EOF" >> $GITHUB_ENV
+        {
+          echo "CLAUDE_PROMPT<<EOF"
+          echo "REPO: ${{ github.repository }}"
+          echo ""
+          echo "## OPERATING GUIDELINES"
+          echo ""
+          echo "$SYSTEM_INSTRUCTIONS"
+          if [[ -n "$PROJECT_CONTEXT" ]]; then
+            echo ""
+            echo "## PROJECT CONTEXT"
+            echo ""
+            echo "$PROJECT_CONTEXT"
+          fi
+          echo "EOF"
+        } >> $GITHUB_ENV
 
     - name: Build Claude args
       if: steps.validate.outputs.should_run == 'true'
@@ -141,11 +137,7 @@ runs:
         MAX_TURNS: ${{ inputs.max_turns }}
         ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
       run: |
-        CLAUDE_ARGS="--model $MODEL"
-
-        if [[ -n "$MAX_TURNS" ]]; then
-          CLAUDE_ARGS="$CLAUDE_ARGS --max-turns $MAX_TURNS"
-        fi
+        CLAUDE_ARGS="--model $MODEL --max-turns $MAX_TURNS"
 
         if [[ -n "$ALLOWED_TOOLS" ]]; then
           CLAUDE_ARGS="$CLAUDE_ARGS --allowedTools $ALLOWED_TOOLS"
@@ -163,9 +155,3 @@ runs:
         track_progress: ${{ inputs.track_progress }}
         claude_args: ${{ env.CLAUDE_ARGS }}
         allowed_bots: ${{ inputs.allowed_bots }}
-
-    - name: Skip notification
-      if: steps.validate.outputs.should_run == 'false'
-      shell: bash
-      run: |
-        echo "::notice::Claude invocation skipped - trigger conditions not met"
