@@ -75,22 +75,22 @@ runs:
             ;;
         esac
 
-        # Check author_association
-        if ! echo ",$ALLOWED_AUTHORS," | grep -qi ",$AUTHOR_ASSOCIATION,"; then
+        # Check author_association (case-sensitive, GitHub uses uppercase)
+        if ! printf '%s' ",$ALLOWED_AUTHORS," | grep -Fq ",$AUTHOR_ASSOCIATION,"; then
           echo "::notice::Author association '$AUTHOR_ASSOCIATION' not in allowed list: $ALLOWED_AUTHORS"
           echo "should_run=false" >> $GITHUB_OUTPUT
           exit 0
         fi
 
-        # Check for @claude mention
-        if ! echo "$BODY" | grep -qi '@claude'; then
+        # Check for @claude mention (case-insensitive)
+        if ! printf '%s' "$BODY" | grep -qi '@claude'; then
           echo "::notice::No @claude mention found"
           echo "should_run=false" >> $GITHUB_OUTPUT
           exit 0
         fi
 
         # Exclude @claude review (handled by auto-review action)
-        if echo "$BODY" | grep -qi '@claude review'; then
+        if printf '%s' "$BODY" | grep -qi '@claude review'; then
           echo "::notice::@claude review detected - deferring to auto-review action"
           echo "should_run=false" >> $GITHUB_OUTPUT
           exit 0
