@@ -27,6 +27,27 @@ on:
 
 jobs:
   claude:
+    # Filter early to avoid spinning up runners unnecessarily
+    if: |
+      (
+        (github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment') &&
+        contains(github.event.comment.body, '@claude') &&
+        !contains(github.event.comment.body, '@claude review')
+      ) ||
+      (
+        github.event_name == 'pull_request_review' &&
+        contains(github.event.review.body, '@claude') &&
+        !contains(github.event.review.body, '@claude review')
+      ) ||
+      (
+        github.event_name == 'issues' &&
+        (
+          contains(github.event.issue.body, '@claude') ||
+          contains(github.event.issue.title, '@claude')
+        ) &&
+        !contains(github.event.issue.body, '@claude review') &&
+        !contains(github.event.issue.title, '@claude review')
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -44,6 +65,8 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
+
+> **Note:** The workflow `if` filter is optional but recommended for CI efficiency. It prevents runner spin-up for non-matching events. The action validates triggers internally regardless.
 
 ## Inputs
 
