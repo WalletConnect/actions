@@ -1,6 +1,6 @@
-# Claude Invoke Action
+# Claude Agent Action
 
-Generic `@claude` invocation handler with org defaults and author validation. Wraps [anthropics/claude-code-action](https://github.com/anthropics/claude-code-action) with built-in trigger validation and org-specific configuration.
+Generic `@claude` handler with org defaults and author validation. Wraps [anthropics/claude-code-action](https://github.com/anthropics/claude-code-action) with built-in trigger validation and org-specific configuration.
 
 ## Features
 
@@ -40,7 +40,7 @@ jobs:
         with:
           fetch-depth: 1
 
-      - uses: WalletConnect/actions/claude/invoke@master
+      - uses: WalletConnect/actions/claude/agent@master
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
@@ -66,7 +66,7 @@ jobs:
 Restrict Claude to read-only tools:
 
 ```yaml
-- uses: WalletConnect/actions/claude/invoke@master
+- uses: WalletConnect/actions/claude/agent@master
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     allowed_tools: "Read,Grep,Glob,WebFetch,WebSearch"
@@ -77,7 +77,7 @@ Restrict Claude to read-only tools:
 Override org defaults:
 
 ```yaml
-- uses: WalletConnect/actions/claude/invoke@master
+- uses: WalletConnect/actions/claude/agent@master
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     system_instructions: |
@@ -91,7 +91,7 @@ Override org defaults:
 Add context about your repo:
 
 ```yaml
-- uses: WalletConnect/actions/claude/invoke@master
+- uses: WalletConnect/actions/claude/agent@master
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     project_context: |
@@ -103,7 +103,7 @@ Add context about your repo:
 ### Allow specific bots
 
 ```yaml
-- uses: WalletConnect/actions/claude/invoke@master
+- uses: WalletConnect/actions/claude/agent@master
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     allowed_bots: "devin-ai-integration[bot],dependabot[bot]"
@@ -114,7 +114,7 @@ Add context about your repo:
 Only allow owners:
 
 ```yaml
-- uses: WalletConnect/actions/claude/invoke@master
+- uses: WalletConnect/actions/claude/agent@master
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     allowed_authors: "OWNER"
