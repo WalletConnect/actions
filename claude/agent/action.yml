@@ -1,5 +1,5 @@
-name: "Claude Invoke"
-description: "Generic @claude invocation handler with org defaults and author validation"
+name: "Claude Agent"
+description: "Generic @claude handler with org defaults and author validation"
 author: "WalletConnect"
 
 inputs:
