@@ -43,7 +43,7 @@ runs:
           # Build dynamic prompt based on inputs
           PROMPT="${PROMPT_HEADER}## CRITICAL CONSTRAINTS
 
-        Be extremely concise. Read-only mode: no shell commands, builds, or execution. Issues-only: report problems, never praise. If no issues: \"✅ No issues found\"
+        Be extremely concise and sacrifice grammar for concision. Read-only mode: no shell commands, builds, or execution. Issues-only: report problems, never praise. If no issues: \"✅ No issues found\"
 
         ---
 
@@ -58,7 +58,7 @@ runs:
         - Type safety, error handling, edge cases
         - Maintainability/readability
 
-        **Incremental reviews:** Check previous comments for issue IDs. Reuse EXACT same ID if issue still exists (even if line changed). Generate new IDs for new issues. Note resolved issues. Only report previously mentioned issues if confirmed they still exist in current code
+        **Incremental reviews:** Check previous comments for issue IDs. Reuse EXACT same ID if issue still exists (even if line changed). Generate new IDs for new issues. Note resolved issues. Only report previously mentioned issues if confirmed they still exist in current code. For issues from other tools (Copilot, Cursor), validate and state \"Confirmed still present\" or \"Resolved since previous review\"
 
         ---
 
@@ -106,6 +106,9 @@ runs:
 
         ## RESPONSE FORMAT
 
+        For incremental reviews: Start with \"🔄 Incremental Review:\" and focus only on changes since last review. If no new issues: \"✅ No new issues found in latest commits\"
+        For full reviews: Be concise - ONLY report issues that need fixing. If no issues: \"✅ No issues found\"
+
         Wrap ALL issues in collapsed <details> section. No praise, issues-only.
 
         **Issue Format:**
@@ -146,7 +149,9 @@ runs:
         \\\`\\\`\\\`
         </details>
 
-        **Rules:** Use \\\"Issue N:\\\" not \\\"#N\\\". Include line numbers. Include code snippets in recommendations"
+        **Rules:** Use \\\"Issue N:\\\" not \\\"#N\\\". Include line numbers. Include code snippets in recommendations
+
+        **Feedback Style:** Provide constructive feedback with specific suggestions. Consider impact on system architecture and user experience. Focus exclusively on problems and their solutions"
         fi
 
         # Set environment variable for the next step
