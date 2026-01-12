@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI coding agents when working with code in this repository.
 
 ## Repository Overview
 
@@ -8,7 +8,7 @@ WalletConnect's shared GitHub Actions and reusable workflows for infrastructure,
 
 ## Development Commands
 
-### Claude Auto-Review Tests
+### Auto-Review Tests
 ```bash
 cd claude/auto-review
 pnpm install               # Install dependencies
@@ -36,20 +36,20 @@ pre-commit run --all-files # Run all checks
   - **terraform-plan-review/** - Terraform plan analysis
 - **deploy-window/** - Deploy timing controls
 
-### Claude Auto-Review Action (`claude/auto-review/`)
+### Auto-Review Action (`claude/auto-review/`)
 
 Wraps `anthropics/claude-code-action` to provide automated PR reviews. Key components:
 
 - `action.yml` - Main composite action with dynamic prompt generation
-- `scripts/extract-findings-from-comment.js` - Parses Claude's comment to extract structured findings
+- `scripts/extract-findings-from-comment.js` - Parses AI agent's comment to extract structured findings
 - `scripts/comment-pr-findings.js` - Posts inline PR review comments from findings.json
 - `scripts/lib/github-utils.js` - Shared utilities (gh CLI wrapper, context loading)
 
-**Flow:** Claude reviews PR → posts comment → extract-findings parses issues → comment-pr-findings posts inline comments
+**Flow:** AI agent reviews PR → posts comment → extract-findings parses issues → comment-pr-findings posts inline comments
 
 ### Workflows
 
-- `.github/workflows/claude.yml` - General Claude Code invocation (@claude mentions, excluding @claude review)
+- `.github/workflows/claude.yml` - General AI agent invocation (@claude mentions, excluding @claude review)
 - `.github/workflows/claude-review.yml` - Auto-review on PR open or @claude review comment
 - `.github/workflows/test-claude-auto-review.yml` - CI for auto-review scripts
 
