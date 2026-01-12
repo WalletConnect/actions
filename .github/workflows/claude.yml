@@ -12,20 +12,36 @@ on:
 
 jobs:
   claude:
-    # Trigger on @claude mentions, but NOT if "@claude review" is present (handled by auto-review workflow)
+    # Trigger on @claude mentions from trusted users only, excluding "@claude review" (handled by auto-review workflow)
+    # Author association check prevents external contributors from triggering workflows with write permissions
     if: |
       (
         (github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment') &&
+        (
+          github.event.comment.author_association == 'OWNER' ||
+          github.event.comment.author_association == 'MEMBER' ||
+          github.event.comment.author_association == 'COLLABORATOR'
+        ) &&
         contains(github.event.comment.body, '@claude') &&
         !contains(github.event.comment.body, '@claude review')
       ) ||
       (
         github.event_name == 'pull_request_review' &&
+        (
+          github.event.review.author_association == 'OWNER' ||
+          github.event.review.author_association == 'MEMBER' ||
+          github.event.review.author_association == 'COLLABORATOR'
+        ) &&
         contains(github.event.review.body, '@claude') &&
         !contains(github.event.review.body, '@claude review')
       ) ||
       (
         github.event_name == 'issues' &&
+        (
+          github.event.issue.author_association == 'OWNER' ||
+          github.event.issue.author_association == 'MEMBER' ||
+          github.event.issue.author_association == 'COLLABORATOR'
+        ) &&
         (
           (contains(github.event.issue.body, '@claude') && !contains(github.event.issue.body, '@claude review')) ||
           (contains(github.event.issue.title, '@claude') && !contains(github.event.issue.title, '@claude review'))
