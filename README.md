@@ -5,7 +5,7 @@ Shared GitHub Actions and reusable workflows for infrastructure, deployments, an
 ## Directory Structure
 
 ```
-actions/
+.
 ├── actions/          # High-level composite actions
 │   ├── deploy-terraform/      # Complete Terraform deployment
 │   ├── deploy-ecs/            # ECS service deployment
