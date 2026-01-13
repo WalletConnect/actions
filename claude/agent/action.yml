@@ -1,0 +1,157 @@
+name: "Claude Agent"
+description: "Generic @claude handler with org defaults and author validation"
+author: "WalletConnect"
+
+inputs:
+  anthropic_api_key:
+    description: "Anthropic API key for Claude access"
+    required: true
+  model:
+    description: "Claude model to use"
+    required: false
+    default: "claude-sonnet-4-5-20250929"
+  allowed_tools:
+    description: "Comma-separated list of allowed tools (empty = all). E.g., 'Read,Grep,Glob' for read-only"
+    required: false
+  system_instructions:
+    description: "Org-wide behavioral guidelines prepended to prompts"
+    required: false
+  project_context:
+    description: "Repo-specific context injected into prompts"
+    required: false
+  allowed_bots:
+    description: "Comma-separated list of bot usernames that can trigger"
+    required: false
+  max_turns:
+    description: "Max agentic turns (API round-trips)"
+    required: false
+    default: "50"
+  track_progress:
+    description: "Show thinking/progress in comments"
+    required: false
+    default: "true"
+  allowed_authors:
+    description: "Comma-separated author_association values permitted to trigger"
+    required: false
+    default: "OWNER,MEMBER,COLLABORATOR"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Validate trigger conditions
+      id: validate
+      shell: bash
+      env:
+        ALLOWED_AUTHORS: ${{ inputs.allowed_authors }}
+        EVENT_NAME: ${{ github.event_name }}
+        COMMENT_BODY: ${{ github.event.comment.body || '' }}
+        COMMENT_AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association || '' }}
+        REVIEW_BODY: ${{ github.event.review.body || '' }}
+        REVIEW_AUTHOR_ASSOCIATION: ${{ github.event.review.author_association || '' }}
+        ISSUE_BODY: ${{ github.event.issue.body || '' }}
+        ISSUE_TITLE: ${{ github.event.issue.title || '' }}
+        ISSUE_AUTHOR_ASSOCIATION: ${{ github.event.issue.author_association || '' }}
+      run: |
+        echo "Validating trigger conditions..."
+
+        # Determine author_association and body based on event type
+        case "$EVENT_NAME" in
+          issue_comment|pull_request_review_comment)
+            AUTHOR_ASSOCIATION="$COMMENT_AUTHOR_ASSOCIATION"
+            BODY="$COMMENT_BODY"
+            ;;
+          pull_request_review)
+            AUTHOR_ASSOCIATION="$REVIEW_AUTHOR_ASSOCIATION"
+            BODY="$REVIEW_BODY"
+            ;;
+          issues)
+            AUTHOR_ASSOCIATION="$ISSUE_AUTHOR_ASSOCIATION"
+            BODY="$ISSUE_BODY $ISSUE_TITLE"
+            ;;
+          *)
+            echo "::warning::Unsupported event type: $EVENT_NAME"
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            exit 0
+            ;;
+        esac
+
+        # Check author_association (case-sensitive, GitHub uses uppercase)
+        if ! printf '%s' ",$ALLOWED_AUTHORS," | grep -Fq ",$AUTHOR_ASSOCIATION,"; then
+          echo "::notice::Author association '$AUTHOR_ASSOCIATION' not in allowed list: $ALLOWED_AUTHORS"
+          echo "should_run=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        # Check for @claude mention (case-insensitive)
+        if ! printf '%s' "$BODY" | grep -qi '@claude'; then
+          echo "::notice::No @claude mention found"
+          echo "should_run=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        # Exclude @claude review (handled by auto-review action)
+        if printf '%s' "$BODY" | grep -qi '@claude review'; then
+          echo "::notice::@claude review detected - deferring to auto-review action"
+          echo "should_run=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        echo "Trigger conditions validated successfully"
+        echo "should_run=true" >> $GITHUB_OUTPUT
+
+    - name: Build prompt
+      if: steps.validate.outputs.should_run == 'true'
+      shell: bash
+      env:
+        SYSTEM_INSTRUCTIONS: ${{ inputs.system_instructions }}
+        PROJECT_CONTEXT: ${{ inputs.project_context }}
+      run: |
+        # Default system instructions if none provided
+        if [[ -z "$SYSTEM_INSTRUCTIONS" ]]; then
+          SYSTEM_INSTRUCTIONS="In all interactions be extremely concise and sacrifice grammar for concision.
+        Use conventional commit format for commits.
+        Use conventional commit style naming for branches (e.g., fix/..., feat/...)."
+        fi
+
+        {
+          echo "CLAUDE_PROMPT<<EOF"
+          echo "REPO: ${{ github.repository }}"
+          echo ""
+          echo "## OPERATING GUIDELINES"
+          echo ""
+          echo "$SYSTEM_INSTRUCTIONS"
+          if [[ -n "$PROJECT_CONTEXT" ]]; then
+            echo ""
+            echo "## PROJECT CONTEXT"
+            echo ""
+            echo "$PROJECT_CONTEXT"
+          fi
+          echo "EOF"
+        } >> $GITHUB_ENV
+
+    - name: Build Claude args
+      if: steps.validate.outputs.should_run == 'true'
+      shell: bash
+      env:
+        MODEL: ${{ inputs.model }}
+        MAX_TURNS: ${{ inputs.max_turns }}
+        ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
+      run: |
+        CLAUDE_ARGS="--model $MODEL --max-turns $MAX_TURNS"
+
+        if [[ -n "$ALLOWED_TOOLS" ]]; then
+          CLAUDE_ARGS="$CLAUDE_ARGS --allowedTools $ALLOWED_TOOLS"
+        fi
+
+        echo "CLAUDE_ARGS=$CLAUDE_ARGS" >> $GITHUB_ENV
+        echo "Built claude_args: $CLAUDE_ARGS"
+
+    - name: Run Claude
+      if: steps.validate.outputs.should_run == 'true'
+      uses: anthropics/claude-code-action@v1
+      with:
+        anthropic_api_key: ${{ inputs.anthropic_api_key }}
+        prompt: ${{ env.CLAUDE_PROMPT }}
+        track_progress: ${{ inputs.track_progress }}
+        claude_args: ${{ env.CLAUDE_ARGS }}
+        allowed_bots: ${{ inputs.allowed_bots }}
