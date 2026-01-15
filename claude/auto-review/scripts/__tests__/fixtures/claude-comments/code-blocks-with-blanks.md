@@ -6,9 +6,7 @@
 **File:** src/api/client.ts:67
 **Severity:** HIGH
 **Category:** error-handling
-
-The async function doesn't properly handle promise rejections.
-
+**Context:** The async function doesn't properly handle promise rejections.
 **Recommendation:** Wrap the async operation in try-catch:
 ```typescript
 async function fetchData() {
