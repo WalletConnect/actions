@@ -8,9 +8,7 @@ I've reviewed the PR and found the following issues:
 **File:** src/database/users.ts:45
 **Severity:** HIGH
 **Category:** security
-
-The user query is constructed using string concatenation, which makes it vulnerable to SQL injection attacks.
-
+**Context:** The user query is constructed using string concatenation, which makes it vulnerable to SQL injection attacks.
 **Recommendation:** Use parameterized queries to prevent SQL injection:
 ```typescript
 const result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);

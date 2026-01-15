@@ -39,6 +39,7 @@ describe('parseClaudeComment', () => {
     expect(findings[0].recommendation).toContain('parameterized queries');
     expect(findings[0].recommendation).toContain('```typescript');
     expect(findings[0].exploit_scenario).toContain('attacker');
+    expect(findings[0].context).toContain('string concatenation');
   });
 
   it('should parse multiple issues', () => {
@@ -54,6 +55,10 @@ describe('parseClaudeComment', () => {
     expect(findings[1].description).toBe('Missing input validation');
     expect(findings[2].description).toBe('Unused import statement');
     expect(findings[2].severity).toBe('LOW');
+    // Verify context extraction for all issues
+    expect(findings[0].context).toContain('string concatenation');
+    expect(findings[1].context).toContain('email format');
+    expect(findings[2].context).toContain('lodash import');
   });
 
   it('should handle code blocks with blank lines in recommendations', () => {
@@ -69,6 +74,7 @@ describe('parseClaudeComment', () => {
     expect(findings[0].recommendation).toContain('const response = await fetch(url);');
     expect(findings[0].recommendation).toContain('\n\n');
     expect(findings[0].recommendation).toContain('const data = await response.json();');
+    expect(findings[0].context).toContain('promise rejections');
   });
 
   it('should handle missing optional fields', () => {
@@ -81,16 +87,18 @@ describe('parseClaudeComment', () => {
 
     expect(findings).toHaveLength(2);
 
-    // First issue missing ID, severity, category
+    // First issue missing ID, severity, category, context
     expect(findings[0].id).toBeNull();
     expect(findings[0].severity).toBe('MEDIUM'); // default
     expect(findings[0].file).toBe('src/services/cache.ts');
     expect(findings[0].line).toBe(89);
+    expect(findings[0].context).toBeUndefined(); // No **Context:** field
 
-    // Second issue missing file/line
+    // Second issue missing file/line, context
     expect(findings[1].id).toBe('payment-no-error-handling-9a3c');
     expect(findings[1].severity).toBe('HIGH');
     expect(findings[1].file).toBeUndefined();
+    expect(findings[1].context).toBeUndefined(); // No **Context:** field
   });
 
   it('should handle both "Recommendation:" and "Fix:" labels', () => {

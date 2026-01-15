@@ -183,6 +183,11 @@ export function main() {
     body += `**Category:** ${category}\n`;
     body += `**Tool:** Claude Auto Review\n`;
 
+    const context = finding.context;
+    if (context) {
+      body += `\n**Context:** ${context}\n`;
+    }
+
     const exploit =
       finding.exploit_scenario ||
       (finding.extra &&

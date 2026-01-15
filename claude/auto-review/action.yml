@@ -289,9 +289,7 @@ runs:
         **File:** path/to/file.js:123
         **Severity:** HIGH
         **Category:** security
-
-        Detailed explanation of the issue and why it's problematic.
-
+        **Context:** Detailed explanation of the issue and why it's problematic.
         **Recommendation:** Specific steps to fix the issue.
         </example-snippet>
 
@@ -303,6 +301,7 @@ runs:
 
         **Optional fields:**
         - Category: e.g., \\\"**Category:** security\\\", \\\"**Category:** performance\\\", \\\"**Category:** code_quality\\\"
+        - Context: Use \\\"**Context:**\\\" to explain WHY the issue is problematic (STRONGLY RECOMMENDED - this appears in inline comments)
         - Recommendation: Use \\\"**Recommendation:**\\\" or \\\"**Fix:**\\\" followed by suggested solution (see Recommendation Guidelines below)
         - Exploit Scenario: Use \\\"**Exploit Scenario:**\\\" for security issues
 
@@ -369,9 +368,7 @@ runs:
         **File:** src/database/users.ts:45
         **Severity:** HIGH
         **Category:** security
-
-        The query concatenates user input directly without parameterization, allowing SQL injection attacks.
-
+        **Context:** The query concatenates user input directly without parameterization, allowing SQL injection attacks.
         **Recommendation:** Use parameterized queries to prevent SQL injection:
         \\\`\\\`\\\`typescript
         // Replace this:

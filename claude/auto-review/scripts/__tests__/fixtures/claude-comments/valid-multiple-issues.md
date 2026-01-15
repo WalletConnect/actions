@@ -8,9 +8,7 @@ I've reviewed the PR and found the following issues:
 **File:** src/database/users.ts:45
 **Severity:** HIGH
 **Category:** security
-
-The user query is constructed using string concatenation.
-
+**Context:** The user query is constructed using string concatenation.
 **Recommendation:** Use parameterized queries:
 ```typescript
 const result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
@@ -23,9 +21,7 @@ const result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
 **File:** src/auth/login.ts:23
 **Severity:** MEDIUM
 **Category:** security
-
-The login function doesn't validate email format before processing.
-
+**Context:** The login function doesn't validate email format before processing.
 **Recommendation:** Add email validation:
 ```typescript
 if (!isValidEmail(email)) {
@@ -38,9 +34,7 @@ if (!isValidEmail(email)) {
 **File:** src/utils/helpers.ts:1
 **Severity:** LOW
 **Category:** code-quality
-
-The lodash import is not used anywhere in the file.
-
+**Context:** The lodash import is not used anywhere in the file.
 **Fix:** Remove the unused import to keep the code clean.
 
 </details>

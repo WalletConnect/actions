@@ -85,6 +85,12 @@ export function parseClaudeComment(commentBody) {
       finding.category = categoryMatch[1].trim();
     }
 
+    // Extract context if available (capture content until next ** field or #### header)
+    const contextMatch = content.match(/\*\*Context:\*\*\s+([\s\S]*?)(?=\n\*\*|\n####|$)/i);
+    if (contextMatch) {
+      finding.context = contextMatch[1].trim();
+    }
+
     // Extract recommendation if available (capture everything including code blocks with blank lines)
     const recommendationMatch = content.match(/\*\*(?:Recommendation|Fix):\*\*\s+((?:(?!(?:\*\*|####)).|\n)*?)(?=\n\n(?:\*\*|####)|$)/is);
     if (recommendationMatch) {
