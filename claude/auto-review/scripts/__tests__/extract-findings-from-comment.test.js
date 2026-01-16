@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -221,6 +221,51 @@ This is the issue with no file specified.`;
     expect(findings).toHaveLength(1);
     expect(findings[0].file).toBeUndefined();
     expect(findings[0].description).toBe('Missing file info');
+  });
+
+  it('should parse multi-agent output and extract agent from ID prefix', () => {
+    const comment = fs.readFileSync(
+      path.join(fixturesDir, 'claude-comments', 'multi-agent-output.md'),
+      'utf8'
+    );
+
+    const findings = parseClaudeComment(comment);
+
+    expect(findings).toHaveLength(4);
+
+    // Security agent issue (sec- prefix)
+    expect(findings[0].id).toBe('sec-users-sql-injection-f3a2');
+    expect(findings[0].agent).toBe('review-security');
+    expect(findings[0].description).toBe('SQL injection vulnerability in user query');
+
+    // Bug agent issue (bug- prefix)
+    expect(findings[1].id).toBe('bug-cache-race-condition-a1b2');
+    expect(findings[1].agent).toBe('review-bugs');
+    expect(findings[1].description).toBe('Race condition in cache update');
+
+    // Patterns agent issue (pat- prefix)
+    expect(findings[2].id).toBe('pat-userservi-n-plus-one-c3d4');
+    expect(findings[2].agent).toBe('review-patterns');
+    expect(findings[2].description).toBe('N+1 query pattern in user fetch');
+
+    // Another bug agent issue
+    expect(findings[3].id).toBe('bug-auth-missing-validation-8b91');
+    expect(findings[3].agent).toBe('review-bugs');
+  });
+
+  it('should not set agent for IDs without recognized prefix', () => {
+    const comment = `#### Issue 1: Test issue
+**ID:** users-sql-injection-f3a2
+**File:** test.ts:1
+**Severity:** HIGH
+
+Problem.`;
+
+    const findings = parseClaudeComment(comment);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].id).toBe('users-sql-injection-f3a2');
+    expect(findings[0].agent).toBeUndefined();
   });
 });
 

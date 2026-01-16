@@ -100,7 +100,70 @@ runs:
 
         ---
 
-        ## REVIEW FOCUS AREAS
+        ## MULTI-AGENT REVIEW
+
+        You will conduct a comprehensive code review using THREE specialized subagents running IN PARALLEL.
+
+        ### Step 1: Spawn All Review Agents Simultaneously
+
+        Use the Task tool to launch ALL THREE agents in a SINGLE message with multiple tool calls. This is critical for parallel execution.
+
+        **CRITICAL: Use subagent_type=\"general-purpose\" for all agents** and include the specialized instructions in each prompt.
+
+        **Agents to spawn (all with subagent_type=\"general-purpose\"):**
+
+        1. **Bug Review Agent** - Include in prompt:
+           - Focus: Logic errors, null handling, race conditions, error handling, resource leaks, type mismatches
+           - Severity: CRITICAL (crashes/data corruption), HIGH (production bugs), MEDIUM (edge cases), LOW (minor)
+           - ID prefix: bug-
+           - Output format: \\\"#### Issue N: description\\\" with **ID:** bug-{file-slug}-{semantic-slug}-{hash}
+
+        2. **Security Review Agent** - Include in prompt:
+           - Focus: Injection, auth/authz, data exposure, crypto weaknesses, SSRF, path traversal, input validation
+           - Severity: CRITICAL (RCE/auth bypass), HIGH (immediate fix), MEDIUM (limited exploit), LOW (improvement)
+           - ID prefix: sec-
+           - Include **Exploit Scenario:** for each finding
+           - Output format: \\\"#### Issue N: description\\\" with **ID:** sec-{file-slug}-{semantic-slug}-{hash}
+
+        3. **Patterns Review Agent** - Include in prompt:
+           - Focus: Anti-patterns, code smells, performance (N+1, memory leaks), missing abstractions
+           - Domain checks: External URLs (only flag non-reown.com/walletconnect.com/walletconnect.org), Cache-Control, GitHub Actions pull_request_target security, WalletConnect Pay architecture (cross-service DB, idempotency, resilience, saga compensation, trace context)
+           - Severity: HIGH (significant issue), MEDIUM (should address), LOW (improvement)
+           - ID prefix: pat-
+           - Output format: \\\"#### Issue N: description\\\" with **ID:** pat-{file-slug}-{semantic-slug}-{hash}
+
+        **For EACH agent prompt, include:**
+        - This preamble: \\\"You are a code reviewer. Provide actionable feedback on code changes. **Diffs alone are not enough.** Read the full file(s) being modified to understand context. Code that looks wrong in isolation may be correct given surrounding logic.\\\"
+        - PR number and repository
+        - List of changed files
+        - The specific focus areas and severity levels for that agent type
+        - The ID format with the appropriate prefix (bug-, sec-, pat-)
+        - \\\"If no issues found, state: No [type] issues found.\\\"
+        - \\\"Wrap all issues in a collapsed \`<details>\` block.\\\"
+
+        **CRITICAL - Before flagging anything, agents MUST:**
+        - **Be certain** - Don't flag something as a bug if unsure. Investigate first.
+        - **Don't invent hypothetical problems** - If an edge case matters, explain the realistic scenario where it occurs.
+        - **Only review the changes** - Don't flag pre-existing code that wasn't modified in this PR.
+        - **Communicate severity honestly** - Don't overstate. A minor issue is not HIGH severity.
+
+        ### Step 2: Consolidate Findings
+
+        After ALL agents complete, consolidate their findings:
+        1. Collect all issues from each agent's response
+        2. **Deduplicate**: If multiple agents report the same issue (same file + same/adjacent line + similar description):
+           - Keep the finding with higher severity
+           - Merge unique context from duplicates
+           - Preserve the ID from the more specific agent (sec- > bug- > pat-)
+        3. Sort final list by severity: CRITICAL > HIGH > MEDIUM > LOW
+
+        ### Step 3: Output Consolidated Review
+
+        Produce a SINGLE consolidated summary containing all unique issues in the standard collapsed \`<details>\` format. Do NOT include separate sections per agent - merge everything into one unified list.
+
+        ---
+
+        ## REVIEW FOCUS AREAS (Reference for Agents)
 
         Analyze code changes for issues in these areas:
         - **Code quality and best practices** for the technologies used in this project
@@ -113,132 +176,7 @@ runs:
         - **Error handling** and edge cases
         - **Code maintainability** and readability
 
-        ---
-
-        ## AUTOMATED CHECKS
-
-        ### External Domain URL Detection
-
-        Scan all changed files for URLs matching the pattern 'https?://(?:www\.)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'. **ONLY report if URLs are found** pointing to domains other than the approved company domains (reown.com, walletconnect.com, walletconnect.org). **If no external domain URLs are detected, do not mention this check at all.**
-
-        If external domain URLs are found, report them using this exact format:
-
-        <example-snippet>
-        🔒 **External Domain URL Detected** (Non-blocking)
-        **URL:** [detected_url]
-        **File:** [file_path:line_number]
-
-        This change introduces URLs pointing to external domains. Please verify that these external dependencies are intentional and review for potential security, privacy, or compliance implications. Approved company domains are: reown.com, walletconnect.com, walletconnect.org
-        </example-snippet>
-
-        ### Static Resource Cache-Control Validation
-
-        Scan all changed files for static immutable resources (fonts, images, CSS, JS, media files) and their Cache-Control header configurations. **ONLY report if issues are found.** **If no cache-control issues are detected, do not mention this check at all.**
-
-        Flag any issues using these guidelines:
-
-        1. **Identify static resources**: Look for URLs or file references to static assets including:
-           - Font files: .woff, .woff2, .ttf, .otf, .eot
-           - Images: .jpg, .jpeg, .png, .gif, .svg, .webp, .ico
-           - Stylesheets: .css
-           - Scripts: .js (when served as static files)
-           - Media: .mp4, .webm, .mp3, .wav
-
-        2. **Check Cache-Control headers**: Examine if Cache-Control headers are explicitly set for these resources. Flag in these cases:
-           - **Explicit headers with insufficient max-age**: If Cache-Control is set with max-age < 31536000 (1 year) for static immutable resources
-           - **Missing or implicit headers**: If Cache-Control is not explicitly set in the code and may rely on server defaults
-
-        3. **Report format for insufficient cache-control**:
-        <example-snippet>
-        ⚠️ **Static Resource Cache-Control Issue**
-        **Resource:** [URL or file path]
-        **File:** [file_path:line_number]
-        **Current Cache-Control:** [value or \"Not explicitly set (implicit)\"]
-        **Recommendation:** Static immutable resources should have \"Cache-Control: public, max-age=31536000, immutable\" (1 year)
-        **Rationale:** Improves performance by allowing browsers to cache static resources for extended periods. Use cache-busting techniques (versioned URLs/filenames) for updates.
-        </example-snippet>
-
-        4. **When to flag**:
-           - Flag: Static resource URLs being added/modified without proper cache headers
-           - Flag: Cache-Control headers set to less than 1 year for static immutable resources
-           - Flag: Static resources where caching configuration is not visible in the changed code (ask reviewer to verify server/CDN configuration)
-           - Don't flag: Dynamic/API endpoints or resources that change frequently
-           - Don't flag: Resources already configured with max-age >= 31536000
-
-        ### GitHub Actions Workflow Security (Supply Chain Attack Prevention)
-
-        Scan all changed .github/workflows/*.yml or .github/workflows/*.yaml files for dangerous patterns that could enable supply chain attacks. **ONLY report if issues are found.** **If no workflow security issues are detected, do not mention this check at all.**
-
-        Flag using these guidelines:
-
-        1. **CRITICAL: pull_request_target with PR head checkout** - Flag ANY workflow that:
-           - Uses on: pull_request_target trigger AND
-           - Checks out the PR head using patterns like:
-             - ref: github.event.pull_request.head.sha
-             - ref: github.event.pull_request.head.ref
-             - ref: refs/pull/github.event.pull_request.number/merge
-             - Any checkout that references the pull request head rather than base
-           - **Severity: CRITICAL** - This combination allows attackers to run arbitrary code by modifying repository scripts in their PR
-
-        2. **HIGH: pull_request_target with script execution** - Flag workflows that:
-           - Use on: pull_request_target AND
-           - Execute repository scripts (.js, .sh, .py, .ts, etc.) after checkout
-           - **Severity: HIGH** - Could be exploited if checkout configuration changes
-
-        3. **MEDIUM: pull_request_target usage** - Flag ANY use of pull_request_target as requiring security review:
-           - This trigger runs with repository secrets access
-           - External contributors can trigger it via PRs
-           - **Severity: MEDIUM** - Requires careful review even without obvious vulnerabilities
-
-        Report format:
-        🚨 **GitHub Actions Security Risk** (Blocking)
-        **Severity:** [CRITICAL/HIGH/MEDIUM]
-        **File:** [file_path:line_number]
-        **Pattern:** [description of the dangerous pattern found]
-        **Risk:** [specific attack vector]
-        **Recommendation:** [specific fix - e.g., use pull_request trigger instead, or avoid checking out PR head, or use workflow_run pattern for external PRs]
-
-        ### WalletConnect Pay Architecture Compliance
-
-        Scan changed files for SOA and reliability pattern violations. **ONLY report if violations found.** **If no violations detected, do not mention this check.**
-
-        1. **CRITICAL: Cross-Service Database Access**
-           - Imports of other services' DB models/DAOs/repositories
-           - SQL queries to tables outside service boundary
-           - Shared DB connections across services
-           **Report:** 🚨 **Architecture Violation: Cross-Service DB Access** (Blocking) - Services must expose data via APIs, not direct DB access
-
-        2. **HIGH: Missing Idempotency Key Validation**
-           - POST/PUT/PATCH/DELETE handlers without idempotency key extraction
-           - Payment/wallet/transaction mutations lacking idempotency store checks
-           - No duplicate request detection or payload fingerprint validation
-           **Report:** ⚠️ **Missing Idempotency Protection** - Recommend extracting idempotency key from request headers, checking against a store for duplicates, and returning cached response if already processed
-
-        3. **HIGH: External Calls Without Timeout/Retry**
-           - fetch()/axios/http.request() without explicit timeout
-           - External API calls without retry + exponential backoff
-           - Critical dependencies without circuit breaker
-           **Report:** ⚠️ **Missing Resilience Patterns** - Add timeout, retry with backoff, circuit breaker for cascading failure prevention
-
-        4. **HIGH: Non-Idempotent Event Consumers**
-           - Message queue consumers (SQS/SNS/Kafka) without message ID deduplication
-           - Event handlers mutating state without checking if already processed
-           - Webhook handlers lacking replay protection
-           **Report:** ⚠️ **Non-Idempotent Event Consumer** - Recommend checking event/message ID against processed events store before performing mutations to prevent duplicate processing
-
-        5. **MEDIUM: Missing Compensating Actions**
-           - Sequential cross-service calls without rollback logic
-           - Multi-step workflows (hold → settle → notify) without saga pattern
-           - Try-catch blocks not emitting compensating events on failure
-           **Report:** ⚠️ **Missing Saga Compensation** - Recommend adding catch blocks that release holds and emit compensating/reversal events on failure
-
-        6. **MEDIUM: State Transitions Without Trace Context**
-           - Payment/wallet state changes without structured logs + correlation IDs
-           - Cross-service calls missing trace ID propagation (X-Trace-Id header)
-           - State events not linked to originating operation
-           **Report:** ⚠️ **Missing Trace Context** - Recommend adding structured logging with traceId and correlationId for state changes, and propagating trace headers across service calls
-
-        **Scope:** Flag new code or modifications introducing anti-patterns in payment/wallet/transaction operations. Ignore read-only ops, utilities, tests."
+        **Note:** Domain-specific checks (External URLs, Cache-Control, GitHub Actions Security, WalletConnect Pay Architecture) are handled by the review-patterns agent."
 
 
           # Add project context
@@ -410,7 +348,7 @@ runs:
         anthropic_api_key: ${{ inputs.anthropic_api_key }}
         prompt: ${{ env.REVIEW_PROMPT }}
         track_progress: true
-        claude_args: --model ${{ inputs.model }}
+        claude_args: --model ${{ inputs.model }} --allowedTools "Read,Glob,Grep,Task,WebFetch"
         allowed_bots: devin-ai-integration[bot]
 
     - name: Extract findings from Claude's comment

@@ -53,9 +53,17 @@ export function parseClaudeComment(commentBody) {
 
     // Extract ID if present
     // Format: **ID:** file-slug-semantic-slug-hash
+    // Multi-agent format: **ID:** {agent-prefix}-file-slug-semantic-slug-hash (bug-, sec-, pat-)
     const idMatch = content.match(/\*\*ID:\*\*\s+([a-z0-9\-]+)/i);
     if (idMatch) {
       finding.id = idMatch[1].trim().toLowerCase();
+
+      // Extract agent from ID prefix (bug-, sec-, pat-)
+      const agentPrefixMatch = finding.id.match(/^(bug|sec|pat)-/);
+      if (agentPrefixMatch) {
+        const agentMap = { 'bug': 'review-bugs', 'sec': 'review-security', 'pat': 'review-patterns' };
+        finding.agent = agentMap[agentPrefixMatch[1]];
+      }
     }
 
     // Extract file path and line number
