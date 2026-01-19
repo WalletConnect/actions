@@ -77,6 +77,8 @@ runs:
 
         Review this pull request with focus on code quality, security, and best practices.
 
+        **Diffs alone are not enough.** Read the full file(s) being modified to understand context. Code that looks wrong in isolation may be correct given surrounding logic.
+
         ### Incremental Review Guidelines (for PR updates)
 
         **IMPORTANT: For PR synchronize events (subsequent pushes), be incremental:**
