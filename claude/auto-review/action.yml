@@ -142,7 +142,11 @@ runs:
         **Severity:** HIGH/MEDIUM/LOW
         **Category:** security/performance/code_quality
 
-        **Context:** Detailed explanation covering: (1) what the problematic pattern is, (2) why it's a problem technically, (3) potential impact/risk, (4) under what conditions it's exploitable. Aim for 2-4 sentences so PR authors understand the \"why\" behind the flag.
+        **Context:**
+        - **Pattern:** What the problematic code pattern is
+        - **Risk:** Why it's a problem technically
+        - **Impact:** Potential consequences (exploit, data loss, etc.)
+        - **Trigger:** Under what conditions this becomes exploitable
 
         **Recommendation:** Fix with minimal code snippet (1-10 lines).
         </details>
@@ -162,7 +166,11 @@ runs:
         **Severity:** HIGH
         **Category:** security
 
-        **Context:** The query at line 45 builds SQL using string concatenation with user-provided \`userId\`. This allows attackers to inject arbitrary SQL by crafting malicious input (e.g., \`1' OR '1'='1\`). Any endpoint accepting user input that reaches this query is vulnerable. Impact: unauthorized data access, data modification, or database destruction.
+        **Context:**
+        - **Pattern:** Query at line 45 builds SQL via string concatenation with user-provided \`userId\`
+        - **Risk:** Allows arbitrary SQL injection via crafted input (e.g., \`1' OR '1'='1\`)
+        - **Impact:** Unauthorized data access, modification, or database destruction
+        - **Trigger:** Any endpoint accepting user input that reaches this query
 
         **Recommendation:** Use parameterized queries:
         \\\`\\\`\\\`typescript

@@ -183,9 +183,14 @@ export function main() {
     body += `**Category:** ${category}\n`;
     body += `**Tool:** Claude Auto Review\n`;
 
-    const context = finding.context;
-    if (context) {
-      body += `\n**Context:** ${context}\n`;
+    const findingContext = finding.context;
+    if (findingContext) {
+      // If context starts with a bullet or newline, add newline for proper rendering
+      const needsNewline =
+        findingContext.trimStart().startsWith("-") ||
+        findingContext.trimStart().startsWith("*") ||
+        findingContext.trimStart().startsWith("\n");
+      body += `\n**Context:**${needsNewline ? "\n" : " "}${findingContext}\n`;
     }
 
     const exploit =
@@ -203,7 +208,9 @@ export function main() {
         finding.extra.metadata &&
         finding.extra.metadata.recommendation);
     if (recommendation) {
-      body += `\n**Recommendation:** ${recommendation}\n`;
+      // If recommendation starts with a code block, add newline for proper rendering
+      const needsNewline = recommendation.trimStart().startsWith("```");
+      body += `\n**Recommendation:**${needsNewline ? "\n" : " "}${recommendation}\n`;
     }
 
     reviewComments.push({
