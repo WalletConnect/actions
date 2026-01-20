@@ -142,7 +142,7 @@ runs:
         **Severity:** HIGH/MEDIUM/LOW
         **Category:** security/performance/code_quality
 
-        **Context:** Explanation of why this is problematic.
+        **Context:** Detailed explanation covering: (1) what the problematic pattern is, (2) why it's a problem technically, (3) potential impact/risk, (4) under what conditions it's exploitable. Aim for 2-4 sentences so PR authors understand the \"why\" behind the flag.
 
         **Recommendation:** Fix with minimal code snippet (1-10 lines).
         </details>
@@ -162,7 +162,7 @@ runs:
         **Severity:** HIGH
         **Category:** security
 
-        **Context:** Query concatenates user input without parameterization, allowing SQL injection.
+        **Context:** The query at line 45 builds SQL using string concatenation with user-provided \`userId\`. This allows attackers to inject arbitrary SQL by crafting malicious input (e.g., \`1' OR '1'='1\`). Any endpoint accepting user input that reaches this query is vulnerable. Impact: unauthorized data access, data modification, or database destruction.
 
         **Recommendation:** Use parameterized queries:
         \\\`\\\`\\\`typescript
