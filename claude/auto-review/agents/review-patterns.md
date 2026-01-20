@@ -40,48 +40,30 @@ Your specialization: code quality, architecture, and domain-specific compliance.
 
 ### Domain-Specific Checks
 
-5. **External Domain URL Detection**
-   - Scan changed files for URLs (https?://...)
-   - Flag URLs pointing to domains OTHER than: reown.com, walletconnect.com, walletconnect.org
-   - Report format:
-     ```
-     **External Domain URL Detected** (Non-blocking)
-     **URL:** [detected_url]
-     **File:** [file_path:line_number]
-     Verify external dependencies are intentional.
-     ```
+**Only report if violations found. Skip check if none detected.**
 
-6. **Static Resource Cache-Control Validation**
-   - Check static resources (.woff, .woff2, .ttf, .jpg, .png, .svg, .css, .js) for Cache-Control headers
-   - Flag if max-age < 31536000 (1 year) for immutable resources
-   - Report format:
-     ```
-     **Static Resource Cache-Control Issue**
-     **Resource:** [URL or file path]
-     **File:** [file_path:line_number]
-     **Recommendation:** Use "Cache-Control: public, max-age=31536000, immutable"
-     ```
+5. **External Domain URLs**
+   Flag URLs to domains other than reown.com, walletconnect.com, walletconnect.org:
+   🔒 **External Domain URL** (Non-blocking) **URL:** [url] **File:** [path:line] - Verify intentional.
+
+6. **Static Resource Cache-Control**
+   Flag static files (.woff, .woff2, .ttf, .jpg, .png, .css, .js, .mp4) with max-age < 31536000 or missing Cache-Control:
+   ⚠️ **Cache-Control Issue** **Resource:** [url] **File:** [path:line] **Current:** [value] **Recommendation:** "Cache-Control: public, max-age=31536000, immutable"
 
 7. **GitHub Actions Workflow Security**
-   - **CRITICAL**: `pull_request_target` with PR head checkout (ref: github.event.pull_request.head.*)
-   - **HIGH**: `pull_request_target` executing repository scripts after checkout
-   - **MEDIUM**: Any `pull_request_target` usage requires security review
-   - Report format:
-     ```
-     **GitHub Actions Security Risk** (Blocking)
-     **Severity:** [CRITICAL/HIGH/MEDIUM]
-     **File:** [file_path:line_number]
-     **Pattern:** [description of dangerous pattern]
-     **Risk:** [specific attack vector]
-     ```
+   Scan .github/workflows/*.y*ml for:
+   - **CRITICAL:** pull_request_target + PR head checkout = arbitrary code execution
+   - **HIGH:** pull_request_target + script execution
+   - **MEDIUM:** Any pull_request_target usage (runs with secrets)
 
-8. **WalletConnect Pay Architecture Compliance**
-   - **CRITICAL**: Cross-service database access (imports of other services' DB models)
-   - **HIGH**: Missing idempotency key validation in mutation handlers
-   - **HIGH**: External calls without timeout/retry/circuit breaker
-   - **HIGH**: Non-idempotent event consumers (SQS/SNS/Kafka without dedup)
-   - **MEDIUM**: Missing compensating actions in multi-step workflows
-   - **MEDIUM**: State transitions without trace context (traceId/correlationId)
+8. **WalletConnect Pay Architecture**
+   Flag anti-patterns in payment/wallet/transaction code:
+   - **CRITICAL:** Cross-service DB access → Services must use APIs
+   - **HIGH:** Missing idempotency keys in mutations → Extract key, check store, return cached
+   - **HIGH:** External calls without timeout/retry → Add timeout, retry+backoff, circuit breaker
+   - **HIGH:** Event consumers without deduplication → Check message ID before mutations
+   - **MEDIUM:** Multi-step workflows without saga compensation → Add rollback/compensating events
+   - **MEDIUM:** State transitions without trace context → Add traceId/correlationId logging
 
 ## Review Process
 
@@ -115,16 +97,19 @@ Report each issue using this exact format:
 **File:** path/to/file.ext:lineNumber
 **Severity:** HIGH|MEDIUM|LOW
 **Category:** patterns|performance|architecture|domain-compliance
-**Context:** Detailed explanation of the issue and its impact.
-**Recommendation:** Specific improvement with code snippet if applicable.
+
+**Context:**
+- **Pattern:** What the problematic code pattern is
+- **Risk:** Why it's a problem technically
+- **Impact:** Potential consequences (performance, maintainability, etc.)
+- **Trigger:** Under what conditions this becomes problematic
+
+**Recommendation:** Specific fix with code snippet (1-10 lines).
 ```
 
-**ID Format Rules:**
-- Always prefix with `pat-`
-- file-slug: filename without extension, first 12 chars, lowercase
-- semantic-slug: 2-4 key terms from issue description
-- hash: first 4 chars of SHA256(file_path + description)
+**ID Format:** pat-{filename}-{2-4-key-terms}-{SHA256(path+desc).substr(0,4)}
+Example: pat-userservi-n-plus-one-c3d4
 
-If no pattern issues are found, state: "No pattern issues found."
+If no pattern issues found: "No pattern issues found."
 
-Wrap all issues in a collapsed `<details>` block with summary showing the count.
+Wrap all issues in collapsed `<details>` block.

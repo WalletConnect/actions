@@ -90,17 +90,19 @@ Report each issue using this exact format:
 **File:** path/to/file.ext:lineNumber
 **Severity:** CRITICAL|HIGH|MEDIUM|LOW
 **Category:** security
-**Context:** Detailed explanation of the vulnerability and attack vector.
-**Exploit Scenario:** How an attacker could exploit this vulnerability.
-**Recommendation:** Specific fix with code snippet if applicable.
+
+**Context:**
+- **Pattern:** What the vulnerable code pattern is
+- **Risk:** Why it's exploitable technically
+- **Impact:** Potential consequences (RCE, data breach, auth bypass, etc.)
+- **Trigger:** Under what conditions this becomes exploitable
+
+**Recommendation:** Specific fix with code snippet (1-10 lines).
 ```
 
-**ID Format Rules:**
-- Always prefix with `sec-`
-- file-slug: filename without extension, first 12 chars, lowercase
-- semantic-slug: 2-4 key terms from issue description
-- hash: first 4 chars of SHA256(file_path + description)
+**ID Format:** sec-{filename}-{2-4-key-terms}-{SHA256(path+desc).substr(0,4)}
+Example: sec-users-sql-injection-f3a2
 
-If no security issues are found, state: "No security issues found."
+If no security issues found: "No security issues found."
 
-Wrap all issues in a collapsed `<details>` block with summary showing the count.
+Wrap all issues in collapsed `<details>` block.

@@ -1,5 +1,3 @@
-I've conducted a comprehensive review using specialized agents for bugs, security, and patterns. Here are the consolidated findings:
-
 <details>
 <summary>Found 4 issue(s)</summary>
 
@@ -8,8 +6,13 @@ I've conducted a comprehensive review using specialized agents for bugs, securit
 **File:** src/database/users.ts:45
 **Severity:** HIGH
 **Category:** security
-**Context:** The user query is constructed using string concatenation, allowing SQL injection attacks.
-**Exploit Scenario:** An attacker could inject malicious SQL via the userId parameter to extract or modify database contents.
+
+**Context:**
+- **Pattern:** Query at line 45 builds SQL via string concatenation with user-provided `userId`
+- **Risk:** Allows arbitrary SQL injection via crafted input
+- **Impact:** Unauthorized data access, modification, or database destruction
+- **Trigger:** Any endpoint accepting user input that reaches this query
+
 **Recommendation:** Use parameterized queries:
 ```typescript
 const result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
@@ -20,8 +23,14 @@ const result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
 **File:** src/services/cache.ts:89
 **Severity:** HIGH
 **Category:** bug
-**Context:** The cache read and write operations are not atomic, allowing race conditions when multiple requests update the same key concurrently.
-**Recommendation:** Use atomic operations or implement locking:
+
+**Context:**
+- **Pattern:** Cache read at line 85 and write at line 89 are separate non-atomic operations
+- **Risk:** Concurrent requests can read stale data and overwrite each other's updates
+- **Impact:** Data inconsistency, lost updates, stale cache serving
+- **Trigger:** Multiple simultaneous requests updating the same cache key
+
+**Recommendation:** Use atomic operations:
 ```typescript
 await cache.setNX(key, value, { EX: ttl });
 ```
@@ -31,7 +40,13 @@ await cache.setNX(key, value, { EX: ttl });
 **File:** src/services/userService.ts:156
 **Severity:** MEDIUM
 **Category:** performance
-**Context:** The code fetches users in a loop, causing N+1 database queries instead of a single batch query.
+
+**Context:**
+- **Pattern:** Loop at line 156 executes individual DB query per user ID
+- **Risk:** O(n) database round-trips instead of O(1) batch query
+- **Impact:** Degraded performance, database connection exhaustion under load
+- **Trigger:** Fetching multiple users (e.g., listing team members)
+
 **Recommendation:** Use batch fetching:
 ```typescript
 const users = await db.query('SELECT * FROM users WHERE id = ANY($1)', [userIds]);
@@ -42,7 +57,13 @@ const users = await db.query('SELECT * FROM users WHERE id = ANY($1)', [userIds]
 **File:** src/auth/login.ts:23
 **Severity:** MEDIUM
 **Category:** bug
-**Context:** The login function doesn't validate email format before processing, which could lead to unexpected behavior.
+
+**Context:**
+- **Pattern:** Login function accepts email parameter without format validation
+- **Risk:** Invalid email formats passed to downstream services
+- **Impact:** Unexpected errors, failed lookups, or security bypass attempts
+- **Trigger:** User submits malformed email in login form
+
 **Recommendation:** Add email validation:
 ```typescript
 if (!isValidEmail(email)) {

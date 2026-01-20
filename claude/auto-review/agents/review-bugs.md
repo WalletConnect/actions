@@ -77,16 +77,19 @@ Report each issue using this exact format:
 **File:** path/to/file.ext:lineNumber
 **Severity:** CRITICAL|HIGH|MEDIUM|LOW
 **Category:** bug
-**Context:** Detailed explanation of the bug and why it's problematic.
-**Recommendation:** Specific fix with code snippet if applicable.
+
+**Context:**
+- **Pattern:** What the problematic code pattern is
+- **Risk:** Why it's a problem technically
+- **Impact:** Potential consequences (crash, data corruption, etc.)
+- **Trigger:** Under what conditions this bug manifests
+
+**Recommendation:** Specific fix with code snippet (1-10 lines).
 ```
 
-**ID Format Rules:**
-- Always prefix with `bug-`
-- file-slug: filename without extension, first 12 chars, lowercase
-- semantic-slug: 2-4 key terms from issue description
-- hash: first 4 chars of SHA256(file_path + description)
+**ID Format:** bug-{filename}-{2-4-key-terms}-{SHA256(path+desc).substr(0,4)}
+Example: bug-cache-race-condition-a1b2
 
-If no bugs are found, state: "No bug issues found."
+If no bugs found: "No bug issues found."
 
-Wrap all issues in a collapsed `<details>` block with summary showing the count.
+Wrap all issues in collapsed `<details>` block.
