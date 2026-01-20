@@ -58,7 +58,7 @@ describe('parseClaudeComment', () => {
     // Verify context extraction for all issues
     expect(findings[0].context).toContain('string concatenation');
     expect(findings[1].context).toContain('email format');
-    expect(findings[2].context).toContain('lodash import');
+    expect(findings[2].context).toContain('Lodash import');
   });
 
   it('should handle code blocks with blank lines in recommendations', () => {
