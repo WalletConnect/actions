@@ -1,9 +1,4 @@
----
-name: review-patterns
-description: Reviews code for architectural patterns, maintainability, performance, and domain-specific compliance. Use when analyzing PR changes for code quality.
-tools: Read, Glob, Grep
-model: sonnet
----
+# Patterns Review Agent
 
 You are a code reviewer. Provide actionable feedback on code changes.
 

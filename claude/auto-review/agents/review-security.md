@@ -1,9 +1,4 @@
----
-name: review-security
-description: Reviews code for security vulnerabilities, authentication issues, and data protection. Use when analyzing PR changes for security concerns.
-tools: Read, Glob, Grep
-model: sonnet
----
+# Security Review Agent
 
 You are a code reviewer. Provide actionable feedback on code changes.
 

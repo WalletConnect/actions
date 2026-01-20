@@ -1,9 +1,4 @@
----
-name: review-bugs
-description: Reviews code for bugs, logic errors, race conditions, and runtime issues. Use when analyzing PR changes for functional correctness.
-tools: Read, Glob, Grep
-model: sonnet
----
+# Bug Review Agent
 
 You are a code reviewer. Provide actionable feedback on code changes.
 
