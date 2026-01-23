@@ -98,9 +98,9 @@ runs:
         2. PR number, repository, list of changed files
 
         **Agents:**
-        1. **Bug Agent** - Spec: ${{ github.action_path }}/agents/review-bugs.md - ID prefix: bug-
-        2. **Security Agent** - Spec: ${{ github.action_path }}/agents/review-security.md - ID prefix: sec-
-        3. **Patterns Agent** - Spec: ${{ github.action_path }}/agents/review-patterns.md - ID prefix: pat-
+        1. **Bug Agent** - Spec: ${{ github.action_path }}/agents/review-bugs.md
+        2. **Security Agent** - Spec: ${{ github.action_path }}/agents/review-security.md
+        3. **Patterns Agent** - Spec: ${{ github.action_path }}/agents/review-patterns.md
 
         ### Step 2: Consolidate Findings
 
