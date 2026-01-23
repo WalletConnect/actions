@@ -23,10 +23,57 @@ inputs:
     description: "Post inline PR comments generated from findings.json"
     required: false
     default: "true"
+  force_all_agents:
+    description: "Force all review agents regardless of heuristic (overrides selective spawning)"
+    required: false
+    default: "false"
 
 runs:
   using: "composite"
   steps:
+    - name: Determine agents to spawn
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        FORCE_ALL_AGENTS: ${{ inputs.force_all_agents }}
+      run: |
+        SCRIPT_PATH="${{ github.action_path }}/scripts/determine-agents.js"
+
+        if [[ ! -f "$SCRIPT_PATH" ]]; then
+          echo "::warning::Determine agents script not found, spawning all agents"
+          echo "AGENTS_TO_RUN=bug,security,patterns" >> $GITHUB_ENV
+          echo "AGENT_REASON=Script not found (fallback)" >> $GITHUB_ENV
+          exit 0
+        fi
+
+        RESULT=$(node "$SCRIPT_PATH")
+
+        AGENTS=$(echo "$RESULT" | jq -r '.agents | join(",")')
+        REASON=$(echo "$RESULT" | jq -r '.reason')
+        SKIPPED=$(echo "$RESULT" | jq -r '.skipped | join(",")')
+
+        echo "AGENTS_TO_RUN=$AGENTS" >> $GITHUB_ENV
+        echo "AGENT_REASON=$REASON" >> $GITHUB_ENV
+        echo "AGENTS_SKIPPED=$SKIPPED" >> $GITHUB_ENV
+
+        # Set skip flag if no agents to spawn
+        if [[ -z "$AGENTS" ]]; then
+          echo "SKIP_REVIEW=true" >> $GITHUB_ENV
+        else
+          echo "SKIP_REVIEW=false" >> $GITHUB_ENV
+        fi
+
+        echo "::group::Agent Selection"
+        echo "Agents to spawn: ${AGENTS:-none}"
+        echo "Reason: $REASON"
+        if [[ -n "$SKIPPED" ]]; then
+          echo "Skipped agents: $SKIPPED"
+        fi
+        if [[ -z "$AGENTS" ]]; then
+          echo "Review will be skipped"
+        fi
+        echo "::endgroup::"
+
     - name: Set up review prompt
       shell: bash
       run: |
@@ -83,24 +130,62 @@ runs:
 
         ---
 
-        ## MULTI-AGENT REVIEW
+        ## MULTI-AGENT REVIEW"
 
-        Conduct review using THREE specialized subagents IN PARALLEL.
+          # Check if we have any agents to spawn
+          if [[ -z "$AGENTS_TO_RUN" ]]; then
+            # No agents to spawn - skip review
+            PROMPT="$PROMPT
+
+        **Review skipped:** $AGENT_REASON
+
+        Respond with: \\\"✅ No code review needed - $AGENT_REASON\\\""
+          else
+            # Build agent list dynamically
+            AGENT_COUNT=0
+            AGENT_LIST=""
+
+            if [[ "$AGENTS_TO_RUN" == *"bug"* ]]; then
+              AGENT_COUNT=$((AGENT_COUNT + 1))
+              AGENT_LIST="$AGENT_LIST
+        $AGENT_COUNT. **Bug Agent** - Spec: ${{ github.action_path }}/agents/review-bugs.md"
+            fi
+
+            if [[ "$AGENTS_TO_RUN" == *"security"* ]]; then
+              AGENT_COUNT=$((AGENT_COUNT + 1))
+              AGENT_LIST="$AGENT_LIST
+        $AGENT_COUNT. **Security Agent** - Spec: ${{ github.action_path }}/agents/review-security.md"
+            fi
+
+            if [[ "$AGENTS_TO_RUN" == *"patterns"* ]]; then
+              AGENT_COUNT=$((AGENT_COUNT + 1))
+              AGENT_LIST="$AGENT_LIST
+        $AGENT_COUNT. **Patterns Agent** - Spec: ${{ github.action_path }}/agents/review-patterns.md"
+            fi
+
+            if [[ $AGENT_COUNT -eq 1 ]]; then
+              AGENT_WORD="subagent"
+            else
+              AGENT_WORD="subagents"
+            fi
+
+            PROMPT="$PROMPT
+
+        Based on PR analysis: $AGENT_REASON
+
+        Conduct review using $AGENT_COUNT specialized $AGENT_WORD IN PARALLEL.
 
         **Agent specs:** ${{ github.action_path }}/agents/
 
-        ### Step 1: Spawn All Agents Simultaneously
+        ### Step 1: Spawn Agents Simultaneously
 
-        Use Task tool to launch ALL THREE agents in a SINGLE message. Use subagent_type=\\\"general-purpose\\\".
+        Use Task tool to launch agents in a SINGLE message. Use subagent_type=\\\"general-purpose\\\".
 
         **For EACH agent prompt include:**
         1. \\\"Read your spec file at [path] and follow its instructions.\\\"
         2. PR number, repository, list of changed files
 
-        **Agents:**
-        1. **Bug Agent** - Spec: ${{ github.action_path }}/agents/review-bugs.md
-        2. **Security Agent** - Spec: ${{ github.action_path }}/agents/review-security.md
-        3. **Patterns Agent** - Spec: ${{ github.action_path }}/agents/review-patterns.md
+        **Agents:**$AGENT_LIST
 
         ### Step 2: Consolidate Findings
 
@@ -111,7 +196,8 @@ runs:
 
         ### Step 3: Output
 
-        Produce SINGLE consolidated summary in collapsed \`<details>\` format. No separate agent sections."
+        Produce SINGLE consolidated summary in collapsed \\\`<details>\\\` format. No separate agent sections."
+          fi
 
 
           # Add project context
@@ -197,7 +283,23 @@ runs:
           echo "::warning::The 'timeout_minutes' input is deprecated and has no effect in claude-code-action@v1. Please use job-level 'timeout-minutes' instead. See: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idtimeout-minutes"
         fi
 
+    - name: Skip review notification
+      if: env.SKIP_REVIEW == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "::notice::Skipping review: $AGENT_REASON"
+
+        # Post a comment to the PR
+        gh pr comment "${{ github.event.pull_request.number }}" \
+          --repo "${{ github.repository }}" \
+          --body "✅ **Auto Review Skipped**: $AGENT_REASON
+
+        _No code review needed for this PR. Add the \`full-review\` label to force a full review._"
+
     - name: Automatic PR Review
+      if: env.SKIP_REVIEW != 'true'
       uses: anthropics/claude-code-action@v1
       with:
         anthropic_api_key: ${{ inputs.anthropic_api_key }}
@@ -207,7 +309,7 @@ runs:
         allowed_bots: devin-ai-integration[bot]
 
     - name: Extract findings from Claude's comment
-      if: inputs.comment_pr_findings == 'true'
+      if: inputs.comment_pr_findings == 'true' && env.SKIP_REVIEW != 'true'
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
@@ -227,7 +329,7 @@ runs:
         node "$SCRIPT_PATH"
 
     - name: Ensure GitHub CLI and jq for inline comments
-      if: inputs.comment_pr_findings == 'true'
+      if: inputs.comment_pr_findings == 'true' && env.SKIP_REVIEW != 'true'
       shell: bash
       run: |
         # Install GitHub CLI if needed
@@ -261,7 +363,7 @@ runs:
         fi
 
     - name: Post inline findings comments
-      if: inputs.comment_pr_findings == 'true'
+      if: inputs.comment_pr_findings == 'true' && env.SKIP_REVIEW != 'true'
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
