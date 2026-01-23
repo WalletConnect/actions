@@ -86,9 +86,9 @@ Report each issue using this exact format:
 
 ```
 #### Issue N: Brief description
-**ID:** sec-{file-slug}-{semantic-slug}-{hash}
+**ID:** sec-{filename}-{2-4-key-terms}-{hash}
 **File:** path/to/file.ext:lineNumber
-**Severity:** CRITICAL|HIGH|MEDIUM|LOW
+**Severity:** CRITICAL/HIGH/MEDIUM/LOW
 **Category:** security
 
 **Context:**
@@ -97,12 +97,10 @@ Report each issue using this exact format:
 - **Impact:** Potential consequences (RCE, data breach, auth bypass, etc.)
 - **Trigger:** Under what conditions this becomes exploitable
 
-**Recommendation:** Specific fix with code snippet (1-10 lines).
+**Recommendation:** Fix with minimal code snippet (1-10 lines).
 ```
 
-**ID Format:** sec-{filename}-{2-4-key-terms}-{SHA256(path+desc).substr(0,4)}
+**ID Generation:** sec-{filename}-{2-4-key-terms}-{SHA256(path+desc).substr(0,4)}
 Example: sec-users-sql-injection-f3a2
 
 If no security issues found: "No security issues found."
-
-Wrap all issues in collapsed `<details>` block.

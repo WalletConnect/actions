@@ -83,6 +83,7 @@ Your specialization: code quality, architecture, and domain-specific compliance.
 
 ## Severity Levels
 
+- **CRITICAL**: Severe issue (e.g., workflow security vulnerabilities, cross-service DB access)
 - **HIGH**: Significant maintainability or performance issue
 - **MEDIUM**: Code quality issue that should be addressed
 - **LOW**: Minor improvement opportunity
@@ -93,10 +94,10 @@ Report each issue using this exact format:
 
 ```
 #### Issue N: Brief description
-**ID:** pat-{file-slug}-{semantic-slug}-{hash}
+**ID:** pat-{filename}-{2-4-key-terms}-{hash}
 **File:** path/to/file.ext:lineNumber
-**Severity:** HIGH|MEDIUM|LOW
-**Category:** patterns|performance|architecture|domain-compliance
+**Severity:** CRITICAL/HIGH/MEDIUM/LOW
+**Category:** patterns/performance/architecture/domain-compliance
 
 **Context:**
 - **Pattern:** What the problematic code pattern is
@@ -104,12 +105,10 @@ Report each issue using this exact format:
 - **Impact:** Potential consequences (performance, maintainability, etc.)
 - **Trigger:** Under what conditions this becomes problematic
 
-**Recommendation:** Specific fix with code snippet (1-10 lines).
+**Recommendation:** Fix with minimal code snippet (1-10 lines).
 ```
 
-**ID Format:** pat-{filename}-{2-4-key-terms}-{SHA256(path+desc).substr(0,4)}
+**ID Generation:** pat-{filename}-{2-4-key-terms}-{SHA256(path+desc).substr(0,4)}
 Example: pat-userservi-n-plus-one-c3d4
 
 If no pattern issues found: "No pattern issues found."
-
-Wrap all issues in collapsed `<details>` block.

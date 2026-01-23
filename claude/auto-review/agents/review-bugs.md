@@ -73,9 +73,9 @@ Report each issue using this exact format:
 
 ```
 #### Issue N: Brief description
-**ID:** bug-{file-slug}-{semantic-slug}-{hash}
+**ID:** bug-{filename}-{2-4-key-terms}-{hash}
 **File:** path/to/file.ext:lineNumber
-**Severity:** CRITICAL|HIGH|MEDIUM|LOW
+**Severity:** CRITICAL/HIGH/MEDIUM/LOW
 **Category:** bug
 
 **Context:**
@@ -84,12 +84,10 @@ Report each issue using this exact format:
 - **Impact:** Potential consequences (crash, data corruption, etc.)
 - **Trigger:** Under what conditions this bug manifests
 
-**Recommendation:** Specific fix with code snippet (1-10 lines).
+**Recommendation:** Fix with minimal code snippet (1-10 lines).
 ```
 
-**ID Format:** bug-{filename}-{2-4-key-terms}-{SHA256(path+desc).substr(0,4)}
+**ID Generation:** bug-{filename}-{2-4-key-terms}-{SHA256(path+desc).substr(0,4)}
 Example: bug-cache-race-condition-a1b2
 
 If no bugs found: "No bug issues found."
-
-Wrap all issues in collapsed `<details>` block.
