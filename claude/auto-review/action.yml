@@ -90,7 +90,7 @@ runs:
         ### PR Size Assessment (Check FIRST)
         Flag if >15 files OR >800 lines changed:
         🚨 **PR Too Large** **Files:** [N] **Lines:** [N] **Severity:** HIGH **Category:** maintainability
-        This PR is doing too much—harder to review, bugs hide in the noise, merge conflicts await. Suggest 2-4 focused PRs split by: (1) logical concern (refactoring vs features vs infra vs deps) and (2) file/directory groupings. Format: \"PR 1: [description] - [files]\"
+        This PR is doing too much. Suggest 2-4 focused PRs split by: (1) logical concern (refactoring vs features vs infra vs deps) and (2) file/directory groupings. Format: \"PR 1: [description] - [files]\"
 
         ### External Domain URLs
         Flag URLs to domains other than reown.com, walletconnect.com, walletconnect.org:
