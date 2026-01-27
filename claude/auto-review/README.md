@@ -229,8 +229,19 @@ The default prompt emphasizes:
 - **Type Safety** - Proper usage of type systems
 - **Error Handling** - Edge cases and error scenarios
 - **Maintainability** - Code readability and structure
+- **PR Size Assessment** - Flags oversized PRs (>15 files or >800 lines) with suggestions for splitting
 - **Static Resource Caching** - Validates Cache-Control headers for static immutable resources (fonts, images, CSS, JS) to ensure proper caching (1 year minimum for immutable assets)
 - **External Dependencies** - Flags URLs pointing to domains outside approved company domains
+
+### PR Size Detection
+
+Claude automatically detects oversized PRs and provides actionable guidance on breaking them up:
+
+- **Thresholds**: >15 files changed OR >800 lines modified
+- **Severity**: HIGH (maintainability category)
+- **Split Suggestions**: Analyzes changes both by logical concern (refactoring vs features vs bug fixes) and by file/directory groupings to recommend 2-4 focused PRs
+
+This helps prevent "GOD PRs" that are difficult to review thoroughly, more likely to hide bugs, and prone to merge conflicts.
 
 ### Inline Findings Comments (New)
 
@@ -294,8 +305,8 @@ jobs:
 
 **"Action timed out"**
 
-- Increase `timeout_minutes` for large PRs
-- Consider breaking large changes into smaller PRs
+- Increase job-level `timeout-minutes` for large PRs
+- If Claude flags your PR as too large, follow the split suggestions to create smaller, focused PRs
 
 **"API key invalid"**
 
