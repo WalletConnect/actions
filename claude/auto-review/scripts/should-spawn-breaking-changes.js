@@ -160,7 +160,7 @@ export function main() {
 
   const result = shouldSpawnBreakingChanges(files, { labels, force });
 
-  logger.log(`Decision: spawn=${result.spawn}, reason="${result.reason}"`);
+  logger.error(`Decision: spawn=${result.spawn}, reason="${result.reason}"`);
   console.log(JSON.stringify(result));
 
   return result;
