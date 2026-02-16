@@ -211,6 +211,42 @@ Problem.`;
     expect(findings[0].severity).toBe('HIGH');
   });
 
+  it('should extract agent from brk- ID prefix', () => {
+    const comment = `#### Issue 1: Action input removed
+**ID:** brk-action-remove-timeout-input-e4f1
+**File:** action.yml:15
+**Severity:** CRITICAL
+**Category:** breaking_change
+
+**Context:**
+- **Pattern:** Input \`timeout_minutes\` was removed
+- **Risk:** Consumers referencing this input get workflow validation errors
+- **Impact:** All workflows using timeout_minutes will fail
+- **Trigger:** Any consumer upgrading to this version
+
+**Recommendation:** Keep the input with a deprecation warning.`;
+
+    const findings = parseClaudeComment(comment);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].id).toBe('brk-action-remove-timeout-input-e4f1');
+    expect(findings[0].agent).toBe('review-breaking-changes');
+    expect(findings[0].severity).toBe('CRITICAL');
+    expect(findings[0].category).toBe('breaking_change');
+  });
+
+  it('should not set agent for non-prefixed IDs', () => {
+    const comment = `#### Issue 1: SQL injection
+**ID:** users-sql-injection-f3a2
+**File:** src/users.ts:10
+**Severity:** HIGH
+
+Problem.`;
+
+    const findings = parseClaudeComment(comment);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].agent).toBeUndefined();
+  });
+
   it('should skip extraction if no file path found', () => {
     const comment = `#### Issue 1: Missing file info
 
