@@ -189,8 +189,8 @@ runs:
         #### Issue 1: Brief description
         **ID:** {file-slug}-{semantic-slug}-{hash}
         **File:** path/to/file.ext:123
-        **Severity:** HIGH/MEDIUM/LOW
-        **Category:** security/performance/code_quality
+        **Severity:** CRITICAL/HIGH/MEDIUM/LOW
+        **Category:** security/performance/code_quality/breaking_change
 
         **Context:**
         - **Pattern:** What the problematic code pattern is
@@ -234,7 +234,7 @@ runs:
         fi
 
         # Set environment variable for the next step
-        echo "REVIEW_PROMPT<<EOF" >> $GITHUB_ENV
+        echo "REVIEW_PROMPT<<'EOF'" >> $GITHUB_ENV
         echo "$PROMPT" >> $GITHUB_ENV
         echo "EOF" >> $GITHUB_ENV
 
