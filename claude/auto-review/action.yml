@@ -234,7 +234,7 @@ runs:
         fi
 
         # Set environment variable for the next step
-        echo "REVIEW_PROMPT<<'EOF'" >> $GITHUB_ENV
+        echo "REVIEW_PROMPT<<EOF" >> $GITHUB_ENV
         echo "$PROMPT" >> $GITHUB_ENV
         echo "EOF" >> $GITHUB_ENV
 
