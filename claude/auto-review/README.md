@@ -233,6 +233,7 @@ The default prompt emphasizes:
 - **PR Size Assessment** - Flags oversized PRs (>15 files or >800 lines) with suggestions for splitting
 - **Static Resource Caching** - Validates Cache-Control headers for static immutable resources (fonts, images, CSS, JS) to ensure proper caching (1 year minimum for immutable assets)
 - **External Dependencies** - Flags URLs pointing to domains outside approved company domains
+- **Dependency License Compliance** - Flags non-permissive licenses (GPL, AGPL, SSPL) in newly added dependencies across all ecosystems
 
 ### PR Size Detection
 
@@ -243,6 +244,18 @@ Claude automatically detects oversized PRs and provides actionable guidance on b
 - **Split Suggestions**: Analyzes changes both by logical concern (refactoring vs features vs bug fixes) and by file/directory groupings to recommend 2-4 focused PRs
 
 This helps prevent "GOD PRs" that are difficult to review thoroughly, more likely to hide bugs, and prone to merge conflicts.
+
+### Dependency License Compliance
+
+Claude checks newly added dependencies for license compatibility:
+
+- **Ecosystems**: Node.js (npm/pnpm/yarn), Go, Rust, Python, Ruby, and others
+- **Permissive (OK)**: MIT, Apache-2.0, BSD, ISC, Unlicense, CC0
+- **Restrictive (HIGH)**: GPL, AGPL, SSPL — strong copyleft obligations
+- **Weak Copyleft (MEDIUM)**: LGPL, MPL, EPL — may be acceptable, flagged for review
+- **Unknown (LOW)**: Packages whose license cannot be confidently determined
+- **Dev dependencies**: Severity reduced by one level (not distributed with software)
+- **Dual-licensed**: Evaluates the most permissive available option
 
 ### Inline Findings Comments (New)
 
