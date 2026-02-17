@@ -234,6 +234,24 @@ Problem.`;
     expect(findings[0].category).toBe('breaking_change');
   });
 
+  it('should extract agent from lic- ID prefix', () => {
+    const comment = `#### Issue 1: GPL dependency detected
+**ID:** lic-gpl-library-a3f1
+**File:** package.json:15
+**Severity:** HIGH
+**Category:** license_compliance
+
+**Context:**
+- **Pattern:** GPL-3.0 licensed dependency added
+
+**Recommendation:** Replace with MIT-licensed alternative.`;
+
+    const findings = parseClaudeComment(comment);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].id).toBe('lic-gpl-library-a3f1');
+    expect(findings[0].agent).toBe('review-license-compliance');
+  });
+
   it('should not set agent for non-prefixed IDs', () => {
     const comment = `#### Issue 1: SQL injection
 **ID:** users-sql-injection-f3a2

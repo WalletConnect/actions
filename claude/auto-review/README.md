@@ -93,6 +93,7 @@ jobs:
 | `project_context`     | ❌       | -                            | Additional project-specific context to help Claude understand your codebase                     |
 | `comment_pr_findings` | ❌       | `true`                       | Automatically post inline PR comments for findings saved to `findings.json`                     |
 | `force_breaking_changes_agent` | ❌ | `false`                    | Force breaking changes subagent regardless of file heuristic                                    |
+| `force_license_compliance_agent` | ❌ | `false`                  | Force license compliance agent regardless of heuristic                                          |
 
 ## Usage Examples
 
@@ -245,11 +246,14 @@ Claude automatically detects oversized PRs and provides actionable guidance on b
 
 This helps prevent "GOD PRs" that are difficult to review thoroughly, more likely to hide bugs, and prone to merge conflicts.
 
-### Dependency License Compliance
+### Dependency License Compliance (Subagent)
 
-Claude checks newly added dependencies for license compatibility:
+License compliance runs as a **conditional subagent** — it only spawns when the PR modifies dependency manifest or lockfiles, keeping the main review context focused.
 
-- **Ecosystems**: Node.js (npm/pnpm/yarn), Go, Rust, Python, Ruby, and others
+- **Trigger**: Any dependency manifest file changed (`package.json`, `go.mod`, `Cargo.toml`, `pyproject.toml`, `requirements*.txt`, `Gemfile`, lockfiles, etc.)
+- **Force override**: Set `force_license_compliance_agent: 'true'` to always run
+- **ID prefix**: Findings use `lic-` prefixed IDs (e.g., `lic-gpl-library-a3f1`)
+- **Ecosystems**: Node.js (npm/pnpm/yarn), Go, Rust, Python, Ruby, PHP, Java/Kotlin
 - **Permissive (OK)**: MIT, Apache-2.0, BSD, ISC, Unlicense, CC0
 - **Restrictive (HIGH)**: GPL, AGPL, SSPL — strong copyleft obligations
 - **Weak Copyleft (MEDIUM)**: LGPL, MPL, EPL — may be acceptable, flagged for review

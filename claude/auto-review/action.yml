@@ -27,6 +27,10 @@ inputs:
     description: "Force breaking changes agent regardless of heuristic"
     required: false
     default: "false"
+  force_license_compliance_agent:
+    description: "Force license compliance agent regardless of heuristic"
+    required: false
+    default: "false"
 
 runs:
   using: "composite"
@@ -47,6 +51,23 @@ runs:
         echo "SPAWN_BREAKING_CHANGES=$SPAWN" >> $GITHUB_ENV
         echo "BREAKING_CHANGES_REASON=$REASON" >> $GITHUB_ENV
         echo "Breaking changes agent: spawn=$SPAWN reason=\"$REASON\""
+
+    - name: Determine if license compliance agent should spawn
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_TOKEN: ${{ github.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+        FORCE_LICENSE_COMPLIANCE_AGENT: ${{ inputs.force_license_compliance_agent }}
+      run: |
+        SCRIPT_PATH="${{ github.action_path }}/scripts/should-spawn-license-compliance.js"
+        RESULT=$(node "$SCRIPT_PATH")
+        SPAWN=$(echo "$RESULT" | jq -r '.spawn')
+        REASON=$(echo "$RESULT" | jq -r '.reason')
+        echo "SPAWN_LICENSE_COMPLIANCE=$SPAWN" >> $GITHUB_ENV
+        echo "LICENSE_COMPLIANCE_REASON=$REASON" >> $GITHUB_ENV
+        echo "License compliance agent: spawn=$SPAWN reason=\"$REASON\""
 
     - name: Set up review prompt
       shell: bash
@@ -135,20 +156,30 @@ runs:
         3. **HIGH:** External calls without timeout/retry → ⚠️ Add timeout, retry+backoff, circuit breaker
         4. **HIGH:** Event consumers (SQS/SNS/Kafka) without message deduplication → ⚠️ Check message ID before mutations
         5. **MEDIUM:** Multi-step workflows without saga compensation → ⚠️ Add rollback/compensating events
-        6. **MEDIUM:** State transitions without trace context → ⚠️ Add structured logging with traceId/correlationId
+        6. **MEDIUM:** State transitions without trace context → ⚠️ Add structured logging with traceId/correlationId"
 
-        ### Dependency License Compliance
-        When the diff adds new dependencies (any ecosystem: package.json, go.mod, Cargo.toml, pyproject.toml, requirements.txt, Gemfile, etc.):
-        1. Identify each newly added dependency (ignore version bumps of existing deps)
-        2. Check license using your knowledge; if the repo contains the dependency's LICENSE file or a manifest with a license field, read it to confirm
-        3. **Permissive (OK):** MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, Unlicense, CC0-1.0, 0BSD, BlueOak-1.0.0, Zlib, Artistic-2.0, WTFPL
-        4. **Restrictive (flag HIGH):** GPL-2.0, GPL-3.0, AGPL-3.0, SSPL-1.0, EUPL, OSL-3.0 → copyleft obligations likely incompatible with commercial use
-        5. **Weak copyleft (flag MEDIUM):** LGPL-2.1, LGPL-3.0, MPL-2.0, EPL-2.0, CDDL-1.0 → may be acceptable depending on linking/usage, flag for review
-        6. **Unknown/unclear (flag LOW):** If you cannot confidently determine the license, flag for manual verification
-        7. For dual-licensed packages (e.g., \"MIT OR Apache-2.0\"), evaluate the most permissive option
-        8. Dev-only dependencies (devDependencies, [dev-dependencies], test extras) are lower risk — reduce severity by one level
-        Format: ⚖️ **License Compliance** **Severity:** [HIGH/MEDIUM/LOW] **Package:** [name] **License:** [detected-license] **File:** [manifest-path:line] **Category:** license_compliance - [brief explanation of risk]"
+          if [[ "$SPAWN_LICENSE_COMPLIANCE" == "true" ]]; then
+            PROMPT="$PROMPT
 
+        ---
+
+        ## LICENSE COMPLIANCE SUBAGENT
+
+        Based on PR analysis: ${LICENSE_COMPLIANCE_REASON}
+
+        Spawn ONE specialized subagent to check dependency licenses.
+
+        ### Instructions:
+        Use the Task tool with subagent_type=\"general-purpose\" to launch the agent. In the prompt include:
+        1. \"Read your spec file at ${{ github.action_path }}/agents/review-license-compliance.md and follow its instructions.\"
+        2. PR number: ${{ github.event.pull_request.number }}, Repository: ${{ github.repository }}
+        3. The list of changed files in this PR
+
+        After the agent completes, merge its findings into your consolidated output.
+        - Use the agent's lic- prefixed IDs as-is
+        - Deduplicate if you found the same issue independently (prefer lic- prefixed ID)
+        - Sort all findings by severity: CRITICAL > HIGH > MEDIUM > LOW"
+          fi
 
           # Conditionally add breaking changes subagent instructions
           if [[ "$SPAWN_BREAKING_CHANGES" == "true" ]]; then

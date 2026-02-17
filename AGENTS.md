@@ -47,6 +47,12 @@ Wraps `anthropics/claude-code-action` to provide automated PR reviews. Key compo
 
 **Flow:** AI agent reviews PR → posts comment → extract-findings parses issues → comment-pr-findings posts inline comments
 
+#### Conditional Subagents
+
+Specialized review tasks run as conditional subagents to keep the main review context focused:
+
+- **License Compliance** (`agents/review-license-compliance.md`) — spawned when dependency manifest/lockfiles change. Heuristic: `scripts/should-spawn-license-compliance.js`. Findings use `lic-` prefixed IDs.
+
 ### Workflows
 
 - `.github/workflows/claude.yml` - General AI agent invocation (@claude mentions, excluding @claude review)
