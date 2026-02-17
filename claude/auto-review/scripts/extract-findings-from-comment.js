@@ -58,9 +58,13 @@ export function parseClaudeComment(commentBody) {
       finding.id = idMatch[1].trim().toLowerCase();
 
       // Agent attribution from ID prefix
-      const agentPrefixMatch = finding.id.match(/^(brk)-/);
+      const agentPrefixMap = {
+        'brk': 'review-breaking-changes',
+        'lic': 'review-license-compliance',
+      };
+      const agentPrefixMatch = finding.id.match(/^(brk|lic)-/);
       if (agentPrefixMatch) {
-        finding.agent = 'review-breaking-changes';
+        finding.agent = agentPrefixMap[agentPrefixMatch[1]];
       }
     }
 

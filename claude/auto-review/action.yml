@@ -27,6 +27,10 @@ inputs:
     description: "Force breaking changes agent regardless of heuristic"
     required: false
     default: "false"
+  force_license_compliance_agent:
+    description: "Force license compliance agent regardless of heuristic"
+    required: false
+    default: "false"
 
 runs:
   using: "composite"
@@ -47,6 +51,23 @@ runs:
         echo "SPAWN_BREAKING_CHANGES=$SPAWN" >> $GITHUB_ENV
         echo "BREAKING_CHANGES_REASON=$REASON" >> $GITHUB_ENV
         echo "Breaking changes agent: spawn=$SPAWN reason=\"$REASON\""
+
+    - name: Determine if license compliance agent should spawn
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_TOKEN: ${{ github.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+        FORCE_LICENSE_COMPLIANCE_AGENT: ${{ inputs.force_license_compliance_agent }}
+      run: |
+        SCRIPT_PATH="${{ github.action_path }}/scripts/should-spawn-license-compliance.js"
+        RESULT=$(node "$SCRIPT_PATH")
+        SPAWN=$(echo "$RESULT" | jq -r '.spawn')
+        REASON=$(echo "$RESULT" | jq -r '.reason')
+        echo "SPAWN_LICENSE_COMPLIANCE=$SPAWN" >> $GITHUB_ENV
+        echo "LICENSE_COMPLIANCE_REASON=$REASON" >> $GITHUB_ENV
+        echo "License compliance agent: spawn=$SPAWN reason=\"$REASON\""
 
     - name: Set up review prompt
       shell: bash
@@ -137,6 +158,28 @@ runs:
         5. **MEDIUM:** Multi-step workflows without saga compensation → ⚠️ Add rollback/compensating events
         6. **MEDIUM:** State transitions without trace context → ⚠️ Add structured logging with traceId/correlationId"
 
+          if [[ "$SPAWN_LICENSE_COMPLIANCE" == "true" ]]; then
+            PROMPT="$PROMPT
+
+        ---
+
+        ## LICENSE COMPLIANCE SUBAGENT
+
+        Based on PR analysis: ${LICENSE_COMPLIANCE_REASON}
+
+        Spawn ONE specialized subagent to check dependency licenses.
+
+        ### Instructions:
+        Use the Task tool with subagent_type=\"general-purpose\" to launch the agent. In the prompt include:
+        1. \"Read your spec file at ${{ github.action_path }}/agents/review-license-compliance.md and follow its instructions.\"
+        2. PR number: ${{ github.event.pull_request.number }}, Repository: ${{ github.repository }}
+        3. The list of changed files in this PR
+
+        After the agent completes, merge its findings into your consolidated output.
+        - Use the agent's lic- prefixed IDs as-is
+        - Deduplicate if you found the same issue independently (prefer lic- prefixed ID)
+        - Sort all findings by severity: CRITICAL > HIGH > MEDIUM > LOW"
+          fi
 
           # Conditionally add breaking changes subagent instructions
           if [[ "$SPAWN_BREAKING_CHANGES" == "true" ]]; then
