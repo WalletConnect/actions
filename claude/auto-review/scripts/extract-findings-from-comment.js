@@ -56,6 +56,12 @@ export function parseClaudeComment(commentBody) {
     const idMatch = content.match(/\*\*ID:\*\*\s+([a-z0-9\-]+)/i);
     if (idMatch) {
       finding.id = idMatch[1].trim().toLowerCase();
+
+      // Agent attribution from ID prefix
+      const agentPrefixMatch = finding.id.match(/^(brk)-/);
+      if (agentPrefixMatch) {
+        finding.agent = 'review-breaking-changes';
+      }
     }
 
     // Extract file path and line number
@@ -74,7 +80,7 @@ export function parseClaudeComment(commentBody) {
     }
 
     // Extract severity
-    const severityMatch = content.match(/\*\*Severity:\*\*\s+(HIGH|MEDIUM|LOW)/i);
+    const severityMatch = content.match(/\*\*Severity:\*\*\s+(CRITICAL|HIGH|MEDIUM|LOW)/i);
     if (severityMatch) {
       finding.severity = severityMatch[1].toUpperCase();
     }

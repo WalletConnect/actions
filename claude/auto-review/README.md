@@ -92,6 +92,7 @@ jobs:
 | `custom_prompt`       | ❌       | -                            | Complete custom prompt override. Ignores all other prompt inputs if provided                    |
 | `project_context`     | ❌       | -                            | Additional project-specific context to help Claude understand your codebase                     |
 | `comment_pr_findings` | ❌       | `true`                       | Automatically post inline PR comments for findings saved to `findings.json`                     |
+| `force_breaking_changes_agent` | ❌ | `false`                    | Force breaking changes subagent regardless of file heuristic                                    |
 
 ## Usage Examples
 
@@ -250,6 +251,30 @@ This helps prevent "GOD PRs" that are difficult to review thoroughly, more likel
 - Inline PR review comments are posted automatically for each finding with file/line context
 - Disable this behaviour with `comment_pr_findings: 'false'` or by exporting `SILENCE_AUTO_REVIEW_COMMENTS=true`
 - Requires `pull-requests: write` permission, GitHub CLI (`gh`), and `jq` on the runner (auto-installed if missing)
+
+### Breaking Changes Detection Agent
+
+The auto-review action includes a specialized breaking changes subagent that is conditionally spawned based on PR file analysis. When triggered, the main Claude agent launches a `Task` subagent that reads its spec from `agents/review-breaking-changes.md`.
+
+**Trigger conditions** (any match spawns the agent):
+- `action.yml`/`action.yaml` files modified
+- Workflow YAML files modified (`.github/workflows/*.yml`)
+- Package manifests changed (`package.json`, `go.mod`, `pyproject.toml`, `Cargo.toml`, `setup.py`)
+- Type definition files changed (`.d.ts`, `types.ts`, `interfaces.ts`)
+- API route/controller files changed
+- Schema/migration files changed
+- Files deleted (`status: removed`)
+- Breaking change keywords detected in patch content (`inputs:`, `outputs:`, `required:`, `exports`, etc.)
+- PR has `breaking` or `breaking-change` label
+
+**Skip conditions:**
+- PR has `skip-review` label
+- All files are documentation-only (`.md`, `.txt`, `.rst`)
+- All files are test-only
+
+**ID prefix convention:** All findings from the breaking changes agent use the `brk-` prefix (e.g., `brk-action-remove-timeout-input-e4f1`). This prefix is used for agent attribution in `findings.json`.
+
+**Force override:** Set `force_breaking_changes_agent: "true"` to always spawn the agent regardless of heuristic.
 
 ## Best Practices
 

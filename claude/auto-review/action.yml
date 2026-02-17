@@ -23,10 +23,31 @@ inputs:
     description: "Post inline PR comments generated from findings.json"
     required: false
     default: "true"
+  force_breaking_changes_agent:
+    description: "Force breaking changes agent regardless of heuristic"
+    required: false
+    default: "false"
 
 runs:
   using: "composite"
   steps:
+    - name: Determine if breaking changes agent should spawn
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_TOKEN: ${{ github.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+        FORCE_BREAKING_CHANGES_AGENT: ${{ inputs.force_breaking_changes_agent }}
+      run: |
+        SCRIPT_PATH="${{ github.action_path }}/scripts/should-spawn-breaking-changes.js"
+        RESULT=$(node "$SCRIPT_PATH")
+        SPAWN=$(echo "$RESULT" | jq -r '.spawn')
+        REASON=$(echo "$RESULT" | jq -r '.reason')
+        echo "SPAWN_BREAKING_CHANGES=$SPAWN" >> $GITHUB_ENV
+        echo "BREAKING_CHANGES_REASON=$REASON" >> $GITHUB_ENV
+        echo "Breaking changes agent: spawn=$SPAWN reason=\"$REASON\""
+
     - name: Set up review prompt
       shell: bash
       run: |
@@ -117,6 +138,30 @@ runs:
         6. **MEDIUM:** State transitions without trace context → ⚠️ Add structured logging with traceId/correlationId"
 
 
+          # Conditionally add breaking changes subagent instructions
+          if [[ "$SPAWN_BREAKING_CHANGES" == "true" ]]; then
+            PROMPT="$PROMPT
+
+        ---
+
+        ## BREAKING CHANGES SUBAGENT
+
+        Based on PR analysis: ${BREAKING_CHANGES_REASON}
+
+        Spawn ONE specialized subagent to detect breaking changes.
+
+        ### Instructions:
+        Use the Task tool with subagent_type=\"general-purpose\" to launch the agent. In the prompt include:
+        1. \"Read your spec file at ${{ github.action_path }}/agents/review-breaking-changes.md and follow its instructions.\"
+        2. PR number: ${{ github.event.pull_request.number }}, Repository: ${{ github.repository }}
+        3. The list of changed files in this PR
+
+        After the agent completes, merge its findings into your consolidated output.
+        - Use the agent's brk- prefixed IDs as-is
+        - Deduplicate if you found the same issue independently (prefer brk- prefixed ID)
+        - Sort all findings by severity: CRITICAL > HIGH > MEDIUM > LOW"
+          fi
+
           # Add project context
           if [[ -n "${{ inputs.project_context }}" ]]; then
             PROMPT="$PROMPT
@@ -144,8 +189,8 @@ runs:
         #### Issue 1: Brief description
         **ID:** {file-slug}-{semantic-slug}-{hash}
         **File:** path/to/file.ext:123
-        **Severity:** HIGH/MEDIUM/LOW
-        **Category:** security/performance/code_quality
+        **Severity:** CRITICAL/HIGH/MEDIUM/LOW
+        **Category:** security/performance/code_quality/breaking_change
 
         **Context:**
         - **Pattern:** What the problematic code pattern is
@@ -206,7 +251,7 @@ runs:
         anthropic_api_key: ${{ inputs.anthropic_api_key }}
         prompt: ${{ env.REVIEW_PROMPT }}
         track_progress: true
-        claude_args: --model ${{ inputs.model }}
+        claude_args: --model ${{ inputs.model }} --allowedTools "Read,Glob,Grep,Task,WebFetch"
         allowed_bots: devin-ai-integration[bot]
 
     - name: Extract findings from Claude's comment

@@ -60,6 +60,7 @@ Wraps `anthropics/claude-code-action` to provide automated PR reviews. Key compo
 - Inputs: kebab-case naming
 - Outputs: written via `>> $GITHUB_OUTPUT`
 - Use `working-directory` field over `cd` in scripts
+- `$GITHUB_ENV`/`$GITHUB_OUTPUT` multiline syntax (`{name}<<{delimiter}`) is GitHub Actions-specific, NOT bash heredoc. Quoted delimiters like `<<'EOF'` are invalid — always use plain `<<EOF`
 
 ### Terraform Usage
 - Set environment via `TF_WORKSPACE` env var
