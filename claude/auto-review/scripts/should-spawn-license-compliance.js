@@ -135,7 +135,7 @@ export function main() {
 
   const result = shouldSpawnLicenseCompliance(files, { labels, force });
 
-  logger.log(
+  logger.error(
     `spawn=${result.spawn} reason="${result.reason}"`
   );
 
