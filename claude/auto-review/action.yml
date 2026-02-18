@@ -9,7 +9,7 @@ inputs:
   model:
     description: "Claude model to use for reviews"
     required: false
-    default: "claude-sonnet-4-5-20250929"
+    default: "claude-sonnet-4-6"
   timeout_minutes:
     description: "DEPRECATED: Accepted but ignored by v1 (no effect). Use job-level timeout-minutes instead."
     required: false
