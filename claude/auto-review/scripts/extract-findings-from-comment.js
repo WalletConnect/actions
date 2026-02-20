@@ -61,8 +61,9 @@ export function parseClaudeComment(commentBody) {
       const agentPrefixMap = {
         'brk': 'review-breaking-changes',
         'lic': 'review-license-compliance',
+        'dcl': 'review-data-classification',
       };
-      const agentPrefixMatch = finding.id.match(/^(brk|lic)-/);
+      const agentPrefixMatch = finding.id.match(/^(brk|lic|dcl)-/);
       if (agentPrefixMatch) {
         finding.agent = agentPrefixMap[agentPrefixMatch[1]];
       }

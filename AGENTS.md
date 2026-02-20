@@ -52,6 +52,7 @@ Wraps `anthropics/claude-code-action` to provide automated PR reviews. Key compo
 Specialized review tasks run as conditional subagents to keep the main review context focused:
 
 - **License Compliance** (`agents/review-license-compliance.md`) — spawned when dependency manifest/lockfiles change. Heuristic: `scripts/should-spawn-license-compliance.js`. Findings use `lic-` prefixed IDs.
+- **Data Classification** (`agents/review-data-classification.md`) — spawned when infrastructure, secret/env files, DB schemas, or API routes change, or when patches contain sensitive data keywords. Heuristic: `scripts/should-spawn-data-classification.js`. Findings use `dcl-` prefixed IDs.
 
 ### Workflows
 

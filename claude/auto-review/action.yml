@@ -31,6 +31,10 @@ inputs:
     description: "Force license compliance agent regardless of heuristic"
     required: false
     default: "false"
+  force_data_classification_agent:
+    description: "Force data classification agent regardless of heuristic"
+    required: false
+    default: "false"
 
 runs:
   using: "composite"
@@ -68,6 +72,23 @@ runs:
         echo "SPAWN_LICENSE_COMPLIANCE=$SPAWN" >> $GITHUB_ENV
         echo "LICENSE_COMPLIANCE_REASON=$REASON" >> $GITHUB_ENV
         echo "License compliance agent: spawn=$SPAWN reason=\"$REASON\""
+
+    - name: Determine if data classification agent should spawn
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_TOKEN: ${{ github.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+        FORCE_DATA_CLASSIFICATION_AGENT: ${{ inputs.force_data_classification_agent }}
+      run: |
+        SCRIPT_PATH="${{ github.action_path }}/scripts/should-spawn-data-classification.js"
+        RESULT=$(node "$SCRIPT_PATH")
+        SPAWN=$(echo "$RESULT" | jq -r '.spawn')
+        REASON=$(echo "$RESULT" | jq -r '.reason')
+        echo "SPAWN_DATA_CLASSIFICATION=$SPAWN" >> $GITHUB_ENV
+        echo "DATA_CLASSIFICATION_REASON=$REASON" >> $GITHUB_ENV
+        echo "Data classification agent: spawn=$SPAWN reason=\"$REASON\""
 
     - name: Set up review prompt
       shell: bash
@@ -202,6 +223,30 @@ runs:
         After the agent completes, merge its findings into your consolidated output.
         - Use the agent's brk- prefixed IDs as-is
         - Deduplicate if you found the same issue independently (prefer brk- prefixed ID)
+        - Sort all findings by severity: CRITICAL > HIGH > MEDIUM > LOW"
+          fi
+
+          # Conditionally add data classification subagent instructions
+          if [[ "$SPAWN_DATA_CLASSIFICATION" == "true" ]]; then
+            PROMPT="$PROMPT
+
+        ---
+
+        ## DATA CLASSIFICATION SUBAGENT
+
+        Based on PR analysis: ${DATA_CLASSIFICATION_REASON}
+
+        Spawn ONE specialized subagent to check data classification policy compliance.
+
+        ### Instructions:
+        Use the Task tool with subagent_type=\"general-purpose\" to launch the agent. In the prompt include:
+        1. \"Read your spec file at ${{ github.action_path }}/agents/review-data-classification.md and follow its instructions.\"
+        2. PR number: ${{ github.event.pull_request.number }}, Repository: ${{ github.repository }}
+        3. The list of changed files in this PR
+
+        After the agent completes, merge its findings into your consolidated output.
+        - Use the agent's dcl- prefixed IDs as-is
+        - Deduplicate if you found the same issue independently (prefer dcl- prefixed ID)
         - Sort all findings by severity: CRITICAL > HIGH > MEDIUM > LOW"
           fi
 
