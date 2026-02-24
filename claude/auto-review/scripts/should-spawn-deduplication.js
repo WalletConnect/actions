@@ -188,17 +188,15 @@ export function shouldSpawnDeduplication(files, metadata = {}, options = {}) {
     // Discover repo files for this extension (once per extension)
     if (!checkedExtensions.has(ext)) {
       checkedExtensions.add(ext);
-      if (!repoContents.size) {
-        const repoPaths = listRepoFilesByExtension(ext);
-        for (const rp of repoPaths) {
-          // Normalize ./prefix
-          const normalized = rp.startsWith('./') ? rp.slice(2) : rp;
-          if (addedNGrams.has(normalized)) continue; // skip self
-          try {
-            repoContents.set(normalized, fs.readFileSync(rp, 'utf8'));
-          } catch {
-            // skip unreadable
-          }
+      const repoPaths = listRepoFilesByExtension(ext);
+      for (const rp of repoPaths) {
+        // Normalize ./prefix
+        const normalized = rp.startsWith('./') ? rp.slice(2) : rp;
+        if (addedNGrams.has(normalized)) continue; // skip self
+        try {
+          repoContents.set(normalized, fs.readFileSync(rp, 'utf8'));
+        } catch {
+          // skip unreadable
         }
       }
     }

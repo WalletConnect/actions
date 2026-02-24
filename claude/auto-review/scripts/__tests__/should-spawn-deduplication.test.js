@@ -233,6 +233,23 @@ describe('shouldSpawnDeduplication', () => {
     expect(result.similarPairs.length).toBeLessThanOrEqual(20);
   });
 
+  // ---- Multi-extension scenario ----
+
+  it('should detect similarity across different extensions in same PR', () => {
+    const content = 'export function handler(req, res) {\n  validate(req);\n  process(req);\n  res.json({ ok: true });\n  return;\n}\n';
+    const files = [
+      { filename: 'src/new.js', status: 'added' },
+      { filename: 'src/new.ts', status: 'added' },
+    ];
+    const result = shouldSpawnDeduplication(files, {}, {
+      addedFileContents: new Map([['src/new.js', content], ['src/new.ts', content]]),
+      repoFileContents: new Map([['src/old.js', content], ['src/old.ts', content]]),
+    });
+    expect(result.spawn).toBe(true);
+    // Should find: new.js vs old.js, new.ts vs old.ts, plus cross-ext new-vs-new
+    expect(result.similarPairs.length).toBeGreaterThanOrEqual(2);
+  });
+
   // ---- Binary / small file exclusion ----
 
   it('should skip binary extensions', () => {
