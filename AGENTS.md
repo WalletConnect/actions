@@ -53,6 +53,7 @@ Specialized review tasks run as conditional subagents to keep the main review co
 
 - **License Compliance** (`agents/review-license-compliance.md`) — spawned when dependency manifest/lockfiles change. Heuristic: `scripts/should-spawn-license-compliance.js`. Findings use `lic-` prefixed IDs.
 - **Data Classification** (`agents/review-data-classification.md`) — spawned when infrastructure, secret/env files, DB schemas, or API routes change, or when patches contain sensitive data keywords. Heuristic: `scripts/should-spawn-data-classification.js`. Findings use `dcl-` prefixed IDs.
+- **Deduplication** (`agents/review-deduplication.md`) — spawned when newly added files have >70% n-gram Jaccard similarity with existing repo files or other added files. Heuristic: `scripts/should-spawn-deduplication.js`. Findings use `dup-` prefixed IDs.
 
 ### Workflows
 
