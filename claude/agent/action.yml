@@ -9,7 +9,7 @@ inputs:
   model:
     description: "Claude model to use"
     required: false
-    default: "claude-sonnet-4-5-20250929"
+    default: "claude-sonnet-4-6"
   allowed_tools:
     description: "Comma-separated list of allowed tools (empty = all). E.g., 'Read,Grep,Glob' for read-only"
     required: false
