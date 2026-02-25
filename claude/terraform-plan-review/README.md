@@ -111,7 +111,7 @@ permissions:
 | Input                    | Required | Default                      | Description                                                      |
 | ------------------------ | -------- | ---------------------------- | ---------------------------------------------------------------- |
 | `anthropic_api_key`      | ✅       | -                            | Your Anthropic API key for Claude access                         |
-| `model`                  | ❌       | `claude-sonnet-4-5-20250929` | Claude model to use for reviews                                  |
+| `model`                  | ❌       | `claude-sonnet-4-6` | Claude model to use for reviews                                  |
 | `terraform_plan_file`    | ✅       | -                            | Path to file containing the Terraform plan output                |
 | `terraform_plan_log_file`| ❌       | -                            | Path to file containing Terraform plan logs (warnings/errors)    |
 

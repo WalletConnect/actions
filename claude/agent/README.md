@@ -73,7 +73,7 @@ jobs:
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `anthropic_api_key` | Yes | — | Anthropic API key |
-| `model` | No | `claude-sonnet-4-5-20250929` | Claude model to use |
+| `model` | No | `claude-sonnet-4-6` | Claude model to use |
 | `allowed_tools` | No | (all) | Comma-separated list of allowed tools |
 | `system_instructions` | No | (org defaults) | Behavioral guidelines prepended to prompts |
 | `project_context` | No | — | Repo-specific context |
