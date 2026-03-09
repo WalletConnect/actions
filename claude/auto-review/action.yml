@@ -442,6 +442,21 @@ runs:
         node "$SCRIPT_PATH"
 
     # ── Auto-approve (opt-in) ──────────────────────────────────────────────
+    - name: Validate auto-approve inputs
+      if: inputs.auto_approve == 'true'
+      shell: bash
+      run: |
+        MISSING=""
+        if [[ -z "$APP_ID" ]]; then MISSING="auto_approve_app_id"; fi
+        if [[ -z "$PRIVATE_KEY" ]]; then MISSING="${MISSING:+$MISSING, }auto_approve_private_key"; fi
+        if [[ -n "$MISSING" ]]; then
+          echo "::error::Missing required inputs for auto_approve: $MISSING"
+          exit 1
+        fi
+      env:
+        APP_ID: ${{ inputs.auto_approve_app_id }}
+        PRIVATE_KEY: ${{ inputs.auto_approve_private_key }}
+
     - name: Evaluate auto-approve
       if: inputs.auto_approve == 'true'
       shell: bash
@@ -486,8 +501,7 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ steps.approve-app-token.outputs.token }}
+        APPROVE_REASON: ${{ env.AUTO_APPROVE_REASON }}
       run: |
-        PR_NUMBER=${{ github.event.pull_request.number || github.event.issue.number }}
-        gh pr review "$PR_NUMBER" --approve --body "✅ **Auto-approved by Claude**
-
-        ${{ env.AUTO_APPROVE_REASON }}"
+        PR_NUMBER="${{ github.event.pull_request.number || github.event.issue.number }}"
+        gh pr review "$PR_NUMBER" --approve --body "$(printf '✅ **Auto-approved by Claude**\n\n%s' "$APPROVE_REASON")"

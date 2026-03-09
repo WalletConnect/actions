@@ -10,10 +10,6 @@ vi.mock("../lib/github-utils.js", async () => {
       issue: { number: 42 },
       payload: {},
     })),
-    createLogger: () => ({
-      log: vi.fn(),
-      error: vi.fn(),
-    }),
   };
 });
 
@@ -43,6 +39,7 @@ import fs from "fs";
 describe("auto-approve-evaluation", () => {
   let originalEnv;
   let fetchMock;
+  let stderrSpy;
 
   beforeEach(() => {
     originalEnv = { ...process.env };
@@ -75,6 +72,9 @@ describe("auto-approve-evaluation", () => {
     // Mock global fetch
     fetchMock = vi.fn();
     global.fetch = fetchMock;
+
+    // Silence stderr logging from the script
+    stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
   });
 
   afterEach(() => {
@@ -101,17 +101,9 @@ describe("auto-approve-evaluation", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     await main();
 
-    const output = logSpy.mock.calls.find((call) => {
-      try {
-        const parsed = JSON.parse(call[0]);
-        return "approved" in parsed;
-      } catch {
-        return false;
-      }
-    });
-
-    expect(output).toBeDefined();
-    const result = JSON.parse(output[0]);
+    // stdout should contain only the final JSON (no log noise)
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    const result = JSON.parse(logSpy.mock.calls[0][0]);
     expect(result.approved).toBe(true);
     expect(result.reason).toBe("Safe terraform variable change");
 
@@ -136,17 +128,8 @@ describe("auto-approve-evaluation", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     await main();
 
-    const output = logSpy.mock.calls.find((call) => {
-      try {
-        const parsed = JSON.parse(call[0]);
-        return "approved" in parsed;
-      } catch {
-        return false;
-      }
-    });
-
-    expect(output).toBeDefined();
-    const result = JSON.parse(output[0]);
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    const result = JSON.parse(logSpy.mock.calls[0][0]);
     expect(result.approved).toBe(false);
 
     logSpy.mockRestore();
@@ -184,17 +167,8 @@ describe("auto-approve-evaluation", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     await main();
 
-    const output = logSpy.mock.calls.find((call) => {
-      try {
-        const parsed = JSON.parse(call[0]);
-        return "approved" in parsed;
-      } catch {
-        return false;
-      }
-    });
-
-    expect(output).toBeDefined();
-    const result = JSON.parse(output[0]);
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    const result = JSON.parse(logSpy.mock.calls[0][0]);
     expect(result.approved).toBe(false);
     expect(result.reason).toContain("Failed to parse");
 
@@ -258,6 +232,31 @@ describe("auto-approve-evaluation", () => {
     expect(body.system).toContain(
       "Only approve terraform changes that do not destroy resources."
     );
+
+    logSpy.mockRestore();
+  });
+
+  it("should write logs to stderr, not stdout", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          content: [{ text: '{"approved": true, "reason": "Safe"}' }],
+        }),
+    });
+
+    const { main } = await import("../auto-approve-evaluation.js");
+
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    await main();
+
+    // Verify logs went to stderr
+    const stderrCalls = stderrSpy.mock.calls.map((c) => c[0]);
+    expect(stderrCalls.some((line) => line.includes("Evaluating auto-approve"))).toBe(true);
+
+    // Verify stdout only has the JSON result
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    expect(() => JSON.parse(logSpy.mock.calls[0][0])).not.toThrow();
 
     logSpy.mockRestore();
   });

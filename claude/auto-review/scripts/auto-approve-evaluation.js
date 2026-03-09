@@ -16,9 +16,14 @@
 
 import fs from "fs";
 import { spawnSync } from "child_process";
-import { loadGitHubContext, createLogger } from "./lib/github-utils.js";
+import { loadGitHubContext } from "./lib/github-utils.js";
 
-const logger = createLogger("auto-approve-evaluation.js");
+// Use stderr for logging so stdout contains only the final JSON result
+const SCRIPT_NAME = "auto-approve-evaluation.js";
+const logger = {
+  log: (...args) => process.stderr.write(`[${SCRIPT_NAME}] ${args.join(" ")}\n`),
+  error: (...args) => process.stderr.write(`[${SCRIPT_NAME}] ${args.join(" ")}\n`),
+};
 
 /**
  * Fetch the PR diff via GitHub CLI.
