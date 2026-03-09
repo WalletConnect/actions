@@ -35,6 +35,19 @@ inputs:
     description: "Force data classification agent regardless of heuristic"
     required: false
     default: "false"
+  auto_approve:
+    description: "Enable AI-powered auto-approval after review. When enabled, Claude evaluates the diff and review findings against the scope_prompt to decide whether to approve."
+    required: false
+    default: "false"
+  auto_approve_app_id:
+    description: "GitHub App ID used to generate a token for PR approval. Required when auto_approve is true."
+    required: false
+  auto_approve_private_key:
+    description: "GitHub App private key used to generate a token for PR approval. Required when auto_approve is true."
+    required: false
+  auto_approve_scope_prompt:
+    description: "Instructions that tell Claude when to approve or reject. Provide repo-specific criteria (e.g. 'Only approve Terraform changes that do not destroy databases or remove resources')."
+    required: false
 
 runs:
   using: "composite"
@@ -427,3 +440,54 @@ runs:
 
         chmod +x "$SCRIPT_PATH"
         node "$SCRIPT_PATH"
+
+    # ── Auto-approve (opt-in) ──────────────────────────────────────────────
+    - name: Evaluate auto-approve
+      if: inputs.auto_approve == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_TOKEN: ${{ github.token }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        AUTO_APPROVE_MODEL: ${{ inputs.model }}
+        AUTO_APPROVE_SCOPE_PROMPT: ${{ inputs.auto_approve_scope_prompt }}
+      run: |
+        SCRIPT_PATH="${{ github.action_path }}/scripts/auto-approve-evaluation.js"
+
+        if [[ ! -f "$SCRIPT_PATH" ]]; then
+          echo "::error::Auto-approve evaluation script not found at $SCRIPT_PATH"
+          exit 1
+        fi
+
+        chmod +x "$SCRIPT_PATH"
+        RESULT=$(node "$SCRIPT_PATH")
+
+        APPROVED=$(echo "$RESULT" | jq -r '.approved')
+        REASON=$(echo "$RESULT" | jq -r '.reason')
+
+        echo "AUTO_APPROVE_DECISION=$APPROVED" >> $GITHUB_ENV
+        echo "Auto-approve decision: approved=$APPROVED reason=\"$REASON\""
+
+        # Store reason for the approval body (multiline-safe)
+        echo "AUTO_APPROVE_REASON<<EOF" >> $GITHUB_ENV
+        echo "$REASON" >> $GITHUB_ENV
+        echo "EOF" >> $GITHUB_ENV
+
+    - name: Generate App Token for approval
+      if: inputs.auto_approve == 'true' && env.AUTO_APPROVE_DECISION == 'true'
+      id: approve-app-token
+      uses: actions/create-github-app-token@21cfef757ad23c4e5c14bcfa4b9ca7e524e1d1d3 # v1
+      with:
+        app-id: ${{ inputs.auto_approve_app_id }}
+        private-key: ${{ inputs.auto_approve_private_key }}
+
+    - name: Approve PR
+      if: inputs.auto_approve == 'true' && env.AUTO_APPROVE_DECISION == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ steps.approve-app-token.outputs.token }}
+      run: |
+        PR_NUMBER=${{ github.event.pull_request.number || github.event.issue.number }}
+        gh pr review "$PR_NUMBER" --approve --body "✅ **Auto-approved by Claude**
+
+        ${{ env.AUTO_APPROVE_REASON }}"
