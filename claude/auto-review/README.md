@@ -322,9 +322,10 @@ The auto-approve feature lets Claude automatically approve PRs that pass review,
 
 **3. Install the App** on the target repository (or all repositories): App settings → "Install App" → select your org → choose repositories.
 
-**4. Add repository secrets** (Settings → Secrets and variables → Actions → New repository secret):
+**4. Add org secrets** (Org Settings → Secrets and variables → Actions → New organization secret):
    - `CLAUDE_REVIEWER_APP_ID` — the App ID (visible on the App's "General" settings page)
    - `CLAUDE_REVIEWER_PRIVATE_KEY` — the full contents of the `.pem` private key file
+   - Set repository access to "All repositories" or select specific repos that need auto-approve
 
 #### Usage
 
