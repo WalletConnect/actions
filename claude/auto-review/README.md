@@ -94,6 +94,10 @@ jobs:
 | `comment_pr_findings` | ❌       | `true`                       | Automatically post inline PR comments for findings saved to `findings.json`                     |
 | `force_breaking_changes_agent` | ❌ | `false`                    | Force breaking changes subagent regardless of file heuristic                                    |
 | `force_license_compliance_agent` | ❌ | `false`                  | Force license compliance agent regardless of heuristic                                          |
+| `auto_approve` | ❌ | `false` | Enable AI-powered auto-approval after review |
+| `auto_approve_app_id` | When `auto_approve` is `true` | - | GitHub App ID used to generate a token for PR approval |
+| `auto_approve_private_key` | When `auto_approve` is `true` | - | GitHub App private key for PR approval |
+| `auto_approve_scope_prompt` | ❌ | - | Instructions telling Claude when to approve or reject. Provide repo-specific criteria |
 
 ## Usage Examples
 
@@ -292,6 +296,76 @@ The auto-review action includes a specialized breaking changes subagent that is 
 **ID prefix convention:** All findings from the breaking changes agent use the `brk-` prefix (e.g., `brk-action-remove-timeout-input-e4f1`). This prefix is used for agent attribution in `findings.json`.
 
 **Force override:** Set `force_breaking_changes_agent: "true"` to always spawn the agent regardless of heuristic.
+
+### Auto-Approve (AI-Powered)
+
+The auto-approve feature lets Claude automatically approve PRs that pass review, using a repo-specific scope prompt to decide. This is useful for satisfying org-level "required approvals" rules on low-risk PRs (e.g. Terraform config changes, documentation updates).
+
+#### How It Works
+
+1. The normal auto-review runs (unchanged)
+2. Findings are extracted into `findings.json` (unchanged)
+3. Claude evaluates the diff, changed files, and review findings against your `auto_approve_scope_prompt`
+4. If Claude decides the PR is safe, a GitHub App token is generated and the PR is approved
+5. If Claude decides the PR is unsafe (or has CRITICAL/HIGH findings), approval is skipped
+
+#### Setup
+
+**1. Create a GitHub App** in your org (Settings → Developer settings → GitHub Apps → New GitHub App):
+   - **Name**: e.g. `Claude Reviewer` (must be unique across GitHub)
+   - **Homepage URL**: your org's GitHub URL (required field, any URL works)
+   - **Permissions**: Repository permissions → **Pull Requests → Read & Write**
+   - **Webhook**: uncheck "Active" (no webhook needed)
+   - **Installation**: "Only on this account"
+
+**2. Generate a private key**: on the App's settings page, scroll to "Private keys" → "Generate a private key". Save the downloaded `.pem` file.
+
+**3. Install the App** on the target repository (or all repositories): App settings → "Install App" → select your org → choose repositories.
+
+**4. Add repository secrets** (Settings → Secrets and variables → Actions → New repository secret):
+   - `CLAUDE_REVIEWER_APP_ID` — the App ID (visible on the App's "General" settings page)
+   - `CLAUDE_REVIEWER_PRIVATE_KEY` — the full contents of the `.pem` private key file
+
+#### Usage
+
+```yaml
+- name: Claude Review
+  uses: WalletConnect/actions/claude/auto-review@master
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    auto_approve: "true"
+    auto_approve_app_id: ${{ secrets.CLAUDE_REVIEWER_APP_ID }}
+    auto_approve_private_key: ${{ secrets.CLAUDE_REVIEWER_PRIVATE_KEY }}
+    auto_approve_scope_prompt: |
+      Only approve Terraform infrastructure changes.
+      All changed files must be under infrastructure/, monitoring/, or .github/workflows/*terraform*.
+      If the PR includes any non-Terraform files, reject.
+
+      Do NOT approve if:
+      - Resources are being destroyed or removed
+      - Database or storage resources are deleted
+      - force_destroy is enabled or prevent_destroy is removed
+      - Any change that could cause data loss
+
+      Approve if changes are safe: new resources, variable updates, policy changes, monitoring config.
+```
+
+The scope prompt is fully customizable per repository. Other examples:
+
+```yaml
+# Documentation-only auto-approve
+auto_approve_scope_prompt: |
+  Only approve if every changed file is documentation (.md, .txt, .rst).
+  Reject if any code files are modified.
+```
+
+```yaml
+# Dependency update auto-approve
+auto_approve_scope_prompt: |
+  Only approve dependency version bumps (package.json, lockfiles).
+  Reject if any source code files are modified.
+  Reject if a dependency is added or removed (only version changes are safe).
+```
 
 ## Best Practices
 
