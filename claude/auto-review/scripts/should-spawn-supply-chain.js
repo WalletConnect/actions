@@ -62,20 +62,57 @@ const BUILD_SCRIPT_FILES = new Set([
   '.yarnrc',
   '.yarnrc.yml',
   '.pnpmrc',
+  'build.rs',
+  'settings.gradle',
+  'settings.gradle.kts',
+  'init.gradle',
+  'gradle.properties',
 ]);
+
+/**
+ * Script/build config patterns (regex-based, for files that can't be matched by basename alone).
+ */
+const BUILD_SCRIPT_PATTERNS = [
+  /\.podspec$/,
+];
 
 // ---- Patch keyword triggers -----------------------------------------------
 
 const SUSPICIOUS_PATCH_PATTERNS = [
+  // JavaScript / Node.js
   /eval\s*\(/,
   /new\s+Function\s*\(/,
-  /Function\s*\(/,
-  /Buffer\.from/,
+  /eval\s*\(\s*Buffer\.from/,
   /codePointAt/,
   /fromCharCode/,
   /\\x[0-9a-fA-F]{2}/,
   /\\u[0-9a-fA-F]{4}/,
   /preinstall|postinstall|preuninstall/,
+
+  // Rust
+  /Command::new/,
+  /std::process::Command/,
+  /proc-macro/,
+  /build-dependencies/,
+
+  // Gradle / Kotlin / Android
+  /apply\s+plugin/,
+  /classpath\s/,
+  /buildscript/,
+
+  // CocoaPods
+  /script_phase/,
+  /prepare_command/,
+
+  // Python
+  /subprocess\.(call|run|Popen)/,
+  /(?<!\.)exec\s*\(/,
+  /cmdclass/,
+  /install_requires/,
+  /setup\s*\(/,
+
+  // Go
+  /\/\/go:generate/,
 ];
 
 // ---- Skip conditions ------------------------------------------------------
@@ -138,9 +175,17 @@ export function shouldSpawnSupplyChain(files, metadata = {}) {
       }
     }
 
-    // Build script configs
+    // Build script configs (exact basename match)
     if (BUILD_SCRIPT_FILES.has(basename)) {
-      triggerHits.add('package manager configuration changes');
+      triggerHits.add('build script/config changes');
+    }
+
+    // Build script configs (regex pattern match)
+    for (const pattern of BUILD_SCRIPT_PATTERNS) {
+      if (pattern.test(filename)) {
+        triggerHits.add('build script/config changes');
+        break;
+      }
     }
 
     // Check patch content for suspicious patterns

