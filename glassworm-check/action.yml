@@ -15,7 +15,7 @@ inputs:
   base-ref:
     description: "Base ref to diff against (auto-detected for PRs)"
     required: false
-    default: ""
+    default: ${{ github.base_ref || github.event.repository.default_branch }}
 
 outputs:
   found:
@@ -46,13 +46,7 @@ runs:
         REPORT=""
 
         # Get changed files in this PR
-        if [ -n "$INPUT_BASE_REF" ]; then
-          BASE_REF="$INPUT_BASE_REF"
-        elif [ -n "${GITHUB_BASE_REF:-}" ]; then
-          BASE_REF="$GITHUB_BASE_REF"
-        else
-          BASE_REF="main"
-        fi
+        BASE_REF="${INPUT_BASE_REF:-main}"
         mapfile -t FILES < <(git diff --name-only "origin/$BASE_REF"...HEAD 2>/dev/null || git diff --name-only HEAD~1...HEAD)
 
         # Filter to matching extensions
@@ -93,7 +87,9 @@ runs:
         # ──────────────────────────────────────────────
         for f in "${SCAN_FILES[@]}"; do
           [[ "$f" == *.md ]] && continue
-          count=$(grep -Pc '[\x{200B}\x{200C}\x{200D}\x{2060}]' "$f" 2>/dev/null || echo 0)
+          count=$(grep -Pc '[\x{200B}\x{200C}\x{200D}\x{2060}]' "$f" 2>/dev/null \
+            || python3 -c "import re; print(len(re.findall(r'[\u200b\u200c\u200d\u2060]', open('$f').read())))" 2>/dev/null \
+            || echo 0)
           if [ "$count" -gt 0 ]; then
             REPORT+="⚠️ **WARNING** — Zero-width Unicode characters in \`$f\`\n"
             FOUND_WARNING=1
