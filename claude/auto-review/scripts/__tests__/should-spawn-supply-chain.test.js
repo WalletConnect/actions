@@ -424,11 +424,10 @@ describe('shouldSpawnSupplyChain', () => {
     expect(result.reason).toContain('suspicious code patterns');
   });
 
-  it('should spawn when patch contains setup(', () => {
-    const files = [{ filename: 'setup.py', status: 'modified', patch: '+setup(' }];
+  it('should NOT spawn on standalone setup() call (too broad)', () => {
+    const files = [{ filename: 'src/app.ts', status: 'modified', patch: '+setup(config)' }];
     const result = shouldSpawnSupplyChain(files);
-    expect(result.spawn).toBe(true);
-    expect(result.reason).toContain('suspicious code patterns');
+    expect(result.spawn).toBe(false);
   });
 
   // ---- Patch content triggers (Go) ------------------------------------------

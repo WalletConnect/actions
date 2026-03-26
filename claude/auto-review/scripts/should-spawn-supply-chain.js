@@ -109,7 +109,6 @@ const SUSPICIOUS_PATCH_PATTERNS = [
   /(?<!\.)exec\s*\(/,
   /cmdclass/,
   /install_requires/,
-  /setup\s*\(/,
 
   // Go
   /\/\/go:generate/,
