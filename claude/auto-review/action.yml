@@ -340,7 +340,7 @@ runs:
         prompt: ${{ env.REVIEW_PROMPT }}
         track_progress: true
         claude_args: --model ${{ inputs.model }} --allowedTools "Read,Glob,Grep,Task,WebFetch"
-        allowed_bots: devin-ai-integration[bot]
+        allowed_bots: devin-ai-integration[bot],dependabot[bot]
 
     - name: Extract findings from Claude's comment
       if: inputs.comment_pr_findings == 'true'
