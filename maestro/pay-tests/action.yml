@@ -19,6 +19,7 @@ runs:
       id: copy
       shell: bash
       run: |
+        set -euo pipefail
         ACTION_DIR="${{ github.action_path }}"
         TARGET_DIR="${{ github.workspace }}/${{ inputs.target-dir }}"
 

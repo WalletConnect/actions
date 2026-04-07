@@ -238,6 +238,5 @@ steps:
       name: maestro-android-artifacts
       path: |
         maestro-artifacts/
-        maestro-output.log
       retention-days: 14
 ```

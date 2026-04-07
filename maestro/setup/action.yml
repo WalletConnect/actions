@@ -13,6 +13,7 @@ runs:
     - name: Install Maestro CLI
       shell: bash
       run: |
+        set -euo pipefail
         if command -v maestro &>/dev/null; then
           echo "Maestro already installed: $(maestro --version)"
           exit 0

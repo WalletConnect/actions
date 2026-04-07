@@ -2,6 +2,9 @@
 // Expects WPAY_CUSTOMER_KEY and WPAY_MERCHANT_ID env vars from Maestro.
 // Sets output.gateway_url and output.payment_id for use in subsequent flow steps.
 
+if (typeof WPAY_CUSTOMER_KEY === 'undefined') throw new Error('Missing env var: WPAY_CUSTOMER_KEY');
+if (typeof WPAY_MERCHANT_ID === 'undefined') throw new Error('Missing env var: WPAY_MERCHANT_ID');
+
 var response = http.post('https://api.pay.walletconnect.com/v1/payments', {
   headers: {
     'Content-Type': 'application/json',
