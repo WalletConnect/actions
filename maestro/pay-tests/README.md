@@ -164,7 +164,39 @@ All flows are tagged with `pay` for filtering via `--include-tags`.
 
 The `pay_single_option_nokyc_deeplink` test uses Maestro's `openLink` command to open a `https://pay.walletconnect.com` URL. Your wallet must be configured to handle these URLs as deep links / universal links for this test to work.
 
-## Usage
+## Local Development
+
+For running tests locally during development. Requires [Maestro CLI](https://maestro.mobile.dev/) installed on your machine.
+
+### Setup
+
+1. **Create your secrets file** (one-time):
+   ```bash
+   cp .env.maestro.example .env.maestro
+   # Fill in the WPAY_* values (get them from your team or the WalletConnect Pay dashboard)
+   ```
+
+2. **Run tests** (auto-downloads flows if not present):
+   ```bash
+   ./scripts/run-maestro-pay-tests.sh
+   ```
+
+That's it. The script will automatically download the shared test flows from this repo if they're not already present, load secrets from `.env.maestro`, and run all pay-tagged tests.
+
+### Other local commands
+
+```bash
+# Run a single test
+./scripts/run-maestro-pay-tests.sh .maestro/pay_cancelled.yaml
+
+# Re-download flows (e.g. after an update)
+./scripts/setup-maestro-pay-tests.sh
+
+# Download flows from a specific branch
+./scripts/setup-maestro-pay-tests.sh feat/my-branch
+```
+
+## CI Usage
 
 ### iOS (composite action)
 
