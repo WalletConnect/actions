@@ -1,0 +1,39 @@
+name: Maestro Pay Tests
+description: Copy shared WalletConnect Pay E2E test flows into the consumer workspace
+
+inputs:
+  target-dir:
+    description: 'Directory to copy test flows into (relative to workspace root)'
+    required: false
+    default: '.maestro'
+
+outputs:
+  maestro-dir:
+    description: 'Absolute path to the directory containing the test flows'
+    value: ${{ steps.copy.outputs.maestro-dir }}
+
+runs:
+  using: composite
+  steps:
+    - name: Copy shared Maestro Pay test flows
+      id: copy
+      shell: bash
+      run: |
+        ACTION_DIR="${{ github.action_path }}"
+        TARGET_DIR="${{ github.workspace }}/${{ inputs.target-dir }}"
+
+        mkdir -p "$TARGET_DIR/flows" "$TARGET_DIR/scripts"
+
+        # Copy root-level pay test flows
+        cp "$ACTION_DIR"/.maestro/pay_*.yaml "$TARGET_DIR/"
+
+        # Copy shared sub-flows
+        cp "$ACTION_DIR"/.maestro/flows/pay_*.yaml "$TARGET_DIR/flows/"
+
+        # Copy scripts
+        cp "$ACTION_DIR"/.maestro/scripts/*.js "$TARGET_DIR/scripts/"
+
+        echo "Copied Maestro Pay test flows to $TARGET_DIR"
+        ls -la "$TARGET_DIR"
+
+        echo "maestro-dir=$TARGET_DIR" >> "$GITHUB_OUTPUT"
