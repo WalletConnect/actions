@@ -17,7 +17,7 @@ inputs:
     description: 'WalletConnect Pay Customer API key (single-offramp-option, no-KYC)'
     required: true
   wpay-merchant-id-single-nokyc:
-    description: 'WalletConnect Pay merchant ID (single-option, no-KYC merchant)'
+    description: 'WalletConnect Pay merchant ID (single-offramp-option, no-KYC)'
     required: true
   wpay-customer-key-multi-nokyc:
     description: 'WalletConnect Pay API key (multi-option, no-KYC merchant)'
