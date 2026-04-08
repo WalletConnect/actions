@@ -29,7 +29,7 @@ inputs:
     description: 'WalletConnect Pay API key (multi-option, KYC-required merchant)'
     required: true
   wpay-merchant-id-multi-kyc:
-    description: 'WalletConnect Pay merchant ID (multi-option, KYC-required merchant)'
+    description: 'WalletConnect Pay merchant ID (multiple-offramp-options, KYC-required)'
     required: true
   artifact-name:
     description: 'Name for the uploaded artifact'
