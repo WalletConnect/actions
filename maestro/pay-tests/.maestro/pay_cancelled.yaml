@@ -3,8 +3,19 @@ name: WalletConnect Pay - Cancelled Payment
 tags:
   - pay
 ---
-# Use a hardcoded cancelled payment URL (no API call needed)
-- evalScript: ${output.gateway_url = 'https://pay.walletconnect.com/?pid=pay_24a2ecc101KNHMZ1B8GJMR16VXAZ2EXXMN'}
+# Create a fresh payment, then cancel it immediately via API
+- runScript:
+    file: scripts/create-payment.js
+    env:
+      WPAY_CUSTOMER_KEY: ${WPAY_CUSTOMER_KEY_SINGLE_NOKYC}
+      WPAY_MERCHANT_ID: ${WPAY_MERCHANT_ID_SINGLE_NOKYC}
+
+- runScript:
+    file: scripts/cancel-payment.js
+    env:
+      WPAY_CUSTOMER_KEY: ${WPAY_CUSTOMER_KEY_SINGLE_NOKYC}
+      WPAY_MERCHANT_ID: ${WPAY_MERCHANT_ID_SINGLE_NOKYC}
+      PAYMENT_ID: ${output.payment_id}
 
 - startRecording: "WalletConnect Pay Cancelled Payment"
 
