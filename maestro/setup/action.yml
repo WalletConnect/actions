@@ -1,0 +1,27 @@
+name: Maestro Setup
+description: Install the Maestro CLI for mobile E2E testing
+
+inputs:
+  version:
+    description: 'Maestro version to install (e.g. 1.39.15). Leave empty for latest.'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Install Maestro CLI
+      shell: bash
+      run: |
+        set -euo pipefail
+        if command -v maestro &>/dev/null; then
+          echo "Maestro already installed: $(maestro --version)"
+          exit 0
+        fi
+
+        if [ -n "${{ inputs.version }}" ]; then
+          export MAESTRO_VERSION="${{ inputs.version }}"
+        fi
+
+        curl -fsSL "https://get.maestro.mobile.dev" | bash
+        echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"

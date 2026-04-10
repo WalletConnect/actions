@@ -1,0 +1,69 @@
+name: Maestro Pay Test Run
+description: Execute Maestro Pay E2E tests with WalletConnect Pay secrets and upload artifacts
+
+inputs:
+  app-id:
+    description: 'Application bundle ID (iOS) or package name (Android)'
+    required: true
+  maestro-dir:
+    description: 'Directory containing Maestro test flows'
+    required: false
+    default: '.maestro'
+  tags:
+    description: 'Maestro --include-tags value (comma-separated)'
+    required: false
+    default: 'pay'
+  wpay-customer-key-single-nokyc:
+    description: 'WalletConnect Pay Customer API key (single-offramp-option, no-KYC)'
+    required: true
+  wpay-merchant-id-single-nokyc:
+    description: 'WalletConnect Pay merchant ID (single-offramp-option, no-KYC)'
+    required: true
+  wpay-customer-key-multi-nokyc:
+    description: 'WalletConnect Pay Customer API key (multiple-offramp-options, no-KYC)'
+    required: true
+  wpay-merchant-id-multi-nokyc:
+    description: 'WalletConnect Pay merchant ID (multiple-offramp-options, no-KYC))'
+    required: true
+  wpay-customer-key-multi-kyc:
+    description: 'WalletConnect Pay Customer API key (multiple-offramp-options, KYC-required)'
+    required: true
+  wpay-merchant-id-multi-kyc:
+    description: 'WalletConnect Pay merchant ID (multiple-offramp-options, KYC-required)'
+    required: true
+  artifact-name:
+    description: 'Name for the uploaded artifact'
+    required: false
+    default: 'maestro-artifacts'
+
+runs:
+  using: composite
+  steps:
+    - name: Run Maestro tests
+      id: maestro
+      shell: bash
+      run: |
+        set -o pipefail
+        maestro test \
+          --env APP_ID="${{ inputs.app-id }}" \
+          --env WPAY_CUSTOMER_KEY_SINGLE_NOKYC="${{ inputs.wpay-customer-key-single-nokyc }}" \
+          --env WPAY_MERCHANT_ID_SINGLE_NOKYC="${{ inputs.wpay-merchant-id-single-nokyc }}" \
+          --env WPAY_CUSTOMER_KEY_MULTI_NOKYC="${{ inputs.wpay-customer-key-multi-nokyc }}" \
+          --env WPAY_MERCHANT_ID_MULTI_NOKYC="${{ inputs.wpay-merchant-id-multi-nokyc }}" \
+          --env WPAY_CUSTOMER_KEY_MULTI_KYC="${{ inputs.wpay-customer-key-multi-kyc }}" \
+          --env WPAY_MERCHANT_ID_MULTI_KYC="${{ inputs.wpay-merchant-id-multi-kyc }}" \
+          --include-tags "${{ inputs.tags }}" \
+          --test-output-dir maestro-artifacts \
+          --debug-output maestro-artifacts \
+          "${{ inputs.maestro-dir }}" 2>&1 | tee maestro-output.log
+
+    - name: Upload Maestro artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: |
+          maestro-artifacts/
+          maestro-output.log
+        if-no-files-found: warn
+        retention-days: 14

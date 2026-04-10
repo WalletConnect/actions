@@ -1,0 +1,44 @@
+appId: ${APP_ID}
+name: WalletConnect Pay - Cancelled Payment
+tags:
+  - pay
+---
+# Create a fresh payment, then cancel it immediately via API
+- runScript:
+    file: scripts/create-payment.js
+    env:
+      WPAY_CUSTOMER_KEY: ${WPAY_CUSTOMER_KEY_SINGLE_NOKYC}
+      WPAY_MERCHANT_ID: ${WPAY_MERCHANT_ID_SINGLE_NOKYC}
+
+- runScript:
+    file: scripts/cancel-payment.js
+    env:
+      WPAY_CUSTOMER_KEY: ${WPAY_CUSTOMER_KEY_SINGLE_NOKYC}
+      WPAY_MERCHANT_ID: ${WPAY_MERCHANT_ID_SINGLE_NOKYC}
+      PAYMENT_ID: ${output.payment_id}
+
+- startRecording: "WalletConnect Pay Cancelled Payment"
+
+# Open wallet, paste payment URL
+- runFlow:
+    file: flows/pay_open_and_paste_url.yaml
+
+# Payment is cancelled — app shows error result screen directly
+- extendedWaitUntil:
+    visible:
+      id: "pay-result-container"
+    timeout: 15000
+
+# Verify cancelled icon is shown
+- assertVisible:
+    id: "pay-result-cancelled-icon"
+
+# Verify result action button is visible
+- assertVisible:
+    id: "pay-button-result-action-cancelled"
+
+# Dismiss the error dialog
+- tapOn:
+    id: "pay-button-result-action-cancelled"
+
+- stopRecording
