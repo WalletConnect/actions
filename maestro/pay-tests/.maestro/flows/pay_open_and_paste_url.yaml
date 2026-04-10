@@ -31,6 +31,13 @@ appId: ${APP_ID}
       - tapOn: "Continue"
 
 - inputText: ${output.gateway_url}
+
 - pressKey: Enter
+
+- extendedWaitUntil:
+    visible:
+      id: "button-submit-url"
+    timeout: 10000
+
 - tapOn:
     id: "button-submit-url"
