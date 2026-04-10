@@ -1,0 +1,260 @@
+name: "Glassworm Supply-Chain Check"
+description: "Deterministic byte-level scanner for invisible Unicode obfuscation, malicious install hooks, and eval-based payload decoders associated with the Glassworm campaign."
+
+# Required permissions: contents: read, pull-requests: write (for PR comments)
+
+inputs:
+  extensions:
+    description: "Space-separated list of file extensions to scan (without dots)"
+    required: false
+    default: "js ts mjs cjs jsx tsx json yml yaml"
+  fail-on-warning:
+    description: "Whether to fail the check on warnings (not just critical findings)"
+    required: false
+    default: "false"
+  base-ref:
+    description: "Base ref to diff against (auto-detected for PRs)"
+    required: false
+    default: ${{ github.base_ref || github.event.repository.default_branch }}
+
+outputs:
+  found:
+    description: "Whether any findings were detected (true/false)"
+    value: ${{ steps.scan.outputs.found }}
+  critical:
+    description: "Whether critical findings were detected (true/false)"
+    value: ${{ steps.scan.outputs.critical }}
+  report:
+    description: "Path to the findings report markdown file"
+    value: ${{ steps.scan.outputs.report_file }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Glassworm scan
+      id: scan
+      shell: bash
+      env:
+        SCAN_EXTENSIONS: ${{ inputs.extensions }}
+        FAIL_ON_WARNING: ${{ inputs.fail-on-warning }}
+        INPUT_BASE_REF: ${{ inputs.base-ref }}
+      run: |
+        set -euo pipefail
+
+        FOUND_CRITICAL=0
+        FOUND_WARNING=0
+        REPORT=""
+
+        # Get changed files in this PR
+        BASE_REF="${INPUT_BASE_REF:-main}"
+        mapfile -t FILES < <(git diff --name-only "origin/$BASE_REF"...HEAD 2>/dev/null || git diff --name-only HEAD~1...HEAD)
+
+        # Filter to matching extensions
+        SCAN_FILES=()
+        for f in "${FILES[@]}"; do
+          [ -f "$f" ] || continue
+          for ext in $SCAN_EXTENSIONS; do
+            if [[ "$f" == *".$ext" ]]; then
+              SCAN_FILES+=("$f")
+              break
+            fi
+          done
+        done
+
+        if [ ${#SCAN_FILES[@]} -eq 0 ]; then
+          echo "✅ No relevant files changed."
+          echo "found=false" >> "$GITHUB_OUTPUT"
+          echo "critical=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        echo "Scanning ${#SCAN_FILES[@]} file(s) for Glassworm indicators..."
+
+        # ──────────────────────────────────────────────
+        # 1. Invisible PUA Unicode (Variation Selectors)
+        #    U+FE00-FE0F  → UTF-8: EF B8 80 – EF B8 8F
+        #    U+E0100-E01EF → UTF-8: F3 A0 84 80 – F3 A0 87 AF
+        # ──────────────────────────────────────────────
+        for f in "${SCAN_FILES[@]}"; do
+          if xxd -p "$f" | tr -d '\n' | grep -qiE 'efb88[0-9a-f]|f3a084[89a-f][0-9a-f]|f3a08[5-7][0-9a-f][0-9a-f]'; then
+            REPORT+="🚨 **CRITICAL** — Invisible PUA Unicode characters in \`$f\`\n"
+            FOUND_CRITICAL=1
+          fi
+        done
+
+        # ──────────────────────────────────────────────
+        # 2. Zero-width characters in non-markdown files
+        # ──────────────────────────────────────────────
+        for f in "${SCAN_FILES[@]}"; do
+          [[ "$f" == *.md ]] && continue
+          count=$(grep -Pc '[\x{200B}\x{200C}\x{200D}\x{2060}]' "$f" 2>/dev/null \
+            || python3 -c "import re; print(len(re.findall(r'[\u200b\u200c\u200d\u2060]', open('$f').read())))" 2>/dev/null \
+            || echo 0)
+          if [ "$count" -gt 0 ]; then
+            REPORT+="⚠️ **WARNING** — Zero-width Unicode characters in \`$f\`\n"
+            FOUND_WARNING=1
+          fi
+          # Mid-file BOM
+          if [ "$(wc -c < "$f")" -gt 3 ]; then
+            if tail -c +4 "$f" | grep -Pq '\xef\xbb\xbf' 2>/dev/null; then
+              REPORT+="⚠️ **WARNING** — Mid-file BOM character in \`$f\`\n"
+              FOUND_WARNING=1
+            fi
+          fi
+        done
+
+        # ──────────────────────────────────────────────
+        # 3. Suspicious code patterns
+        # ──────────────────────────────────────────────
+        for f in "${SCAN_FILES[@]}"; do
+          if grep -Pq 'eval\s*\(.*Buffer\.from' "$f" 2>/dev/null; then
+            REPORT+="🚨 **CRITICAL** — \`eval(Buffer.from(...))\` pattern in \`$f\`\n"
+            FOUND_CRITICAL=1
+          fi
+          if grep -Pq 'codePointAt.*0x[Ff][Ee]0' "$f" 2>/dev/null; then
+            REPORT+="🚨 **CRITICAL** — Unicode decoder pattern (\`codePointAt\` + PUA range) in \`$f\`\n"
+            FOUND_CRITICAL=1
+          fi
+          if grep -Pq 'eval\s*\(.*\x60' "$f" 2>/dev/null; then
+            REPORT+="⚠️ **WARNING** — \`eval()\` with template literal in \`$f\`\n"
+            FOUND_WARNING=1
+          fi
+        done
+
+        # ──────────────────────────────────────────────
+        # 4. Auto-execution hooks (multi-ecosystem)
+        #    Scans ALL changed files, not just SCAN_FILES
+        # ──────────────────────────────────────────────
+        mapfile -t ALL_FILES < <(git diff --name-only "origin/$BASE_REF"...HEAD 2>/dev/null || git diff --name-only HEAD~1...HEAD)
+        for f in "${ALL_FILES[@]}"; do
+          [ -f "$f" ] || continue
+          DIFF=$(git diff "origin/$BASE_REF"...HEAD -- "$f" 2>/dev/null || true)
+          basename_f="$(basename "$f")"
+
+          # npm/pnpm/yarn — preinstall/postinstall/preuninstall hooks
+          if [[ "$basename_f" == "package.json" ]]; then
+            if echo "$DIFF" | grep -Eq '^\+.*"(preinstall|postinstall|preuninstall)"'; then
+              REPORT+="⚠️ **WARNING** — npm install hook added/modified in \`$f\` — verify this is intentional\n"
+              FOUND_WARNING=1
+            fi
+          fi
+
+          # Rust — build.rs (runs automatically on cargo build)
+          if [[ "$basename_f" == "build.rs" ]]; then
+            if echo "$DIFF" | grep -q '^\+'; then
+              REPORT+="⚠️ **WARNING** — Rust build script added/modified: \`$f\` — runs automatically at compile time\n"
+              FOUND_WARNING=1
+            fi
+          fi
+
+          # CocoaPods — script_phase / prepare_command in .podspec
+          if [[ "$f" == *.podspec ]]; then
+            if echo "$DIFF" | grep -Eq '^\+.*(script_phase|prepare_command)'; then
+              REPORT+="⚠️ **WARNING** — CocoaPods script hook in \`$f\` — runs on pod install\n"
+              FOUND_WARNING=1
+            fi
+          fi
+
+          # Gradle — buildscript dependencies / plugin injection
+          if [[ "$basename_f" == build.gradle || "$basename_f" == build.gradle.kts || "$basename_f" == settings.gradle || "$basename_f" == settings.gradle.kts ]]; then
+            if echo "$DIFF" | grep -Eq '^\+.*(buildscript|apply\s+plugin|classpath)'; then
+              REPORT+="⚠️ **WARNING** — Gradle build config changed in \`$f\` — check for unknown plugins/dependencies\n"
+              FOUND_WARNING=1
+            fi
+          fi
+
+          # Python — setup.py with inline code execution
+          if [[ "$basename_f" == "setup.py" ]]; then
+            if echo "$DIFF" | grep -Eq '^\+.*(cmdclass|__import__|exec\(|eval\()'; then
+              REPORT+="⚠️ **WARNING** — Python setup.py with inline code execution in \`$f\` — runs on pip install\n"
+              FOUND_WARNING=1
+            fi
+          fi
+
+          # Go — go:generate directives
+          if [[ "$f" == *.go ]]; then
+            if echo "$DIFF" | grep -Eq '^\+.*//go:generate'; then
+              REPORT+="⚠️ **WARNING** — Go generate directive added in \`$f\` — runs arbitrary commands via go generate\n"
+              FOUND_WARNING=1
+            fi
+          fi
+        done
+
+        # ──────────────────────────────────────────────
+        # 5. Line-level byte anomaly detection
+        #    Empty-looking lines with huge byte count
+        # ──────────────────────────────────────────────
+        for f in "${SCAN_FILES[@]}"; do
+          line_num=0
+          while IFS= read -r line || [ -n "$line" ]; do
+            line_num=$((line_num + 1))
+            bytes=$(printf '%s' "$line" | wc -c | tr -d ' ')
+            visible=$(printf '%s' "$line" | tr -cd '[:print:]' | wc -c | tr -d ' ')
+            if [ "$bytes" -gt 500 ] && [ "$visible" -lt 20 ]; then
+              REPORT+="🚨 **CRITICAL** — Obfuscated payload suspected in \`$f:$line_num\` — ${bytes} bytes but only ${visible} visible chars\n"
+              FOUND_CRITICAL=1
+            fi
+          done < "$f"
+        done
+
+        # ──────────────────────────────────────────────
+        # Output
+        # ──────────────────────────────────────────────
+        if [ "$FOUND_CRITICAL" -eq 1 ] || [ "$FOUND_WARNING" -eq 1 ]; then
+          REPORT_FILE="${RUNNER_TEMP:-/tmp}/glassworm-report-$$.md"
+
+          {
+            echo "## 🛡️ Glassworm Supply-Chain Security Alert"
+            echo ""
+            echo -e "$REPORT"
+            echo ""
+            echo "This PR contains patterns associated with the Glassworm supply-chain attack campaign (invisible Unicode obfuscation)."
+            if [ "$FOUND_CRITICAL" -eq 1 ]; then
+              echo ""
+              echo "**🚨 Critical findings detected — do not merge until investigated.**"
+            fi
+          } > "$REPORT_FILE"
+
+          # Job summary
+          cat "$REPORT_FILE" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "found=true" >> "$GITHUB_OUTPUT"
+          echo "critical=$( [ "$FOUND_CRITICAL" -eq 1 ] && echo true || echo false )" >> "$GITHUB_OUTPUT"
+          echo "report_file=$REPORT_FILE" >> "$GITHUB_OUTPUT"
+
+          # Determine exit code
+          if [ "$FOUND_CRITICAL" -eq 1 ]; then
+            exit 1
+          elif [ "$FAIL_ON_WARNING" = "true" ]; then
+            exit 1
+          fi
+        else
+          echo "✅ No Glassworm indicators found." >> "$GITHUB_STEP_SUMMARY"
+          echo "found=false" >> "$GITHUB_OUTPUT"
+          echo "critical=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Comment on PR
+      if: failure() && steps.scan.outputs.found == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        REPORT_FILE="${{ steps.scan.outputs.report_file }}"
+        PR_NUMBER="${{ github.event.pull_request.number }}"
+        REPO="${{ github.repository }}"
+        if [ -f "$REPORT_FILE" ] && [ -n "$PR_NUMBER" ]; then
+          # Find existing Glassworm comment to update instead of creating duplicates
+          COMMENT_ID=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
+            --jq '.[] | select(.body | startswith("## 🛡️ Glassworm")) | .id' \
+            2>/dev/null | tail -1)
+          if [ -n "$COMMENT_ID" ]; then
+            gh api "repos/$REPO/issues/comments/$COMMENT_ID" \
+              --method PATCH \
+              --field body="$(cat "$REPORT_FILE")"
+          else
+            gh pr comment "$PR_NUMBER" \
+              --repo "$REPO" \
+              --body-file "$REPORT_FILE"
+          fi
+        fi
