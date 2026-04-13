@@ -152,13 +152,16 @@ Each merchant pair represents a different test configuration. The tests use thes
 | `pay_multiple_options_kyc` | Multiple options with KYC webview | MULTI_KYC |
 | `pay_cancel_from_review` | Server-side cancellation on review screen | SINGLE_NOKYC |
 | `pay_cancel_from_kyc` | Server-side cancellation during KYC | MULTI_KYC |
-| `pay_kyc_back_navigation` | Back/close button navigation in KYC | MULTI_KYC |
+| `pay_kyc_webview_dismiss` | Webview back/close button navigation in KYC (tag: `pay-webview`) | MULTI_KYC |
+| `pay_kyc_browser_dismiss` | In-app browser dismiss during KYC (tag: `pay-browser`) | MULTI_KYC |
 | `pay_insufficient_funds` | Payment amount exceeds wallet balance | SINGLE_NOKYC |
 | `pay_double_scan` | Re-scan same QR after completion | SINGLE_NOKYC |
 | `pay_expired_link` | Hardcoded expired payment URL | None (hardcoded) |
 | `pay_cancelled` | Hardcoded cancelled payment URL | None (hardcoded) |
 
-All flows are tagged with `pay` for filtering via `--include-tags`.
+Most flows are tagged with `pay`. The KYC dismiss tests use platform-specific tags:
+- **RN / Kotlin / Swift:** `--include-tags pay,pay-webview` (includes `pay_kyc_webview_dismiss`)
+- **Flutter:** `--include-tags pay,pay-browser` (includes `pay_kyc_browser_dismiss`)
 
 ## Deep Link Support
 

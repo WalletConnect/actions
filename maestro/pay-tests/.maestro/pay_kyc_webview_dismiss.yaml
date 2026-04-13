@@ -1,7 +1,7 @@
 appId: ${APP_ID}
-name: WalletConnect Pay - KYC Header Buttons
+name: WalletConnect Pay - KYC Webview Dismiss
 tags:
-  - pay
+  - pay-webview
 ---
 # Create payment via API (multi-option, KYC merchant)
 - runScript:
@@ -10,7 +10,7 @@ tags:
       WPAY_CUSTOMER_KEY: ${WPAY_CUSTOMER_KEY_MULTI_KYC}
       WPAY_MERCHANT_ID: ${WPAY_MERCHANT_ID_MULTI_KYC}
 
-- startRecording: "WalletConnect Pay KYC Header Buttons"
+- startRecording: "WalletConnect Pay KYC Webview Dismiss"
 
 # Open wallet, paste payment URL
 - runFlow:
