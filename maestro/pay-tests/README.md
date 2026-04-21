@@ -260,6 +260,7 @@ steps:
           --env WPAY_MERCHANT_ID_MULTI_KYC="${{ secrets.WPAY_MERCHANT_ID_MULTI_KYC }}" \
           --include-tags pay \
           --test-output-dir maestro-artifacts \
+          --debug-output "${RUNNER_TEMP}/maestro-debug" \
           .maestro/
 
   - name: Upload Maestro artifacts
