@@ -54,7 +54,7 @@ runs:
           --env WPAY_MERCHANT_ID_MULTI_KYC="${{ inputs.wpay-merchant-id-multi-kyc }}" \
           --include-tags "${{ inputs.tags }}" \
           --test-output-dir maestro-artifacts \
-          --debug-output maestro-artifacts \
+          --debug-output "${RUNNER_TEMP}/maestro-debug" \
           "${{ inputs.maestro-dir }}" 2>&1 | tee maestro-output.log
 
     - name: Upload Maestro artifacts
