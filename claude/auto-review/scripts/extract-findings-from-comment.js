@@ -62,8 +62,9 @@ export function parseClaudeComment(commentBody) {
         'brk': 'review-breaking-changes',
         'lic': 'review-license-compliance',
         'dcl': 'review-data-classification',
+        'dup': 'review-deduplication',
       };
-      const agentPrefixMatch = finding.id.match(/^(brk|lic|dcl)-/);
+      const agentPrefixMatch = finding.id.match(/^(brk|lic|dcl|dup)-/);
       if (agentPrefixMatch) {
         finding.agent = agentPrefixMap[agentPrefixMatch[1]];
       }
