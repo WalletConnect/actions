@@ -198,37 +198,7 @@ That's it. The script will automatically download the shared test flows from thi
 
 ## CI Usage
 
-### iOS (composite action)
-
-```yaml
-steps:
-  - uses: actions/checkout@v4
-
-  # ... your platform-specific build steps ...
-
-  - name: Copy shared Pay test flows
-    uses: WalletConnect/actions/maestro/pay-tests@main
-
-  - name: Install Maestro
-    uses: WalletConnect/actions/maestro/setup@main
-
-  # ... boot simulator, install app ...
-
-  - name: Run Pay E2E tests
-    uses: WalletConnect/actions/maestro/run@main
-    with:
-      app-id: com.example.wallet.internal
-      wpay-customer-key-single-nokyc: ${{ secrets.WPAY_CUSTOMER_KEY_SINGLE_NOKYC }}
-      wpay-merchant-id-single-nokyc: ${{ secrets.WPAY_MERCHANT_ID_SINGLE_NOKYC }}
-      wpay-customer-key-multi-nokyc: ${{ secrets.WPAY_CUSTOMER_KEY_MULTI_NOKYC }}
-      wpay-merchant-id-multi-nokyc: ${{ secrets.WPAY_MERCHANT_ID_MULTI_NOKYC }}
-      wpay-customer-key-multi-kyc: ${{ secrets.WPAY_CUSTOMER_KEY_MULTI_KYC }}
-      wpay-merchant-id-multi-kyc: ${{ secrets.WPAY_MERCHANT_ID_MULTI_KYC }}
-```
-
-### Android (emulator runner)
-
-The `reactivecircus/android-emulator-runner` action runs everything inside a `script:` block, which cannot call composite actions. Use `maestro/pay-tests` and `maestro/setup` *before* the emulator step, then run `maestro test` inline:
+Use `maestro/pay-tests` and `maestro/setup` to stage flows and install Maestro, then run `maestro test` inline in your workflow:
 
 ```yaml
 steps:
