@@ -1,11 +1,16 @@
 // Cancels a WalletConnect Pay payment via the API.
 // Expects WPAY_CUSTOMER_KEY, WPAY_MERCHANT_ID, and PAYMENT_ID env vars from Maestro.
+// Optional WPAY_PAY_API_URL overrides the API base URL (default: prod).
 
 if (typeof WPAY_CUSTOMER_KEY === 'undefined') throw new Error('Missing env var: WPAY_CUSTOMER_KEY');
 if (typeof WPAY_MERCHANT_ID === 'undefined') throw new Error('Missing env var: WPAY_MERCHANT_ID');
 if (typeof PAYMENT_ID === 'undefined') throw new Error('Missing env var: PAYMENT_ID');
 
-var response = http.post('https://api.pay.walletconnect.com/v1/payments/' + PAYMENT_ID + '/cancel', {
+var baseUrl = (typeof WPAY_PAY_API_URL !== 'undefined' && WPAY_PAY_API_URL)
+  ? WPAY_PAY_API_URL
+  : 'https://api.pay.walletconnect.com';
+
+var response = http.post(baseUrl + '/v1/payments/' + PAYMENT_ID + '/cancel', {
   headers: {
     'Content-Type': 'application/json',
     'Api-Key': WPAY_CUSTOMER_KEY,

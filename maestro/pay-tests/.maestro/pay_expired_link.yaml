@@ -3,8 +3,9 @@ name: WalletConnect Pay - Expired Link
 tags:
   - pay
 ---
-# Use a hardcoded expired payment URL (no API call needed)
-- evalScript: ${output.gateway_url = 'https://pay.walletconnect.com/?pid=pay_b8a2ecc101KNHRNWXD2VF8SGZDS7WK19ZA'}
+# Use WPAY_EXPIRED_GATEWAY_URL when set (e.g. local pay-core CI seeds a fresh
+# expired payment); otherwise fall back to the hardcoded prod-expired link.
+- evalScript: ${output.gateway_url = (typeof WPAY_EXPIRED_GATEWAY_URL !== 'undefined' && WPAY_EXPIRED_GATEWAY_URL) ? WPAY_EXPIRED_GATEWAY_URL : 'https://pay.walletconnect.com/?pid=pay_b8a2ecc101KNHRNWXD2VF8SGZDS7WK19ZA'}
 
 - startRecording: "WalletConnect Pay Expired Link"
 
