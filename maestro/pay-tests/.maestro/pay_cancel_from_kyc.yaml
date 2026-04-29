@@ -2,6 +2,7 @@ appId: ${APP_ID}
 name: WalletConnect Pay - Cancel from KYC Webview
 tags:
   - pay
+  - pay-needs-kyc-backend
 ---
 # Create payment via API (multi-option, KYC merchant)
 - runScript:
