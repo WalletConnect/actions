@@ -10,6 +10,8 @@ tags:
       WPAY_CUSTOMER_KEY: ${WPAY_CUSTOMER_KEY_MULTI_NOKYC}
       WPAY_MERCHANT_ID: ${WPAY_MERCHANT_ID_MULTI_NOKYC}
 
+- clearState
+
 - startRecording: "WalletConnect Pay Multiple Options No KYC"
 
 # Open wallet, paste payment URL
