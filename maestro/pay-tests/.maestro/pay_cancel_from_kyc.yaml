@@ -20,7 +20,7 @@ tags:
 # Wait for payment options to load
 - extendedWaitUntil:
     visible:
-      id: "pay-merchant-info"
+      id: "pay-select-option-header"
     timeout: 15000
 
 # Verify first option exists
