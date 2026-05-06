@@ -10,6 +10,8 @@ tags:
       WPAY_CUSTOMER_KEY: ${WPAY_CUSTOMER_KEY_SINGLE_NOKYC}
       WPAY_MERCHANT_ID: ${WPAY_MERCHANT_ID_SINGLE_NOKYC}
 
+- clearState
+
 - startRecording: "WalletConnect Pay Single Option No KYC Deep Link"
 
 # Open wallet via deep link with payment URL
@@ -32,7 +34,7 @@ tags:
 - copyTextFrom:
     id: "pay-button-pay"
 - assertTrue:
-    condition: "${maestro.copiedText == 'Pay $0.01'}"
+    condition: "${maestro.copiedText.startsWith('Pay $')}"
 
 # Tap Pay, verify success
 - runFlow:

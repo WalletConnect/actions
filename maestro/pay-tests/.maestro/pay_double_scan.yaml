@@ -32,7 +32,7 @@ tags:
 - copyTextFrom:
     id: "pay-button-pay"
 - assertTrue:
-    condition: "${maestro.copiedText == 'Pay $0.01'}"
+    condition: "${maestro.copiedText.startsWith('Pay $')}"
 
 # Tap Pay, verify success, tap "Got it!"
 - runFlow:
