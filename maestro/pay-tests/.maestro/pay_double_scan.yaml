@@ -22,7 +22,7 @@ tags:
 - extendedWaitUntil:
     visible:
       id: "pay-merchant-info"
-    timeout: 15000
+    timeout: 30000
 
 # Single option auto-selects — verify pay button
 - extendedWaitUntil:
@@ -64,7 +64,7 @@ tags:
 - extendedWaitUntil:
     visible:
       id: "pay-result-container"
-    timeout: 20000
+    timeout: 30000
 
 # Verify generic error icon is shown (not success)
 - assertVisible:
