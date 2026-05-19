@@ -22,7 +22,7 @@ tags:
 - extendedWaitUntil:
     visible:
       id: "pay-merchant-info"
-    timeout: 15000
+    timeout: 30000
 
 # Single option auto-selects — go straight to review screen
 

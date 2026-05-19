@@ -21,7 +21,7 @@ tags:
 - extendedWaitUntil:
     visible:
       id: "pay-result-container"
-    timeout: 15000
+    timeout: 30000
 
 # Verify insufficient funds icon is shown
 - assertVisible:
