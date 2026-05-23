@@ -35,6 +35,10 @@ inputs:
     description: "Force data classification agent regardless of heuristic"
     required: false
     default: "false"
+  force_deduplication_agent:
+    description: "Force deduplication agent regardless of heuristic"
+    required: false
+    default: "false"
 
 runs:
   using: "composite"
@@ -89,6 +93,25 @@ runs:
         echo "SPAWN_DATA_CLASSIFICATION=$SPAWN" >> $GITHUB_ENV
         echo "DATA_CLASSIFICATION_REASON=$REASON" >> $GITHUB_ENV
         echo "Data classification agent: spawn=$SPAWN reason=\"$REASON\""
+
+    - name: Determine if deduplication agent should spawn
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_TOKEN: ${{ github.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+        FORCE_DEDUPLICATION_AGENT: ${{ inputs.force_deduplication_agent }}
+      run: |
+        SCRIPT_PATH="${{ github.action_path }}/scripts/should-spawn-deduplication.js"
+        RESULT=$(node "$SCRIPT_PATH")
+        SPAWN=$(echo "$RESULT" | jq -r '.spawn')
+        REASON=$(echo "$RESULT" | jq -r '.reason')
+        SIMILAR_PAIRS=$(echo "$RESULT" | jq -c '.similarPairs // []')
+        echo "SPAWN_DEDUPLICATION=$SPAWN" >> $GITHUB_ENV
+        echo "DEDUPLICATION_REASON=$REASON" >> $GITHUB_ENV
+        echo "DEDUP_SIMILAR_PAIRS=$SIMILAR_PAIRS" >> $GITHUB_ENV
+        echo "Deduplication agent: spawn=$SPAWN reason=\"$REASON\""
 
     - name: Set up review prompt
       shell: bash
@@ -247,6 +270,34 @@ runs:
         After the agent completes, merge its findings into your consolidated output.
         - Use the agent's dcl- prefixed IDs as-is
         - Deduplicate if you found the same issue independently (prefer dcl- prefixed ID)
+        - Sort all findings by severity: CRITICAL > HIGH > MEDIUM > LOW"
+          fi
+
+          # Conditionally add deduplication subagent instructions
+          if [[ "$SPAWN_DEDUPLICATION" == "true" ]]; then
+            PROMPT="$PROMPT
+
+        ---
+
+        ## DEDUPLICATION SUBAGENT
+
+        Based on PR analysis: ${DEDUPLICATION_REASON}
+
+        Similar file pairs detected:
+        ${DEDUP_SIMILAR_PAIRS}
+
+        Spawn ONE specialized subagent to analyze code duplication.
+
+        ### Instructions:
+        Use the Task tool with subagent_type=\"general-purpose\" to launch the agent. In the prompt include:
+        1. \"Read your spec file at ${{ github.action_path }}/agents/review-deduplication.md and follow its instructions.\"
+        2. PR number: ${{ github.event.pull_request.number }}, Repository: ${{ github.repository }}
+        3. The list of changed files in this PR
+        4. The similar file pairs data: ${DEDUP_SIMILAR_PAIRS}
+
+        After the agent completes, merge its findings into your consolidated output.
+        - Use the agent's dup- prefixed IDs as-is
+        - Deduplicate if you found the same issue independently (prefer dup- prefixed ID)
         - Sort all findings by severity: CRITICAL > HIGH > MEDIUM > LOW"
           fi
 
