@@ -35,6 +35,10 @@ inputs:
     description: "Force data classification agent regardless of heuristic"
     required: false
     default: "false"
+  allowed_bots:
+    description: "Comma-separated bot actors allowed to trigger the review, or '*' for all bots"
+    required: false
+    default: "devin-ai-integration[bot],walletconnect-agent[bot]"
 
 runs:
   using: "composite"
@@ -340,7 +344,7 @@ runs:
         prompt: ${{ env.REVIEW_PROMPT }}
         track_progress: true
         claude_args: --model ${{ inputs.model }} --allowedTools "Read,Glob,Grep,Task,WebFetch"
-        allowed_bots: devin-ai-integration[bot]
+        allowed_bots: ${{ inputs.allowed_bots }}
 
     - name: Extract findings from Claude's comment
       if: inputs.comment_pr_findings == 'true'
