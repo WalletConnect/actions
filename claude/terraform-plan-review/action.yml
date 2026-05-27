@@ -16,6 +16,10 @@ inputs:
   terraform_plan_log_file:
     description: "Optional: Path to file containing raw terraform plan logs (warnings/errors) for diagnostics"
     required: false
+  allowed_bots:
+    description: "Comma-separated bot actors allowed to trigger the review, or '*' for all bots"
+    required: false
+    default: "devin-ai-integration[bot],walletconnect-agent[bot]"
 
 runs:
   using: "composite"
@@ -134,4 +138,4 @@ runs:
           Be thorough in the detailed section but keep the top summary concise (2-3 lines max). Use emojis for readability.
         track_progress: true
         claude_args: --model ${{ inputs.model }} --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(*)"
-        allowed_bots: devin-ai-integration[bot]
+        allowed_bots: ${{ inputs.allowed_bots }}
