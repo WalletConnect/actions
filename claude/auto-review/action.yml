@@ -38,7 +38,7 @@ inputs:
   allowed_bots:
     description: "Comma-separated bot actors allowed to trigger the review, or '*' for all bots"
     required: false
-    default: "devin-ai-integration[bot],walletconnect-agent"
+    default: "devin-ai-integration[bot],walletconnect-agent[bot]"
 
 runs:
   using: "composite"
