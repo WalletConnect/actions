@@ -9,11 +9,24 @@ appId: ${APP_ID}
     permissions:
       all: allow
 
-# Wait for the app to fully load before interacting
+# Wait for the app to fully load before interacting.
+#
+# Higher timeout than a typical screen wait because this is the first
+# render after `clearState` (force-stops the app), so `launchApp`
+# triggers a full cold start: ActivityManager fork, attach to
+# system_server, APK load, Hermes init, RN bridge, JS bundle, home
+# screen render.
+#
+# On a contended CI emulator the first fork can hit `ActivityManager:
+# Process ... failed to attach`, ActivityManager re-forks, and total
+# time-to-render becomes ~30-40s. The 15s budget was consistently
+# tight on pay-core CD runs 26577564785 and 26580944640 (both attempts
+# of the retry wrapper failed here, always at exactly 20s, always with
+# a black-screen — the re-fork hadn't finished rendering).
 - extendedWaitUntil:
     visible:
       id: "button-scan"
-    timeout: 15000
+    timeout: 60000
 
 # Tap scan button to open scanner options modal
 - tapOn:
