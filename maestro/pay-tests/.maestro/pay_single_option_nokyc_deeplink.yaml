@@ -18,11 +18,21 @@ tags:
 - runFlow:
     file: flows/pay_open_via_deeplink.yaml
 
-# Wait for payment options to load
+# Wait for payment options to load.
+#
+# Higher timeout than the paste-URL flows because this is the only
+# cold-start path in the suite: pay_open_via_deeplink.yaml does
+# stopApp + openLink, so the wallet's first sign of life is the OS
+# routing the Android intent into a fresh process — ActivityManager
+# fork, Hermes init, RN bridge, deep-link router, then the API call.
+# On a contended CI emulator the new process can take 20-30s to
+# attach (sometimes failing with `Process ... failed to attach` and
+# requiring re-fork), which left the 30s budget consistently tight
+# (pay-core run 26570588681).
 - extendedWaitUntil:
     visible:
       id: "pay-merchant-info"
-    timeout: 30000
+    timeout: 60000
 
 # Single option auto-selects — go straight to review screen
 
