@@ -227,13 +227,6 @@ steps:
       api-level: 34
       arch: x86_64
       script: |
-        # Disable animations — they slow rendering and cause Maestro to race
-        # the UI on contended CI emulators (a common source of flaky taps and
-        # "stuck on splash" timeouts). Safe to run on every CI boot.
-        adb shell settings put global window_animation_scale 0
-        adb shell settings put global transition_animation_scale 0
-        adb shell settings put global animator_duration_scale 0
-
         adb install path/to/app.apk
         $HOME/.maestro/bin/maestro test \
           --env APP_ID="com.example.wallet.internal" \
