@@ -6,14 +6,6 @@ appId: ${APP_ID}
 # Stop app then open via deeplink so openLink is the launch intent.
 - stopApp:
     appId: ${APP_ID}
-
-# openLink options harden Android App Links handling, the main source of
-# "deeplink didn't open the app" flakes on CI emulators:
-#   - autoVerify: runs the App Links domain verification before opening, so
-#     the OS routes the https:// URL straight into the app instead of falling
-#     back to a browser when verification hasn't settled yet.
-#   - browser: false: never hand the URL to a browser — fail loudly instead
-#     of silently opening Chrome and hanging the flow on a missing testID.
 - openLink:
     link: ${output.gateway_url}
     autoVerify: true

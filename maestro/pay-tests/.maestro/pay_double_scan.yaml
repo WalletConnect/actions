@@ -10,9 +10,6 @@ tags:
       WPAY_CUSTOMER_KEY: ${WPAY_CUSTOMER_KEY_SINGLE_NOKYC}
       WPAY_MERCHANT_ID: ${WPAY_MERCHANT_ID_SINGLE_NOKYC}
 
-# Wipe app data so this flow starts from a clean, cold state regardless of
-# what the previous flow in the run left behind (clearState force-stops the
-# app, so the launchApp inside the shared flow is a true cold start).
 - clearState
 
 - startRecording: "Pay - Double Scan Same Payment"
@@ -44,8 +41,6 @@ tags:
     file: flows/pay_confirm_and_verify.yaml
 
 # === Second scan: re-open the same gateway URL ===
-# Reuse the shared open-and-paste flow so the second scan gets the same
-# cold-start wait, keyboard handling, and submit-button wait as the first.
 - runFlow:
     file: flows/pay_open_and_paste_url.yaml
 
