@@ -1,0 +1,89 @@
+name: 📊 Maestro E2E KPIs (aggregate + post to Slack)
+
+on:
+  schedule:
+    - cron: '0 9 * * *'  # 09:00 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: maestro-kpi-aggregate
+  cancel-in-progress: false
+
+jobs:
+  aggregate:
+    name: Compute KPIs and post to Slack
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Cross-org read across the 5 tracked SDK / backend repos.
+      GH_TOKEN: ${{ secrets.KPI_GITHUB_PAT }}
+      SLACK_KPI_WEBHOOK_URL: ${{ secrets.SLACK_KPI_WEBHOOK_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Validate secrets
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -z "${GH_TOKEN:-}" ]] && missing+=("KPI_GITHUB_PAT")
+          [[ -z "${SLACK_KPI_WEBHOOK_URL:-}" ]] && missing+=("SLACK_KPI_WEBHOOK_URL")
+          if (( ${#missing[@]} > 0 )); then
+            echo "::error::Missing required secrets: ${missing[*]}"
+            exit 1
+          fi
+          gh auth status 2>&1 | head -5
+
+      # Retrieve yesterday's pass-rate output for the "2 consecutive days
+      # <90%" alert. Best-effort — first run + post-retention-expiry both
+      # return nothing, which is fine (the alert just won't fire).
+      - name: Download yesterday's pass rates (best-effort)
+        id: yesterday
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: kpi-pass-rate-latest
+          path: yesterday/
+          github-token: ${{ secrets.KPI_GITHUB_PAT }}
+
+      - name: Compute pass rate (7d, main)
+        run: bash metrics/scripts/kpi_pass_rate.sh > pass.jsonl
+
+      - name: Compute flake rate (7d)
+        run: bash metrics/scripts/kpi_flake_rate.sh > flake.jsonl
+
+      - name: Compute P95 feedback (7d, PR)
+        run: bash metrics/scripts/kpi_p95_feedback.sh > p95.jsonl
+
+      - name: Compute bug catches (30d)
+        run: bash metrics/scripts/kpi_bug_catches.sh > catches.jsonl
+
+      - name: Echo computed KPIs (for run-log debuggability)
+        run: |
+          echo "--- pass.jsonl ---"; cat pass.jsonl
+          echo "--- flake.jsonl ---"; cat flake.jsonl
+          echo "--- p95.jsonl ---";  cat p95.jsonl
+          echo "--- catches.jsonl ---"; cat catches.jsonl
+
+      - name: Post to Slack
+        env:
+          PASS_FILE: pass.jsonl
+          FLAKE_FILE: flake.jsonl
+          P95_FILE: p95.jsonl
+          CATCHES_FILE: catches.jsonl
+          YESTERDAY_PASS: yesterday/pass.jsonl
+        run: bash metrics/scripts/post_to_slack.sh
+
+      # Persist today's pass rates as an artifact so tomorrow's run can
+      # detect a 2-consecutive-day breach. 7-day retention is more than
+      # enough (we only ever read the most-recent artifact).
+      - name: Upload today's pass rates
+        uses: actions/upload-artifact@v4
+        with:
+          name: kpi-pass-rate-latest
+          path: pass.jsonl
+          retention-days: 7
+          overwrite: true

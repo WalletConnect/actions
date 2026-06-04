@@ -1,0 +1,48 @@
+{
+  "_comment": "Workflows tracked by metrics/scripts/kpi_*.sh. Schema: each entry must have repo (owner/name), workflow_path (.github/workflows/file.yml — stable), label (human-readable, used in Slack), platform (groups multiple workflows under one platform row when needed). Optional branch overrides the default ('main') — SDK repos use 'develop'. Optional job_pattern is a Bash regex; when set, the conclusion is taken from the matching JOB inside each workflow run rather than the run itself — used when one job of many is in scope, including jobs nested inside called reusable workflows (e.g. pay-core's Maestro CD job lives inside sub-validate.yml which is called by sub-cd.yml which is called by event_release.yml, but the nested job is visible in event_release.yml's run-jobs endpoint).",
+  "workflows": [
+    {
+      "platform": "kotlin",
+      "label": "kotlin",
+      "repo": "reown-com/reown-kotlin",
+      "workflow_path": ".github/workflows/ci_e2e_pay_tests.yml",
+      "_note": "PR-trigger only — no branch filter, pass-rate covers all CI runs"
+    },
+    {
+      "platform": "swift",
+      "label": "swift",
+      "repo": "reown-com/reown-swift",
+      "workflow_path": ".github/workflows/ci_e2e_pay_tests.yml",
+      "_note": "PR-trigger only — no branch filter, pass-rate covers all CI runs"
+    },
+    {
+      "platform": "flutter",
+      "label": "flutter",
+      "repo": "reown-com/reown_flutter",
+      "workflow_path": ".github/workflows/ci_e2e_pay_tests.yml",
+      "_note": "PR-trigger only — no branch filter, pass-rate covers all CI runs"
+    },
+    {
+      "platform": "rn",
+      "label": "rn",
+      "repo": "reown-com/react-native-examples",
+      "workflow_path": ".github/workflows/ci_e2e_walletkit.yaml",
+      "branch": "main"
+    },
+    {
+      "platform": "core",
+      "label": "core (PR)",
+      "repo": "WalletConnect/pay-core",
+      "workflow_path": ".github/workflows/wx-pay-e2e-maestro.yml",
+      "branch": "main"
+    },
+    {
+      "platform": "core",
+      "label": "core (CD)",
+      "repo": "WalletConnect/pay-core",
+      "workflow_path": ".github/workflows/event_release.yml",
+      "branch": "main",
+      "job_pattern": "^CD / Validate Staging / WX Pay E2E Maestro - android - staging$"
+    }
+  ]
+}
