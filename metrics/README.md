@@ -1,6 +1,6 @@
 # Maestro E2E KPIs
 
-Daily Slack post (09:00 UTC, `#e2e-kpis`) tracking four KPIs across the WalletConnect Pay Maestro E2E suites in five repos. Design doc: [WalletConnect Pay Maestro E2E KPIs — measurement plan](https://walletconnect.notion.site/WalletConnect-Pay-Maestro-E2E-KPIs-measurement-plan-35d3a661771e81f1a78cec0019f8afbd).
+Daily Slack post (09:00 UTC, `#wx-e2e-kpis`) tracking four KPIs across the WalletConnect Pay Maestro E2E suites in five repos. Design doc: [WalletConnect Pay Maestro E2E KPIs — measurement plan](https://walletconnect.notion.site/WalletConnect-Pay-Maestro-E2E-KPIs-measurement-plan-35d3a661771e81f1a78cec0019f8afbd).
 
 ## Layout
 
@@ -30,7 +30,8 @@ Edit `config/workflows.json`. Each entry needs:
 | `workflow_path` | yes | `.github/workflows/foo.yml` — stable across renames |
 | `label` | yes | Shown in the Slack table column |
 | `platform` | yes | Used to aggregate bug-catches |
-| `job_pattern` | no | Bash regex; when set, the conclusion is read from the matching **job** inside each workflow run rather than the run's overall status. Used for reusable workflows like pay-core's `sub-validate.yml` where one job of many is in scope |
+| `branch` | no | When set (e.g. `"main"`), pass/flake/bug-catch filter to that branch. Omit for workflows that don't fire on push (SDK repos are PR-trigger only). |
+| `job_pattern` | no | Bash regex; when set, the conclusion is read from the matching **job** inside each workflow run rather than the run's overall status. Used when one job of many is in scope, including jobs nested inside called reusable workflows (e.g. pay-core's Maestro CD job lives inside `sub-validate.yml`, surfaced via the `event_release.yml` parent run). |
 
 Re-running the workflow (`gh workflow run maestro-kpi-aggregate.yml --repo WalletConnect/actions`) picks up the config without redeploy.
 
@@ -40,16 +41,16 @@ Re-running the workflow (`gh workflow run maestro-kpi-aggregate.yml --repo Walle
 gh workflow run maestro-kpi-aggregate.yml --repo WalletConnect/actions
 ```
 
-Posts to the same `#e2e-kpis` channel as the cron run. Useful for testing config changes.
+Posts to the same `#wx-e2e-kpis` channel as the cron run. Useful for testing config changes.
 
 ## Secrets
 
-Both set as **organization** secrets on `WalletConnect` (granted to this repo):
+Both set as **repository** secrets on `WalletConnect/actions` (the only consumer):
 
 | Secret | What |
 |---|---|
 | `KPI_GITHUB_PAT` | Token with `actions:read` + `metadata:read` on the 5 tracked repos (kotlin/swift/flutter under `reown-com`, `reown-com/react-native-examples`, `WalletConnect/pay-core`). Fine-grained PAT preferred. |
-| `SLACK_KPI_WEBHOOK_URL` | Incoming-webhook URL for `#e2e-kpis`. |
+| `SLACK_KPI_WEBHOOK_URL` | Incoming-webhook URL for `#wx-e2e-kpis`. |
 
 ## What's a "bug catch"?
 
@@ -65,7 +66,7 @@ Heuristic, not exact. Known biases:
 
 ## Output
 
-Daily 09:00 UTC post to `#e2e-kpis`:
+Daily 09:00 UTC post to `#wx-e2e-kpis`:
 
 ```
 📊 Maestro E2E KPIs — 2026-06-03
