@@ -1,5 +1,5 @@
 appId: ${APP_ID}
-name: WalletConnect Pay - Single Option No KYC (Deep Link)
+name: WalletConnect Pay - Single Option No KYC (Universal Link)
 tags:
   - pay
 ---
@@ -21,7 +21,7 @@ tags:
 # The cold start this flow needs is already provided by stopApp + openLink in
 # flows/pay_open_via_deeplink.yaml, so no reinstall is required.
 
-- startRecording: "WalletConnect Pay Single Option No KYC Deep Link"
+- startRecording: "Pay - Single Option No KYC (Universal Link)"
 
 # Open wallet via deep link with payment URL
 - runFlow:

@@ -1,5 +1,5 @@
 appId: ${APP_ID}
-name: WalletConnect Pay - KYC Header Buttons
+name: WalletConnect Pay - Check Back/Close Buttons in KYC Webview
 tags:
   - pay
 ---
@@ -15,7 +15,7 @@ tags:
 # app, so the launchApp inside the shared flow is a true cold start).
 - clearState
 
-- startRecording: "WalletConnect Pay KYC Header Buttons"
+- startRecording: "Pay - Check Back/Close Buttons in KYC Webview"
 
 # Open wallet, paste payment URL
 - runFlow:

@@ -16,7 +16,7 @@ tags:
 # app, so the launchApp inside the shared flow is a true cold start).
 - clearState
 
-- startRecording: "WalletConnect Pay Cancel from KYC"
+- startRecording: "Pay - Cancel from KYC Webview"
 
 # Open wallet, paste payment URL
 - runFlow:

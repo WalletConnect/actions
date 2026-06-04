@@ -1,5 +1,5 @@
 appId: ${APP_ID}
-name: WalletConnect Pay - Expired Link
+name: WalletConnect Pay - Use an expired payment link
 tags:
   - pay
 ---
@@ -12,7 +12,7 @@ tags:
 # app, so the launchApp inside the shared flow is a true cold start).
 - clearState
 
-- startRecording: "WalletConnect Pay Expired Link"
+- startRecording: "Pay - Use an expired payment link"
 
 # Open wallet, paste payment URL
 - runFlow:

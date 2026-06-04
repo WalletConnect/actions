@@ -15,7 +15,7 @@ tags:
 # app, so the launchApp inside the shared flow is a true cold start).
 - clearState
 
-- startRecording: "WalletConnect Pay Cancel from Review"
+- startRecording: "Pay - Cancel from Review Screen"
 
 # Open wallet, paste payment URL
 - runFlow:

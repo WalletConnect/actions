@@ -1,5 +1,5 @@
 appId: ${APP_ID}
-name: WalletConnect Pay - Cancelled Payment
+name: WalletConnect Pay - Load a cancelled payment
 tags:
   - pay
 ---
@@ -22,7 +22,7 @@ tags:
 # app, so the launchApp inside the shared flow is a true cold start).
 - clearState
 
-- startRecording: "WalletConnect Pay Cancelled Payment"
+- startRecording: "Pay - Load a cancelled payment"
 
 # Open wallet, paste payment URL
 - runFlow:
