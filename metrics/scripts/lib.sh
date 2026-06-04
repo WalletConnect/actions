@@ -66,9 +66,15 @@ resolve_conclusions() {
     if [[ -z "$job_pattern" ]]; then
       jq -r '"\(.id)\t\(.conclusion // "null")"' <<<"$run"
     else
+      # Pipe through jq separately so we can pass the pattern via --arg.
+      # Interpolating into --jq's expression string risks breaking the
+      # filter (silently — swallowed by 2>/dev/null) on any future
+      # job_pattern containing ", \, or jq metachars.
       local conclusion
-      conclusion=$(gh api "repos/$repo/actions/runs/$run_id/jobs" \
-        --jq ".jobs[] | select(.name | test(\"$job_pattern\")) | .conclusion" 2>/dev/null | head -1 || true)
+      conclusion=$(gh api "repos/$repo/actions/runs/$run_id/jobs" 2>/dev/null \
+        | jq -r --arg pat "$job_pattern" \
+          '.jobs[] | select(.name | test($pat)) | .conclusion' \
+        | head -1 || true)
       if [[ -n "$conclusion" ]]; then
         printf '%s\t%s\n' "$run_id" "$conclusion"
       fi

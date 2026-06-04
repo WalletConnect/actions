@@ -112,9 +112,12 @@ count_pr_time_catches() {
   local repo="$1" workflow_path="$2" job_pattern="${3:-}"
   local since_date="${SINCE%T*}"
 
-  # Merged PRs in window.
+  # Merged PRs in window. --paginate walks all pages (search/issues caps
+  # at 1000 results total regardless, which is well above our actual
+  # 30-day PR volume across the tracked repos).
   local prs
-  prs=$(gh api "search/issues?q=repo:$repo+is:pr+is:merged+merged:>=$since_date&per_page=100" \
+  prs=$(gh api --paginate \
+    "search/issues?q=repo:$repo+is:pr+is:merged+merged:>=$since_date&per_page=100" \
     --jq '.items[].number' 2>/dev/null || true)
 
   local total=0

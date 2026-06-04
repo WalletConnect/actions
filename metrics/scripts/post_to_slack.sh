@@ -25,6 +25,10 @@ YESTERDAY_PASS="${YESTERDAY_PASS:-/dev/null}"
 DRY_RUN="${DRY_RUN:-0}"
 if [[ "$DRY_RUN" != "1" ]]; then
   SLACK_WEBHOOK="${SLACK_KPI_WEBHOOK_URL:?missing SLACK_KPI_WEBHOOK_URL}"
+  # Auto-masking covers the secret value as ${{ secrets.* }} resolved it,
+  # but doesn't follow into derived shell variables. Re-mask both forms
+  # so a stray `set -x` (or ACTIONS_STEP_DEBUG) can't leak the URL.
+  echo "::add-mask::$SLACK_WEBHOOK"
 fi
 TODAY="${TODAY:-$(date -u +%Y-%m-%d)}"
 
@@ -222,12 +226,19 @@ if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
 fi
 
+# Write the webhook URL to a curl config file so it stays out of argv
+# (visible under set -x / ACTIONS_STEP_DEBUG / /proc/<pid>/cmdline).
+_curl_cfg=$(mktemp)
+trap 'rm -f "$_curl_cfg"' EXIT
+printf 'url = "%s"\n' "$SLACK_WEBHOOK" > "$_curl_cfg"
+chmod 600 "$_curl_cfg"
+
 payload=$(jq -nc --arg text "$daily" '{text: $text}')
 curl -fsS -X POST -H "Content-Type: application/json" \
-  -d "$payload" "$SLACK_WEBHOOK" > /dev/null
+  -d "$payload" --config "$_curl_cfg" > /dev/null
 
 if [[ -n "$alerts" ]]; then
   alert_payload=$(jq -nc --arg text "$alerts" '{text: $text}')
   curl -fsS -X POST -H "Content-Type: application/json" \
-    -d "$alert_payload" "$SLACK_WEBHOOK" > /dev/null
+    -d "$alert_payload" --config "$_curl_cfg" > /dev/null
 fi
