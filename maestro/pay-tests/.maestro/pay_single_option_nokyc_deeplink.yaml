@@ -10,7 +10,16 @@ tags:
       WPAY_CUSTOMER_KEY: ${WPAY_CUSTOMER_KEY_SINGLE_NOKYC}
       WPAY_MERCHANT_ID: ${WPAY_MERCHANT_ID_SINGLE_NOKYC}
 
-- clearState
+# NOTE: Do NOT add `clearState` here. Unlike the other flows, this one enters
+# via a Universal Link (openLink), and clearState reinstalls the app into a
+# fresh container. On iOS that reinstall makes swcd flag "app PI changed",
+# downgrade the previously-approved pay.walletconnect.com association to
+# `sa = unspecified`, and kick off async re-verification. openLink fires
+# ~0.7s later — inside that invalidation window — so iOS finds no match and
+# routes the https:// link to Safari instead of the wallet, failing on
+# pay-merchant-info. Re-approval lands ~24s later, long after the timeout.
+# The cold start this flow needs is already provided by stopApp + openLink in
+# flows/pay_open_via_deeplink.yaml, so no reinstall is required.
 
 - startRecording: "WalletConnect Pay Single Option No KYC Deep Link"
 
