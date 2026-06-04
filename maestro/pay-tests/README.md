@@ -168,7 +168,7 @@ The flow opens the link with `autoVerify: true` and `browser: false` so the OS r
 
 ## Test Isolation
 
-Every flow begins with `clearState`, which force-stops the app and wipes its data before the run starts. This guarantees each test gets a clean, cold start regardless of run order or how the previous flow ended (even if it crashed mid-flow), so tests can't leak leftover modals or navigation state into one another. The app is **not** reinstalled between flows — only its state is reset — so you only need a single `adb install` (Android) / install step before invoking `maestro test`.
+Every flow runs `clearState` before it launches or interacts with the app (after any `runScript`/`evalScript` setup steps), force-stopping the app and wiping its data. This guarantees each test gets a clean, cold start regardless of run order or how the previous flow ended (even if it crashed mid-flow), so tests can't leak leftover modals or navigation state into one another. The app is **not** reinstalled between flows — only its state is reset — so you only need a single `adb install` (Android) / install step before invoking `maestro test`.
 
 ## Local Development
 
@@ -205,6 +205,8 @@ That's it. The script will automatically download the shared test flows from thi
 ## CI Usage
 
 Use `maestro/pay-tests` and `maestro/setup` to stage flows and install Maestro, then run `maestro test` inline in your workflow:
+
+> **Note:** The `@main` / `@v2` / `@v4` refs below are illustrative. Before using this in a real workflow, pin every action to a full 40-char commit SHA (per this repo's convention) so consumers don't silently pick up breaking changes.
 
 ```yaml
 steps:
