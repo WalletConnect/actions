@@ -11,6 +11,11 @@ tags:
       WPAY_MERCHANT_ID: ${WPAY_MERCHANT_ID_SINGLE_NOKYC}
       WPAY_AMOUNT: "999"
 
+# Wipe app data so this flow starts from a clean, cold state regardless of
+# what the previous flow in the run left behind (clearState force-stops the
+# app, so the launchApp inside the shared flow is a true cold start).
+- clearState
+
 - startRecording: "WalletConnect Pay Insufficient Funds"
 
 # Open wallet, paste payment URL

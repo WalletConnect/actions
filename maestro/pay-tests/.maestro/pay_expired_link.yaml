@@ -7,6 +7,11 @@ tags:
 # expired payment); otherwise fall back to the hardcoded prod-expired link.
 - evalScript: "${output.gateway_url = (typeof WPAY_EXPIRED_GATEWAY_URL !== 'undefined' && WPAY_EXPIRED_GATEWAY_URL) ? WPAY_EXPIRED_GATEWAY_URL : 'https://pay.walletconnect.com/?pid=pay_b8a2ecc101KNHRNWXD2VF8SGZDS7WK19ZA'}"
 
+# Wipe app data so this flow starts from a clean, cold state regardless of
+# what the previous flow in the run left behind (clearState force-stops the
+# app, so the launchApp inside the shared flow is a true cold start).
+- clearState
+
 - startRecording: "WalletConnect Pay Expired Link"
 
 # Open wallet, paste payment URL

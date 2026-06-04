@@ -162,7 +162,13 @@ All flows are tagged with `pay` for filtering via `--include-tags`.
 
 ## Deep Link Support
 
-The `pay_single_option_nokyc_deeplink` test uses Maestro's `openLink` command to open a `https://pay.walletconnect.com` URL. Your wallet must be configured to handle these URLs as deep links / universal links for this test to work.
+The `pay_single_option_nokyc_deeplink` test uses Maestro's `openLink` command to open a `https://pay.walletconnect.com` URL. Your wallet must be configured to handle these URLs as deep links / universal links (Android App Links / iOS Universal Links) for this test to work.
+
+The flow opens the link with `autoVerify: true` and `browser: false` so the OS routes the URL straight into the app and never falls back to a browser. On Android this requires your `pay.walletconnect.com` `intent-filter` to declare `android:autoVerify="true"` and the matching `assetlinks.json` to be served — otherwise `openLink` will fail loudly instead of silently opening Chrome.
+
+## Test Isolation
+
+Every flow begins with `clearState`, which force-stops the app and wipes its data before the run starts. This guarantees each test gets a clean, cold start regardless of run order or how the previous flow ended (even if it crashed mid-flow), so tests can't leak leftover modals or navigation state into one another. The app is **not** reinstalled between flows — only its state is reset — so you only need a single `adb install` (Android) / install step before invoking `maestro test`.
 
 ## Local Development
 
@@ -219,6 +225,13 @@ steps:
       api-level: 34
       arch: x86_64
       script: |
+        # Disable animations — they slow rendering and cause Maestro to race
+        # the UI on contended CI emulators (a common source of flaky taps and
+        # "stuck on splash" timeouts). Safe to run on every CI boot.
+        adb shell settings put global window_animation_scale 0
+        adb shell settings put global transition_animation_scale 0
+        adb shell settings put global animator_duration_scale 0
+
         adb install path/to/app.apk
         $HOME/.maestro/bin/maestro test \
           --env APP_ID="com.example.wallet.internal" \
