@@ -11,7 +11,9 @@ tags:
       WPAY_MERCHANT_ID: ${WPAY_MERCHANT_ID_SINGLE_NOKYC}
       WPAY_AMOUNT: "999"
 
-- startRecording: "WalletConnect Pay Insufficient Funds"
+- clearState
+
+- startRecording: "Pay - Insufficient Funds"
 
 # Open wallet, paste payment URL
 - runFlow:

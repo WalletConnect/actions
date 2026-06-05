@@ -10,7 +10,9 @@ tags:
       WPAY_CUSTOMER_KEY: ${WPAY_CUSTOMER_KEY_SINGLE_NOKYC}
       WPAY_MERCHANT_ID: ${WPAY_MERCHANT_ID_SINGLE_NOKYC}
 
-- startRecording: "WalletConnect Pay Cancel from Review"
+- clearState
+
+- startRecording: "Pay - Cancel from Review Screen"
 
 # Open wallet, paste payment URL
 - runFlow:

@@ -1,5 +1,5 @@
 appId: ${APP_ID}
-name: WalletConnect Pay - Single Option No KYC (Deep Link)
+name: WalletConnect Pay - Single Option No KYC (Universal Link)
 tags:
   - pay
 ---
@@ -10,9 +10,12 @@ tags:
       WPAY_CUSTOMER_KEY: ${WPAY_CUSTOMER_KEY_SINGLE_NOKYC}
       WPAY_MERCHANT_ID: ${WPAY_MERCHANT_ID_SINGLE_NOKYC}
 
-- clearState
+# NOTE: Do NOT add `clearState` here — it reinstalls the app, which on iOS
+# invalidates the pay.walletconnect.com Universal Link approval and routes
+# openLink to Safari. The cold start is already handled by stopApp + openLink
+# in flows/pay_open_via_deeplink.yaml.
 
-- startRecording: "WalletConnect Pay Single Option No KYC Deep Link"
+- startRecording: "Pay - Single Option No KYC (Universal Link)"
 
 # Open wallet via deep link with payment URL
 - runFlow:

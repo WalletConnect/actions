@@ -162,7 +162,13 @@ All flows are tagged with `pay` for filtering via `--include-tags`.
 
 ## Deep Link Support
 
-The `pay_single_option_nokyc_deeplink` test uses Maestro's `openLink` command to open a `https://pay.walletconnect.com` URL. Your wallet must be configured to handle these URLs as deep links / universal links for this test to work.
+The `pay_single_option_nokyc_deeplink` test uses Maestro's `openLink` command to open a `https://pay.walletconnect.com` URL. Your wallet must be configured to handle these URLs as deep links / universal links (Android App Links / iOS Universal Links) for this test to work.
+
+The flow opens the link with `autoVerify: true` and `browser: false` so the OS routes the URL straight into the app and never falls back to a browser. On Android this requires your `pay.walletconnect.com` `intent-filter` to declare `android:autoVerify="true"` and the matching `assetlinks.json` to be served — otherwise `openLink` will fail loudly instead of silently opening Chrome.
+
+## Test Isolation
+
+Every flow runs `clearState` before it launches or interacts with the app (after any `runScript`/`evalScript` setup steps), force-stopping the app and wiping its data. This guarantees each test gets a clean, cold start regardless of run order or how the previous flow ended (even if it crashed mid-flow), so tests can't leak leftover modals or navigation state into one another. The app is **not** reinstalled between flows — only its state is reset — so you only need a single `adb install` (Android) / install step before invoking `maestro test`.
 
 ## Local Development
 
@@ -199,6 +205,8 @@ That's it. The script will automatically download the shared test flows from thi
 ## CI Usage
 
 Use `maestro/pay-tests` and `maestro/setup` to stage flows and install Maestro, then run `maestro test` inline in your workflow:
+
+> **Note:** The `@main` / `@v2` / `@v4` refs below are illustrative. Before using this in a real workflow, pin every action to a full 40-char commit SHA (per this repo's convention) so consumers don't silently pick up breaking changes.
 
 ```yaml
 steps:

@@ -6,4 +6,7 @@ appId: ${APP_ID}
 # Stop app then open via deeplink so openLink is the launch intent.
 - stopApp:
     appId: ${APP_ID}
-- openLink: ${output.gateway_url}
+- openLink:
+    link: ${output.gateway_url}
+    autoVerify: true
+    browser: false

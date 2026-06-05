@@ -1,5 +1,5 @@
 appId: ${APP_ID}
-name: WalletConnect Pay - Multiple Options with KYC
+name: WalletConnect Pay - Multiple Payment Options with KYC
 tags:
   - pay
   - pay-needs-kyc-backend
@@ -13,7 +13,7 @@ tags:
 
 - clearState
 
-- startRecording: "WalletConnect Pay Multiple Options KYC"
+- startRecording: "Pay - Multiple Payment Options with KYC"
 
 # Open wallet, paste payment URL
 - runFlow:
