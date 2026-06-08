@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Assemble the daily Slack message from the four KPI outputs and POST it
+# Assemble the daily Slack message from the three KPI outputs and POST it
 # to the webhook. Emits attention-line + threshold-breach alerts when the
 # numbers warrant.
 #
@@ -7,8 +7,8 @@
 #   PASS_FILE       — pass rate per workflow
 #   FLAKE_FILE      — flake rate per workflow
 #   P95_FILE        — P95 feedback per workflow
-#   CATCHES_FILE    — bug catches per platform
-#   YESTERDAY_PASS  — yesterday's pass rate per workflow (optional; for week-over-week deltas and "2 consecutive days <90%" alert)
+#   YESTERDAY_PASS  — yesterday's pass rate per workflow (optional; for
+#                     "2 consecutive days <90%" alert)
 #
 # Env: SLACK_KPI_WEBHOOK_URL is required at runtime.
 
@@ -17,20 +17,18 @@ set -euo pipefail
 PASS_FILE="${PASS_FILE:?missing}"
 FLAKE_FILE="${FLAKE_FILE:?missing}"
 P95_FILE="${P95_FILE:?missing}"
-CATCHES_FILE="${CATCHES_FILE:?missing}"
 YESTERDAY_PASS="${YESTERDAY_PASS:-/dev/null}"
-# When DRY_RUN=1, print the message to stdout instead of POSTing. Useful
-# for local debugging and the workflow echoes the dry-run output so the
-# run log is self-contained.
 DRY_RUN="${DRY_RUN:-0}"
 if [[ "$DRY_RUN" != "1" ]]; then
   SLACK_WEBHOOK="${SLACK_KPI_WEBHOOK_URL:?missing SLACK_KPI_WEBHOOK_URL}"
-  # Auto-masking covers the secret value as ${{ secrets.* }} resolved it,
-  # but doesn't follow into derived shell variables. Re-mask both forms
-  # so a stray `set -x` (or ACTIONS_STEP_DEBUG) can't leak the URL.
   echo "::add-mask::$SLACK_WEBHOOK"
 fi
-TODAY="${TODAY:-$(date -u +%Y-%m-%d)}"
+
+# Window: same 7d the kpi_*.sh scripts use (lib.sh::iso_days_ago 7).
+# Compute fresh here so the Slack header always reflects the same
+# interval the scripts queried.
+WINDOW_END="${TODAY:-$(date -u +%Y-%m-%d)}"
+WINDOW_START="${WINDOW_START:-$(date -u -d "7 days ago" +%Y-%m-%d 2>/dev/null || date -u -v -7d +%Y-%m-%d)}"
 
 # Targets per the design doc.
 PASS_TARGET=95
@@ -47,38 +45,43 @@ source "$SCRIPT_DIR/lib.sh"
 # Build a row for one workflow. Looks up flake + p95 by label.
 build_row() {
   local pass_entry="$1"
-  local label rate total
+  local label rate success total
   label=$(jq -r '.label' <<<"$pass_entry")
   rate=$(jq -r '.rate' <<<"$pass_entry")
+  success=$(jq -r '.success' <<<"$pass_entry")
   total=$(jq -r '.total' <<<"$pass_entry")
 
-  local flake_rate flake_total p95_min p95_count
+  local flake_rate flake_recovered flake_total p95_min p95_count
   flake_rate=$(jq -r --arg l "$label" 'select(.label == $l) | .rate' "$FLAKE_FILE" | head -1)
+  flake_recovered=$(jq -r --arg l "$label" 'select(.label == $l) | .recovered' "$FLAKE_FILE" | head -1)
   flake_total=$(jq -r --arg l "$label" 'select(.label == $l) | .total_failures' "$FLAKE_FILE" | head -1)
   p95_min=$(jq -r --arg l "$label" 'select(.label == $l) | .p95_minutes' "$P95_FILE" | head -1)
   p95_count=$(jq -r --arg l "$label" 'select(.label == $l) | .count' "$P95_FILE" | head -1)
   flake_rate="${flake_rate:-0}"
+  flake_recovered="${flake_recovered:-0}"
+  flake_total="${flake_total:-0}"
   p95_min="${p95_min:-0}"
+  p95_count="${p95_count:-0}"
 
   local pass_cell flake_cell p95_cell
   if [[ "${total:-0}" == "0" ]]; then
-    pass_cell="—"
+    pass_cell="— (no runs)"
   else
-    pass_cell=$(kpi_cell "$rate" ">=" "$PASS_TARGET" "%")
+    pass_cell="$(kpi_cell "$rate" ">=" "$PASS_TARGET" "%") ($success/$total)"
   fi
   if [[ "${flake_total:-0}" == "0" ]]; then
-    flake_cell="—"
+    flake_cell="— (no failures)"
   else
-    flake_cell=$(kpi_cell "$flake_rate" "<" "$FLAKE_TARGET" "%")
+    flake_cell="$(kpi_cell "$flake_rate" "<" "$FLAKE_TARGET" "%") ($flake_recovered/$flake_total)"
   fi
   if [[ "${p95_count:-0}" == "0" ]]; then
-    p95_cell="—"
+    p95_cell="— (no PR runs)"
   else
-    p95_cell=$(kpi_cell "$p95_min" "<" "$P95_TARGET_MIN" "m")
+    p95_cell="$(kpi_cell "$p95_min" "<" "$P95_TARGET_MIN" "m") (n=$p95_count)"
   fi
 
-  # Fixed-width formatting for Slack code block.
-  printf '%-22s  %-10s  %-10s  %s\n' "$label" "$pass_cell" "$flake_cell" "$p95_cell"
+  # Wider columns to fit the counts.
+  printf '%-12s  %-22s  %-22s  %s\n' "$label" "$pass_cell" "$flake_cell" "$p95_cell"
 }
 
 # Attention line: list workflows where any metric is in red/yellow zone.
@@ -122,37 +125,6 @@ build_attention_line() {
   fi
 }
 
-# Bar chart for bug catches.
-build_catches_section() {
-  local total
-  total=$(jq -s 'map(.total) | add // 0' "$CATCHES_FILE")
-  local pr_total main_total
-  pr_total=$(jq -s 'map(.pr_time) | add // 0' "$CATCHES_FILE")
-  main_total=$(jq -s 'map(.main) | add // 0' "$CATCHES_FILE")
-
-  local avg_days
-  if [[ $total -gt 0 ]]; then
-    avg_days=$(awk -v t="$total" 'BEGIN { printf "%.1f", 30 / t }')
-    echo "🐛 Bug catches — last 30d: $total total (avg every $avg_days days)"
-  else
-    echo "🐛 Bug catches — last 30d: 0 total"
-  fi
-  echo "   PR-time catches:  $pr_total   •   Main-branch catches:  $main_total"
-  echo ""
-
-  while IFS= read -r entry; do
-    local platform total_p bar
-    platform=$(jq -r '.platform' <<<"$entry")
-    total_p=$(jq -r '.total' <<<"$entry")
-    if [[ $total_p -gt 0 ]]; then
-      bar=$(printf '▓%.0s' $(seq 1 "$total_p"))
-    else
-      bar=""
-    fi
-    printf '   %-8s %s %d\n' "$platform" "$bar" "$total_p"
-  done < "$CATCHES_FILE"
-}
-
 # Threshold-breach alerts.
 build_alerts() {
   local alerts=()
@@ -166,7 +138,6 @@ build_alerts() {
     flake_rate="${flake_rate:-0.00}"
     p95_min="${p95_min:-0}"
 
-    # Pass rate < 90% for 2 consecutive days
     if awk -v v="$rate" -v t="$PASS_ALERT" 'BEGIN { exit (v < t) ? 0 : 1 }'; then
       local yesterday_rate=""
       if [[ -s "$YESTERDAY_PASS" ]]; then
@@ -191,16 +162,14 @@ build_alerts() {
 
 # Assemble the message body.
 body=$(cat <<EOF
-📊 Maestro E2E KPIs — $TODAY
+📊 Maestro E2E KPIs — 7d window: $WINDOW_START → $WINDOW_END
 
-$(printf '%-22s  %-10s  %-10s  %s\n' "" "Pass rate" "Flake rate" "P95 PR feedback")
-$(printf '%-22s  %-10s  %-10s  %s\n' "" "(7d, main)" "(7d)" "(7d)")
-$(printf -- '-%.0s' {1..72})
+$(printf '%-12s  %-22s  %-22s  %s\n' "" "Pass rate" "Flake rate" "P95 PR feedback")
+$(printf '%-12s  %-22s  %-22s  %s\n' "" "(success/total)" "(recovered/failures)" "(n = sample size)")
+$(printf -- '-%.0s' {1..78})
 $(while IFS= read -r entry; do build_row "$entry"; done < "$PASS_FILE")
-$(printf -- '-%.0s' {1..72})
-🎯 targets              ≥${PASS_TARGET}%       <${FLAKE_TARGET}%         <${P95_TARGET_MIN}m
-
-$(build_catches_section)
+$(printf -- '-%.0s' {1..78})
+🎯 targets    ≥${PASS_TARGET}%                  <${FLAKE_TARGET}%                   <${P95_TARGET_MIN}m
 EOF
 )
 
@@ -211,7 +180,6 @@ if [[ -n "$attention" ]]; then
 $attention"
 fi
 
-# Daily summary as a code block.
 daily="\`\`\`$body\`\`\`"
 alerts=$(build_alerts || true)
 
@@ -226,8 +194,7 @@ if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
 fi
 
-# Write the webhook URL to a curl config file so it stays out of argv
-# (visible under set -x / ACTIONS_STEP_DEBUG / /proc/<pid>/cmdline).
+# Webhook URL via curl --config file to keep it out of argv.
 _curl_cfg=$(mktemp)
 trap 'rm -f "$_curl_cfg"' EXIT
 printf 'url = "%s"\n' "$SLACK_WEBHOOK" > "$_curl_cfg"
