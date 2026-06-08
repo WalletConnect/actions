@@ -62,22 +62,21 @@ jobs:
       - name: Compute P95 feedback (7d, PR)
         run: bash metrics/scripts/kpi_p95_feedback.sh > p95.jsonl
 
-      - name: Compute bug catches (30d)
-        run: bash metrics/scripts/kpi_bug_catches.sh > catches.jsonl
+      # Bug-catches KPI (kpi_bug_catches.sh) is kept in-tree for a later
+      # iteration but not rendered in Slack yet — the heuristic produces
+      # numbers that are too noisy to act on without more analysis.
 
       - name: Echo computed KPIs (for run-log debuggability)
         run: |
           echo "--- pass.jsonl ---"; cat pass.jsonl
           echo "--- flake.jsonl ---"; cat flake.jsonl
           echo "--- p95.jsonl ---";  cat p95.jsonl
-          echo "--- catches.jsonl ---"; cat catches.jsonl
 
       - name: Post to Slack
         env:
           PASS_FILE: pass.jsonl
           FLAKE_FILE: flake.jsonl
           P95_FILE: p95.jsonl
-          CATCHES_FILE: catches.jsonl
           YESTERDAY_PASS: yesterday/pass.jsonl
         run: bash metrics/scripts/post_to_slack.sh
 

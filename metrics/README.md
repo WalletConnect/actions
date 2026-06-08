@@ -69,31 +69,26 @@ Heuristic, not exact. Known biases:
 Daily 09:00 UTC post to `#wx-e2e-kpis`:
 
 ```
-📊 Maestro E2E KPIs — 2026-06-03
+📊 Maestro E2E KPIs — 7d window: 2026-06-01 → 2026-06-08
 
-                       Pass rate   Flake rate  P95 PR feedback
-                       (7d, main)  (7d)        (7d)
-────────────────────────────────────────────────────────────
-kotlin                  ✅ 98.2%   ✅ 2.1%     ✅ 22m
-swift                   🟡 91.5%   🟡 8.3%     🟡 34m
-flutter                 ✅ 99.0%   ✅ 1.2%     ✅ 18m
-rn                      ✅ 96.8%   ✅ 3.4%     ✅ 28m
-core (PR)               ✅ 97.1%   ✅ 4.0%     ✅ 25m
-core (CD)               ✅ 96.0%   ✅ 0.0%     ✅ 28m
-────────────────────────────────────────────────────────────
-🎯 targets              ≥95%       <5%         <30m
+              Pass rate               Flake rate              P95 PR feedback
+              (success/total)         (recovered/failures)    (n = sample size)
+──────────────────────────────────────────────────────────────────────────────
+kotlin        ✅ 100.00% (4/4)        — (no failures)         ✅ 15m (n=4)
+swift         🔴 57.14% (4/7)         ✅ 0.00% (0/3)          ✅ 16m (n=5)
+flutter       🔴 60.00% (3/5)         🔴 50.00% (2/4)         🔴 79m (n=5)
+rn            🔴 67.23% (80/119)      ✅ 0.00% (0/39)         🔴 46m (n=15)
+core (PR)     ✅ 96.77% (30/31)       ✅ 0.00% (0/1)          ✅ 27m (n=167)
+core (CD)     🔴 68.42% (13/19)       🔴 25.00% (2/8)         — (no PR runs)
+──────────────────────────────────────────────────────────────────────────────
+🎯 targets    ≥95%                    <5%                     <30m
 
-🐛 Bug catches — last 30d: 14 total (avg every 2.1 days)
-   PR-time catches:  11   •   Main-branch catches:  3
-
-   kotlin   ▓▓▓▓▓ 5
-   swift    ▓ 1
-   flutter  ▓▓ 2
-   rn       ▓▓▓ 3
-   core     ▓▓▓ 3
-
-⚠️ Attention: swift pass 91.5%, flake 8.3%, P95 34m
+⚠️ Attention: swift pass 57.14%; flutter pass 60.00%, flake 50.00%, P95 79m; …
 ```
+
+> Bug-catches KPI (kpi_bug_catches.sh) is kept in-tree for a future
+> iteration but currently not surfaced — heuristic is too noisy to act
+> on without more triage.
 
 Separate threshold-breach alerts post when:
 
