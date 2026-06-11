@@ -45,6 +45,7 @@ Every wallet platform must add these accessibility identifiers to the correspond
 |---|---|---|
 | `pay-option-{index}` | Payment option (unselected) | 0-based index from the payment options array |
 | `pay-option-{index}-selected` | Payment option (selected) | Same element when selected |
+| `pay-option-{assetSymbol}-{networkName}` | Payment option (stable) | Lowercased, spaces → `-` (e.g. `pay-option-usdt-polygon`). Additive to the index-based id; lets a flow pick a specific asset+network when the same token appears on multiple networks. Used by `pay_usdt_polygon`. |
 | `pay-info-required-badge` | "Info required" badge | Shown on options that require KYC |
 | `pay-button-info` | Info (?) button in header | Explains KYC requirement |
 | `pay-button-continue` | Continue button | Proceeds after selecting a payment option |

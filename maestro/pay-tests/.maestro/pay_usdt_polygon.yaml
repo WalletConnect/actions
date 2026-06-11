@@ -26,14 +26,19 @@ tags:
       id: "pay-select-option-header"
     timeout: 30000
 
-# Select the USDT-on-Polygon option. The option's visible label is
-# "<amount> USDT"; matching on the USDT asset symbol picks the USDT option.
-# The Polygon network is then verified on the review screen below. USDT on
-# Polygon is a plain ERC-20 (no EIP-3009/2612), so it takes the Permit2
-# approve + pay path — the point of this test. (USDT on Arbitrum is EIP-3009 /
-# signature-based and would never trigger an on-chain approve.)
+# Select the USDT-on-Polygon option by its stable network+token testID
+# (the merchant may also list USDT on other networks, e.g. Arbitrum, so a plain
+# "USDT" text match would pick the wrong row). Scroll it into view first since it
+# may be below the fold. USDT on Polygon is a plain ERC-20 (no EIP-3009/2612), so
+# it takes the Permit2 approve + pay path — the point of this test. (USDT on
+# Arbitrum is EIP-3009 / signature-based and would never trigger an on-chain approve.)
+- scrollUntilVisible:
+    element:
+      id: "pay-option-usdt-polygon"
+    direction: DOWN
+    timeout: 20000
 - tapOn:
-    text: ".*USDT.*"
+    id: "pay-option-usdt-polygon"
 
 # Review screen must be the Polygon token (testID is keyed by network name)
 - assertVisible:
