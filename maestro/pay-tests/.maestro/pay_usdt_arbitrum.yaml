@@ -1,0 +1,77 @@
+appId: ${APP_ID}
+name: WalletConnect Pay - USDT on Arbitrum (Permit2 approve + pay)
+tags:
+  - pay
+  - pay-usdt-arbitrum
+---
+# Create payment via API using the merchant that offers USDT on Arbitrum.
+# Reuses the shared create-payment.js; the merchant determines which assets
+# (USDT on Arbitrum among them) are offered to the wallet.
+- runScript:
+    file: scripts/create-payment.js
+    env:
+      WPAY_CUSTOMER_KEY: ${WPAY_CUSTOMER_KEY_MULTI_NOKYC}
+      WPAY_MERCHANT_ID: ${WPAY_MERCHANT_ID_MULTI_NOKYC}
+
+- clearState
+
+- startRecording: "Pay - USDT on Arbitrum"
+
+# Open wallet, paste payment URL, wait for merchant info / options
+- runFlow:
+    file: flows/pay_open_and_paste_url.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: "pay-select-option-header"
+    timeout: 30000
+
+# Select the USDT-on-Arbitrum option. The option's visible label is
+# "<amount> USDT"; matching on the USDT asset symbol picks the USDT option.
+# The Arbitrum network is then verified on the review screen below.
+- tapOn:
+    text: ".*USDT.*"
+
+# Review screen must be the Arbitrum token (testID is keyed by network name)
+- assertVisible:
+    id: "pay-review-token-arbitrum"
+
+# Verify the pay button shows a fiat amount
+- copyTextFrom:
+    id: "pay-button-pay"
+- assertTrue:
+    condition: "${maestro.copiedText.startsWith('Pay $')}"
+
+# Pay. USDT is a Permit2 token, so the wallet sends approve() then payment().
+- tapOn:
+    id: "pay-button-pay"
+
+# Best-effort observation of the Permit2 approve step. The setup note only renders
+# while a token is being set up for the first time (allowance == 0), and it can
+# flash by quickly, so this is intentionally soft: a `when: visible` guard with a
+# screenshot (never fails) instead of an assertion. If Maestro misses the brief
+# window, or a prior-run allowance reset didn't happen (allowance != 0 -> no setup
+# step), the block is simply skipped. The success screen below is the real assertion.
+- runFlow:
+    when:
+      visible:
+        id: "pay-loading-setup-note"
+    commands:
+      - takeScreenshot: usdt-permit2-approve-setup
+
+# Wait for the success screen. Generous timeout: two on-chain txs on Arbitrum.
+- extendedWaitUntil:
+    visible:
+      id: "pay-result-success-icon"
+    timeout: 90000
+
+- tapOn:
+    id: "pay-button-result-action-success"
+
+# Verify the payment modal is dismissed and we're back at the main wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "button-scan"
+    timeout: 10000
+
+- stopRecording

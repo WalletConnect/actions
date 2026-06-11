@@ -37,6 +37,7 @@ Every wallet platform must add these accessibility identifiers to the correspond
 |---|---|---|
 | `pay-merchant-info` | Merchant display | Shows merchant name and payment amount |
 | `pay-loading-message` | Loading text | Shown during payment processing |
+| `pay-loading-setup-note` | Token setup note | Secondary line shown only while setting up a token for the first time (e.g. the USDT Permit2 approve step) |
 
 ### Payment Modal — Option Selection
 
@@ -155,10 +156,35 @@ Each merchant pair represents a different test configuration. The tests use thes
 | `pay_kyc_back_navigation` | Back/close button navigation in KYC | MULTI_KYC |
 | `pay_insufficient_funds` | Payment amount exceeds wallet balance | SINGLE_NOKYC |
 | `pay_double_scan` | Re-scan same QR after completion | SINGLE_NOKYC |
+| `pay_usdt_arbitrum` | USDT on Arbitrum — Permit2 token: wallet sends `approve` then `pay` (two-tx path) | MULTI_NOKYC |
 | `pay_expired_link` | Hardcoded expired payment URL | None (hardcoded) |
 | `pay_cancelled` | Hardcoded cancelled payment URL | None (hardcoded) |
 
-All flows are tagged with `pay` for filtering via `--include-tags`.
+All flows are tagged with `pay` for filtering via `--include-tags`. `pay_usdt_arbitrum` additionally
+carries the `pay-usdt-arbitrum` tag so it can be run on its own.
+
+### Permit2 tokens & the allowance reset (`pay_usdt_arbitrum`)
+
+USDT is a [Permit2](https://github.com/Uniswap/permit2) token, so paying with it requires the wallet
+to send an `approve` (allowance) transaction **and then** the payment transaction. The flow asserts the
+success screen and best-effort observes the approve step via the `pay-loading-setup-note` testID.
+
+To keep the `approve` step exercised on every run, the consuming repo must **reset the Permit2
+allowance back to 0 after the test**. This is a real Node script that signs a transaction, so it can
+**not** run inside Maestro's `runScript` sandbox (GraalJS — no `require`, no signing). It lives in a
+sibling CI-helper dir, `scripts/revoke-permit2-approval.js` (deps pinned in `scripts/package.json`),
+and runs as a post-test Node step:
+
+```bash
+cd maestro/pay-tests/scripts && npm ci
+node revoke-permit2-approval.js \
+  --chainId eip155:42161 \
+  --privateKey "$TEST_WALLET_PRIVATE_KEY" \
+  --rpcUrl https://arb1.arbitrum.io/rpc   # WC Blockchain API gates some Arbitrum methods; use a real RPC
+# --walletAddress is optional: derived from the key when omitted; verified to match when passed.
+```
+
+The test wallet must hold USDT **and** a little ETH (gas) on Arbitrum.
 
 ## Deep Link Support
 
