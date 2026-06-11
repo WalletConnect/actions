@@ -184,7 +184,7 @@ cd maestro/pay-tests/scripts && npm ci
 node revoke-permit2-approval.js \
   --chainId eip155:137 \
   --privateKey "$TEST_WALLET_PRIVATE_KEY" \
-  --rpcUrl https://polygon-rpc.com
+  --rpcUrl https://polygon-bor-rpc.publicnode.com
 # --walletAddress is optional: derived from the key when omitted; verified to match when passed.
 # Polygon (eip155:137) min priority fee defaults to 25 gwei in the script.
 ```
