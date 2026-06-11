@@ -3,30 +3,39 @@ appId: ${APP_ID}
 # Shared flow: Launch wallet, open scanner, paste payment URL, wait for merchant info
 # Requires: ${output.gateway_url} to be set by a prior runScript step
 
-# Launch wallet app
-- launchApp:
-    appId: ${APP_ID}
-    permissions:
-      all: allow
-
-# Wait for the app to fully load before interacting.
+# Launch the wallet and wait for the home screen, retrying the whole
+# launch if it fails. Two distinct failure modes are covered here:
 #
-# Higher timeout than a typical screen wait because this is the first
-# render after `clearState` (force-stops the app), so `launchApp`
-# triggers a full cold start: ActivityManager fork, attach to
-# system_server, APK load, Hermes init, RN bridge, JS bundle, home
-# screen render.
+# 1. Slow cold start. This is the first render after `clearState`
+#    (force-stops the app), so `launchApp` triggers a full cold start:
+#    ActivityManager fork, attach to system_server, APK load, Hermes
+#    init, RN bridge, JS bundle, home screen render. On a contended CI
+#    emulator the first fork can hit `ActivityManager: Process ... failed
+#    to attach`, ActivityManager re-forks, and total time-to-render
+#    becomes ~30-40s — hence the 60s wait below.
 #
-# On a contended CI emulator the first fork can hit `ActivityManager:
-# Process ... failed to attach`, ActivityManager re-forks, and total
-# time-to-render becomes ~30-40s. The 15s budget was consistently
-# tight on pay-core CD runs 26577564785 and 26580944640 (both attempts
-# of the retry wrapper failed here, always at exactly 20s, always with
-# a black-screen — the re-fork hadn't finished rendering).
-- extendedWaitUntil:
-    visible:
-      id: "button-scan"
-    timeout: 60000
+# 2. Launch killed by a stale-task teardown. When the previous flow's
+#    task is still being removed, Android logs `Destroy timeout of
+#    remove-task` and the freshly-forked process is killed along with it
+#    (`ActivityManager: Killing <pid> (adj -10000): remove task`). The
+#    app then never relaunches, so a plain `launchApp` + wait just times
+#    out on a dead process — a black screen. The leading `stopApp` forces
+#    the prior task fully down before we fork, and the retry re-launches
+#    cleanly if a kill still slips through. This mirrors the stop+retry
+#    pattern already used in pay_open_via_deeplink.yaml.
+- retry:
+    maxRetries: 3
+    commands:
+      - stopApp:
+          appId: ${APP_ID}
+      - launchApp:
+          appId: ${APP_ID}
+          permissions:
+            all: allow
+      - extendedWaitUntil:
+          visible:
+            id: "button-scan"
+          timeout: 60000
 
 # Tap scan button to open scanner options modal
 - tapOn:
