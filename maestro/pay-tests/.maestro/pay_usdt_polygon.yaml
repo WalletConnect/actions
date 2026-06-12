@@ -4,9 +4,7 @@ tags:
   - pay
   - pay-usdt-polygon
 ---
-# Create payment via API using the merchant that offers USDT on Polygon.
-# Reuses the shared create-payment.js; the merchant determines which assets
-# (USDT on Polygon among them) are offered to the wallet.
+# Create payment via API (merchant that offers USDT on Polygon).
 - runScript:
     file: scripts/create-payment.js
     env:
@@ -17,7 +15,7 @@ tags:
 
 - startRecording: "Pay - USDT on Polygon"
 
-# Open wallet, paste payment URL, wait for merchant info / options
+# Open wallet, paste payment URL, wait for options
 - runFlow:
     file: flows/pay_open_and_paste_url.yaml
 
@@ -26,42 +24,26 @@ tags:
       id: "pay-select-option-header"
     timeout: 30000
 
-# Select the USDT-on-Polygon option by its stable network+token testID
-# (the merchant may also list USDT on other networks, e.g. Arbitrum, so a plain
-# "USDT" text match would pick the wrong row). USDT on Polygon is a plain ERC-20
-# (no EIP-3009/2612), so it takes the Permit2 approve + pay path — the point of
-# this test. (USDT on Arbitrum is EIP-3009 / signature-based and would never
-# trigger an on-chain approve.)
-#
-# Swipe once to bring the option into the viewport before tapping. scrollUntilVisible
-# is unreliable here: the options live in a React Native ScrollView, which renders
-# off-screen rows into the view tree, so Maestro treats the row as already "visible"
-# and skips the scroll, then taps off-screen coordinates.
+# Swipe to reveal the USDT-on-Polygon option, then select it by its
+# network+token testID (the merchant lists USDT on other networks too).
 - swipe:
     direction: UP
 - tapOn:
     id: "pay-option-usdt-polygon"
 
-# Review screen must be the Polygon token (testID is keyed by network name)
 - assertVisible:
     id: "pay-review-token-polygon"
 
-# Verify the pay button shows a fiat amount
 - copyTextFrom:
     id: "pay-button-pay"
 - assertTrue:
     condition: "${maestro.copiedText.startsWith('Pay $')}"
 
-# Pay. USDT on Polygon is a Permit2 token, so the wallet sends approve() then payment().
+# USDT on Polygon is a Permit2 token: the wallet sends approve() then payment().
 - tapOn:
     id: "pay-button-pay"
 
-# Best-effort observation of the approve step. The setup note only renders while a
-# token is being set up for the first time (allowance == 0), and it can flash by
-# quickly, so this is intentionally soft: a `when: visible` guard with a screenshot
-# (never fails) instead of an assertion. If Maestro misses the brief window, or a
-# prior-run allowance reset didn't happen, the block is simply skipped. The success
-# screen below is the real assertion.
+# Best-effort capture of the approve step (only shown while allowance is 0).
 - runFlow:
     when:
       visible:
@@ -69,7 +51,7 @@ tags:
     commands:
       - takeScreenshot: usdt-permit2-approve-setup
 
-# Wait for the success screen. Generous timeout: two on-chain txs on Polygon.
+# Success screen (generous timeout: two on-chain txs).
 - extendedWaitUntil:
     visible:
       id: "pay-result-success-icon"
@@ -78,7 +60,6 @@ tags:
 - tapOn:
     id: "pay-button-result-action-success"
 
-# Verify the payment modal is dismissed and we're back at the main wallet screen
 - extendedWaitUntil:
     visible:
       id: "button-scan"
