@@ -3,34 +3,31 @@ appId: ${APP_ID}
 # Shared flow: Launch wallet, open scanner, paste payment URL, wait for merchant info
 # Requires: ${output.gateway_url} to be set by a prior runScript step
 
-# Launch wallet app
-- launchApp:
-    appId: ${APP_ID}
-    permissions:
-      all: allow
-
-# Wait for the app to fully load before interacting.
+# Launch wallet app, retrying the launch if it gets killed mid-startup
+# by a stale-task teardown (stopApp clears the prior task first).
 #
-# Higher timeout than a typical screen wait because this is the first
-# render after `clearState` (force-stops the app), so `launchApp`
-# triggers a full cold start: ActivityManager fork, attach to
-# system_server, APK load, Hermes init, RN bridge, JS bundle, home
-# screen render.
-#
-# On a contended CI emulator the first fork can hit `ActivityManager:
-# Process ... failed to attach`, ActivityManager re-forks, and total
-# time-to-render becomes ~30-40s. The 15s budget was consistently
-# tight on pay-core CD runs 26577564785 and 26580944640 (both attempts
-# of the retry wrapper failed here, always at exactly 20s, always with
-# a black-screen — the re-fork hadn't finished rendering).
-- extendedWaitUntil:
-    visible:
-      id: "button-scan"
-    # Bumped 60s → 90s after pay-core CD on 2026-06-08/09 hit a few
-    # 60s timeouts on Multiple Options No KYC's first launchApp. The
-    # cold-start path itself is unchanged; the previous budget was just
-    # consistently cutting it close on contended emulators.
-    timeout: 90000
+# Each attempt waits for a full cold start: launchApp follows a
+# `clearState`/stopApp force-stop, so it triggers ActivityManager fork,
+# attach to system_server, APK load, Hermes init, RN bridge, JS bundle,
+# home screen render. On a contended CI emulator the first fork can hit
+# `ActivityManager: Process ... failed to attach`, ActivityManager
+# re-forks, and total time-to-render becomes ~30-40s. The per-attempt
+# wait was bumped 20s → 90s (#98) because the re-fork consistently
+# hadn't finished rendering inside 20s on pay-core CD runs — every
+# attempt timed out at exactly 20s on a black screen.
+- retry:
+    maxRetries: 3
+    commands:
+      - stopApp:
+          appId: ${APP_ID}
+      - launchApp:
+          appId: ${APP_ID}
+          permissions:
+            all: allow
+      - extendedWaitUntil:
+          visible:
+            id: "button-scan"
+          timeout: 90000
 
 # Tap scan button to open scanner options modal
 - tapOn:

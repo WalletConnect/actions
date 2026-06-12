@@ -1,5 +1,5 @@
 appId: ${APP_ID}
-name: WalletConnect Pay - Check Back/Close Buttons in KYC Webview
+name: WalletConnect Pay - Check Back and Close Buttons in KYC Webview
 tags:
   - pay
 ---
@@ -12,7 +12,7 @@ tags:
 
 - clearState
 
-- startRecording: "Pay - Check Back/Close Buttons in KYC Webview"
+- startRecording: "Pay - Check Back and Close Buttons in KYC Webview"
 
 # Open wallet, paste payment URL
 - runFlow:
