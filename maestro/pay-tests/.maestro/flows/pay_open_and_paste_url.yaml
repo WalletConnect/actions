@@ -4,7 +4,17 @@ appId: ${APP_ID}
 # Requires: ${output.gateway_url} to be set by a prior runScript step
 
 # Launch wallet app, retrying the launch if it gets killed mid-startup
-# by a stale-task teardown (stopApp clears the prior task first)
+# by a stale-task teardown (stopApp clears the prior task first).
+#
+# Each attempt waits for a full cold start: launchApp follows a
+# `clearState`/stopApp force-stop, so it triggers ActivityManager fork,
+# attach to system_server, APK load, Hermes init, RN bridge, JS bundle,
+# home screen render. On a contended CI emulator the first fork can hit
+# `ActivityManager: Process ... failed to attach`, ActivityManager
+# re-forks, and total time-to-render becomes ~30-40s. The per-attempt
+# wait was bumped 20s → 90s (#98) because the re-fork consistently
+# hadn't finished rendering inside 20s on pay-core CD runs — every
+# attempt timed out at exactly 20s on a black screen.
 - retry:
     maxRetries: 3
     commands:
@@ -17,7 +27,7 @@ appId: ${APP_ID}
       - extendedWaitUntil:
           visible:
             id: "button-scan"
-          timeout: 20000
+          timeout: 90000
 
 # Tap scan button to open scanner options modal
 - tapOn:

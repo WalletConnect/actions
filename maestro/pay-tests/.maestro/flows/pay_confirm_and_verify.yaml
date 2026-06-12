@@ -10,11 +10,22 @@ appId: ${APP_ID}
 - tapOn:
     id: "pay-button-pay"
 
-# Wait for success screen (generous timeout for on-chain confirmation)
+# Wait for success screen. Covers the end-to-end settlement path:
+# wallet broadcasts, pay-core relayer queues + commits the batch, on-chain
+# confirmation, pay-core gateway flips status to `succeeded`, wallet poll
+# observes it, success screen renders.
+#
+# 60s headroom (was 30s). Pay-core CD runs against deployed staging where
+# the same chain is shared with the rest of staging traffic; under contention
+# the gateway can take 35-50s to surface `succeeded`. The 30s budget was
+# leaving the three end-to-end flows (Single Option No KYC, Single Option
+# No KYC (Deep Link), Double Scan Same Payment) stuck on "Processing your
+# payment..." in clustered failure windows. See pay-core soak data on
+# 2026-06-05 and 2026-06-08 for the dominant failure pattern.
 - extendedWaitUntil:
     visible:
       id: "pay-result-success-icon"
-    timeout: 30000
+    timeout: 60000
 
 # Tap "Got it!" button
 - tapOn:
