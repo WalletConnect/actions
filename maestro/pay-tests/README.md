@@ -37,6 +37,7 @@ Every wallet platform must add these accessibility identifiers to the correspond
 |---|---|---|
 | `pay-merchant-info` | Merchant display | Shows merchant name and payment amount |
 | `pay-loading-message` | Loading text | Shown during payment processing |
+| `pay-loading-setup-note` | Token setup note | Secondary line shown only while setting up a token for the first time (e.g. the USDT Permit2 approve step) |
 
 ### Payment Modal — Option Selection
 
@@ -44,6 +45,7 @@ Every wallet platform must add these accessibility identifiers to the correspond
 |---|---|---|
 | `pay-option-{index}` | Payment option (unselected) | 0-based index from the payment options array |
 | `pay-option-{index}-selected` | Payment option (selected) | Same element when selected |
+| `pay-option-{assetSymbol}-{networkName}` | Payment option (stable) | Lowercased, spaces → `-` (e.g. `pay-option-usdt-polygon`). Additive to the index-based id; lets a flow pick a specific asset+network when the same token appears on multiple networks. Used by `pay_usdt_polygon`. |
 | `pay-info-required-badge` | "Info required" badge | Shown on options that require KYC |
 | `pay-button-info` | Info (?) button in header | Explains KYC requirement |
 | `pay-button-continue` | Continue button | Proceeds after selecting a payment option |
@@ -155,10 +157,44 @@ Each merchant pair represents a different test configuration. The tests use thes
 | `pay_kyc_back_navigation` | Back/close button navigation in KYC | MULTI_KYC |
 | `pay_insufficient_funds` | Payment amount exceeds wallet balance | SINGLE_NOKYC |
 | `pay_double_scan` | Re-scan same QR after completion | SINGLE_NOKYC |
+| `pay_usdt_polygon` | USDT on Polygon — Permit2 token: wallet sends `approve` then `pay` (two-tx path) | MULTI_NOKYC |
 | `pay_expired_link` | Hardcoded expired payment URL | None (hardcoded) |
 | `pay_cancelled` | Hardcoded cancelled payment URL | None (hardcoded) |
 
-All flows are tagged with `pay` for filtering via `--include-tags`.
+All flows are tagged with `pay` for filtering via `--include-tags`. `pay_usdt_polygon` additionally
+carries the `pay-usdt-polygon` tag so it can be run on its own.
+
+### Permit2 tokens & the allowance reset (`pay_usdt_polygon`)
+
+USDT on Polygon is a plain ERC-20 (no EIP-3009/2612), so WC Pay pays it via
+[Permit2](https://github.com/Uniswap/permit2): the wallet sends an `approve` (allowance) transaction
+**and then** the payment transaction. The flow asserts the success screen and best-effort observes the
+approve step via the `pay-loading-setup-note` testID.
+
+> Polygon is used deliberately: USDT on **Arbitrum** is EIP-3009 (signature-based / gasless), so WC Pay
+> never returns an on-chain `approve` action there and the approve step would never run.
+
+To keep the `approve` step exercised on every run, the consuming repo must **reset the Permit2
+allowance back to 0 after the test**. This signs a transaction, so it can **not** run inside Maestro's
+`runScript` sandbox (GraalJS — no `require`, no signing). Use the [`maestro/permit2-reset`](../permit2-reset)
+composite action as a post-test step — the private key goes through an env var, so it never lands on the
+command line / process list:
+
+```yaml
+- name: Reset USDT Permit2 allowance (Polygon)
+  if: always()
+  uses: WalletConnect/actions/maestro/permit2-reset@<sha>
+  with:
+    chain-id: eip155:137
+    rpc-url: https://polygon-bor-rpc.publicnode.com   # polygon-rpc.com is gated (HTTP 401) in CI
+    private-key: ${{ secrets.TEST_WALLET_PRIVATE_KEY }}
+    # token-address optional — defaults to the chain's known USDT address
+```
+
+(The action wraps `permit2-reset/revoke-permit2-approval.js`; `--walletAddress` is optional — derived
+from the key — and Polygon's min priority fee defaults to 25 gwei.)
+
+The test wallet must hold USDT **and** a little POL (gas) on Polygon.
 
 ## Deep Link Support
 

@@ -1,0 +1,65 @@
+name: Permit2 Allowance Reset
+description: |
+  Reset an ERC-20 token's Permit2 allowance back to 0 (sends approve(PERMIT2, 0)).
+  Used after Permit2 pay tests so the next run re-exercises the on-chain approve
+  step. This is a real Node step that signs a transaction — it cannot run inside
+  Maestro's runScript sandbox. The private key is read from the
+  PERMIT2_REVOKE_PRIVATE_KEY env var, so it is never placed on the command line
+  (which would expose it in the runner's process list).
+
+inputs:
+  chain-id:
+    description: 'CAIP-2 or numeric chain id (e.g. eip155:137 or 137).'
+    required: true
+  rpc-url:
+    description: |
+      RPC URL to use. Recommended over the WalletConnect Blockchain API for chains
+      where it gates methods (e.g. Arbitrum eth_blockNumber). For Polygon, avoid
+      polygon-rpc.com (gated, HTTP 401 in CI) — e.g. https://polygon-bor-rpc.publicnode.com.
+    required: true
+  private-key:
+    description: |
+      Test wallet private key. Passed to the script via the
+      PERMIT2_REVOKE_PRIVATE_KEY env var (never on the CLI).
+    required: true
+  token-address:
+    description: 'ERC-20 token address. Optional — defaults to the known USDT address for the chain.'
+    required: false
+    default: ''
+  min-priority-fee-gwei:
+    description: 'Override the min priority fee (gwei). Optional.'
+    required: false
+    default: ''
+  node-version:
+    description: 'Node.js version used to run the helper.'
+    required: false
+    default: '22'
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Install deps
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      # npm install (not npm ci): this folder ships no lockfile; ethers is pinned in package.json.
+      run: npm install --no-audit --no-fund --silent
+
+    - name: Revoke Permit2 allowance
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        PERMIT2_REVOKE_PRIVATE_KEY: ${{ inputs.private-key }}
+        CHAIN_ID: ${{ inputs.chain-id }}
+        RPC_URL: ${{ inputs.rpc-url }}
+        TOKEN_ADDRESS: ${{ inputs.token-address }}
+        MIN_PRIORITY_FEE_GWEI: ${{ inputs.min-priority-fee-gwei }}
+      run: |
+        node revoke-permit2-approval.js \
+          --chainId "$CHAIN_ID" \
+          --rpcUrl "$RPC_URL" \
+          ${TOKEN_ADDRESS:+--tokenAddress "$TOKEN_ADDRESS"} \
+          ${MIN_PRIORITY_FEE_GWEI:+--minPriorityFeeGwei "$MIN_PRIORITY_FEE_GWEI"}
