@@ -175,20 +175,24 @@ approve step via the `pay-loading-setup-note` testID.
 > never returns an on-chain `approve` action there and the approve step would never run.
 
 To keep the `approve` step exercised on every run, the consuming repo must **reset the Permit2
-allowance back to 0 after the test**. This is a real Node script that signs a transaction, so it can
-**not** run inside Maestro's `runScript` sandbox (GraalJS — no `require`, no signing). It lives in a
-sibling CI-helper dir, `scripts/revoke-permit2-approval.js` (deps pinned in `scripts/package.json`),
-and runs as a post-test Node step:
+allowance back to 0 after the test**. This signs a transaction, so it can **not** run inside Maestro's
+`runScript` sandbox (GraalJS — no `require`, no signing). Use the [`maestro/permit2-reset`](../permit2-reset)
+composite action as a post-test step — the private key goes through an env var, so it never lands on the
+command line / process list:
 
-```bash
-cd maestro/pay-tests/scripts && npm ci
-node revoke-permit2-approval.js \
-  --chainId eip155:137 \
-  --privateKey "$TEST_WALLET_PRIVATE_KEY" \
-  --rpcUrl https://polygon-bor-rpc.publicnode.com
-# --walletAddress is optional: derived from the key when omitted; verified to match when passed.
-# Polygon (eip155:137) min priority fee defaults to 25 gwei in the script.
+```yaml
+- name: Reset USDT Permit2 allowance (Polygon)
+  if: always()
+  uses: WalletConnect/actions/maestro/permit2-reset@<sha>
+  with:
+    chain-id: eip155:137
+    rpc-url: https://polygon-bor-rpc.publicnode.com   # polygon-rpc.com is gated (HTTP 401) in CI
+    private-key: ${{ secrets.TEST_WALLET_PRIVATE_KEY }}
+    # token-address optional — defaults to the chain's known USDT address
 ```
+
+(The action wraps `permit2-reset/revoke-permit2-approval.js`; `--walletAddress` is optional — derived
+from the key — and Polygon's min priority fee defaults to 25 gwei.)
 
 The test wallet must hold USDT **and** a little POL (gas) on Polygon.
 

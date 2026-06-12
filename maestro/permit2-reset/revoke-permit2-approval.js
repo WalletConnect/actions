@@ -20,17 +20,23 @@ const MIN_PRIORITY_FEE_GWEI_BY_CHAIN = {
   'eip155:137': '25',
 };
 
+// tx.wait() is unbounded in ethers v5; cap it so a stuck tx can't hang CI.
+const TX_WAIT_TIMEOUT_MS = 120_000;
+
 function printUsage() {
   const supportedChains = Object.keys(USDT_BY_CHAIN).join(', ');
   console.log(`Usage:
-  yarn permit2:revoke --chainId <eip155:chainId|chainId> --privateKey <0x...> (--projectId <projectId> | --rpcUrl <url>) [--walletAddress <0x...>] [--tokenAddress <0x...>] [--minPriorityFeeGwei <number>]
+  node revoke-permit2-approval.js --chainId <eip155:chainId|chainId> (--projectId <projectId> | --rpcUrl <url>) [--privateKey <0x...>] [--walletAddress <0x...>] [--tokenAddress <0x...>] [--minPriorityFeeGwei <number>]
+
+Private key:
+  Prefer the PERMIT2_REVOKE_PRIVATE_KEY env var (keeps the key out of the process list); --privateKey is a fallback.
 
 Example:
-  yarn permit2:revoke --chainId eip155:137 --privateKey 0xYourPrivateKey --projectId yourProjectId
-  yarn permit2:revoke --chainId eip155:42161 --privateKey 0xYourPrivateKey --rpcUrl https://arb1.arbitrum.io/rpc
+  PERMIT2_REVOKE_PRIVATE_KEY=0xYourKey node revoke-permit2-approval.js --chainId eip155:137 --rpcUrl https://polygon-bor-rpc.publicnode.com
+  node revoke-permit2-approval.js --chainId eip155:137 --privateKey 0xYourKey --projectId yourProjectId
 
 Defaults:
-  If --walletAddress is omitted, it is derived from --privateKey. If provided, it is verified to match the key.
+  If --walletAddress is omitted, it is derived from the private key. If provided, it is verified to match the key.
   If --tokenAddress is omitted, the script uses the USDT address for the selected chain.
   If --rpcUrl is provided it takes precedence over --projectId (use this for chains where the
   WalletConnect Blockchain API gates methods like eth_blockNumber, e.g. Arbitrum).
@@ -91,7 +97,9 @@ function normalizeChainId(chainIdInput) {
 
 function normalizePrivateKey(privateKeyInput) {
   if (!privateKeyInput) {
-    throw new Error('Missing --privateKey');
+    throw new Error(
+      'Missing private key (set PERMIT2_REVOKE_PRIVATE_KEY or pass --privateKey)',
+    );
   }
 
   const value = String(privateKeyInput).trim();
@@ -227,23 +235,27 @@ async function main() {
   const walletAddressArg = args.walletAddress
     ? normalizeAddress('walletAddress', args.walletAddress)
     : null;
-  const privateKey = normalizePrivateKey(args.privateKey);
-  const tokenAddress = normalizeAddress(
-    'tokenAddress',
-    args.tokenAddress || USDT_BY_CHAIN[chainId],
+  // Prefer the env var so the key is never passed on the CLI (where it would be
+  // visible in the process list / shell history); fall back to --privateKey.
+  const privateKey = normalizePrivateKey(
+    args.privateKey || process.env.PERMIT2_REVOKE_PRIVATE_KEY,
   );
+
+  // Resolve the token address before normalizing, so the unsupported-chain
+  // message is reachable (normalizeAddress would otherwise throw first).
+  const tokenAddressInput = args.tokenAddress || USDT_BY_CHAIN[chainId];
+  if (!tokenAddressInput) {
+    throw new Error(
+      `No default USDT address configured for ${chainId}. Pass --tokenAddress explicitly.`,
+    );
+  }
+  const tokenAddress = normalizeAddress('tokenAddress', tokenAddressInput);
   const minPriorityFeeWei = parseMinPriorityFeeWei(
     chainId,
     args.minPriorityFeeGwei,
   );
   const projectId = String(args.projectId || '').trim();
   const rpcUrlOverride = String(args.rpcUrl || '').trim();
-
-  if (!USDT_BY_CHAIN[chainId] && !args.tokenAddress) {
-    throw new Error(
-      `No default USDT address configured for ${chainId}. Pass --tokenAddress explicitly.`,
-    );
-  }
 
   const rpcUrl = rpcUrlOverride || getWalletConnectRpcUrl(chainId, projectId);
   const chainIdNumber = Number(chainId.split(':')[1]);
@@ -308,7 +320,17 @@ async function main() {
 
   console.log(`tx hash: ${tx.hash}`);
 
-  const receipt = await tx.wait();
+  // tx.wait() has no built-in timeout; a dropped/underpriced tx would hang the
+  // CI job until its wall-clock limit. Race it against a deadline instead.
+  const receipt = await Promise.race([
+    tx.wait(),
+    new Promise((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`tx.wait() timed out after ${TX_WAIT_TIMEOUT_MS / 1000}s`)),
+        TX_WAIT_TIMEOUT_MS,
+      ),
+    ),
+  ]);
   if (receipt.status !== 1) {
     throw new Error('Transaction reverted.');
   }

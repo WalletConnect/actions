@@ -1,0 +1,12 @@
+{
+  "name": "wc-permit2-reset",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Node helper for the maestro/permit2-reset action: resets an ERC-20's Permit2 allowance to 0 so Permit2 pay tests re-run the approve step. Signs a transaction, so it is NOT a Maestro runScript sandbox script.",
+  "scripts": {
+    "revoke": "node ./revoke-permit2-approval.js"
+  },
+  "dependencies": {
+    "ethers": "5.8.0"
+  }
+}
