@@ -28,15 +28,17 @@ tags:
 
 # Select the USDT-on-Polygon option by its stable network+token testID
 # (the merchant may also list USDT on other networks, e.g. Arbitrum, so a plain
-# "USDT" text match would pick the wrong row). Scroll it into view first since it
-# may be below the fold. USDT on Polygon is a plain ERC-20 (no EIP-3009/2612), so
-# it takes the Permit2 approve + pay path — the point of this test. (USDT on
-# Arbitrum is EIP-3009 / signature-based and would never trigger an on-chain approve.)
-- scrollUntilVisible:
-    element:
-      id: "pay-option-usdt-polygon"
-    direction: DOWN
-    timeout: 20000
+# "USDT" text match would pick the wrong row). USDT on Polygon is a plain ERC-20
+# (no EIP-3009/2612), so it takes the Permit2 approve + pay path — the point of
+# this test. (USDT on Arbitrum is EIP-3009 / signature-based and would never
+# trigger an on-chain approve.)
+#
+# Swipe once to bring the option into the viewport before tapping. scrollUntilVisible
+# is unreliable here: the options live in a React Native ScrollView, which renders
+# off-screen rows into the view tree, so Maestro treats the row as already "visible"
+# and skips the scroll, then taps off-screen coordinates.
+- swipe:
+    direction: UP
 - tapOn:
     id: "pay-option-usdt-polygon"
 
