@@ -12,8 +12,6 @@ tags:
 
 - clearState
 
-- startRecording: "Pay - Cancel from Review Screen"
-
 # Open wallet, paste payment URL
 - runFlow:
     file: flows/pay_open_and_paste_url.yaml
@@ -59,5 +57,3 @@ tags:
 # Dismiss
 - tapOn:
     id: "pay-button-result-action-cancelled"
-
-- stopRecording

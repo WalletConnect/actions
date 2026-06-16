@@ -15,8 +15,6 @@ tags:
 # openLink to Safari. The cold start is already handled by stopApp + openLink
 # in flows/pay_open_via_deeplink.yaml.
 
-- startRecording: "Pay - Single Option No KYC (Universal Link)"
-
 # Open wallet via deep link. Shared flow retries until pay-merchant-info is visible.
 - runFlow:
     file: flows/pay_open_via_deeplink.yaml
@@ -28,13 +26,8 @@ tags:
     visible:
       id: "pay-button-pay"
     timeout: 10000
-- copyTextFrom:
-    id: "pay-button-pay"
-- assertTrue:
-    condition: "${maestro.copiedText.startsWith('Pay $')}"
+- assertVisible: "Pay \\$.*"
 
 # Tap Pay, verify success
 - runFlow:
     file: flows/pay_confirm_and_verify.yaml
-
-- stopRecording

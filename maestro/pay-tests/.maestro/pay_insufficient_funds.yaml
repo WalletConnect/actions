@@ -13,8 +13,6 @@ tags:
 
 - clearState
 
-- startRecording: "Pay - Insufficient Funds"
-
 # Open wallet, paste payment URL
 - runFlow:
     file: flows/pay_open_and_paste_url.yaml
@@ -36,5 +34,3 @@ tags:
 # Dismiss the error dialog
 - tapOn:
     id: "pay-button-result-action-insufficient_funds"
-
-- stopRecording

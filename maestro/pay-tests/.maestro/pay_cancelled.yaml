@@ -19,8 +19,6 @@ tags:
 
 - clearState
 
-- startRecording: "Pay - Load a cancelled payment"
-
 # Open wallet, paste payment URL
 - runFlow:
     file: flows/pay_open_and_paste_url.yaml
@@ -42,5 +40,3 @@ tags:
 # Dismiss the error dialog
 - tapOn:
     id: "pay-button-result-action-cancelled"
-
-- stopRecording

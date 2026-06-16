@@ -9,8 +9,6 @@ tags:
 
 - clearState
 
-- startRecording: "Pay - Use an expired payment link"
-
 # Open wallet, paste payment URL
 - runFlow:
     file: flows/pay_open_and_paste_url.yaml
@@ -32,5 +30,3 @@ tags:
 # Dismiss the error dialog
 - tapOn:
     id: "pay-button-result-action-expired"
-
-- stopRecording

@@ -12,8 +12,6 @@ tags:
 
 - clearState
 
-- startRecording: "Pay - Single Payment Option without KYC"
-
 # Open wallet, paste payment URL
 - runFlow:
     file: flows/pay_open_and_paste_url.yaml
@@ -31,10 +29,7 @@ tags:
     visible:
       id: "pay-button-pay"
     timeout: 10000
-- copyTextFrom:
-    id: "pay-button-pay"
-- assertTrue:
-    condition: "${maestro.copiedText.startsWith('Pay $')}"
+- assertVisible: "Pay \\$.*"
 
 # Tap Pay, verify success
 - runFlow:
@@ -45,5 +40,3 @@ tags:
     visible:
       id: "button-scan"
     timeout: 10000
-
-- stopRecording

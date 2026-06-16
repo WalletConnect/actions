@@ -13,8 +13,6 @@ tags:
 
 - clearState
 
-- startRecording: "Pay - USDT on Polygon"
-
 # Open wallet, paste payment URL, wait for options
 - runFlow:
     file: flows/pay_open_and_paste_url.yaml
@@ -34,10 +32,7 @@ tags:
 - assertVisible:
     id: "pay-review-token-polygon"
 
-- copyTextFrom:
-    id: "pay-button-pay"
-- assertTrue:
-    condition: "${maestro.copiedText.startsWith('Pay $')}"
+- assertVisible: "Pay \\$.*"
 
 # USDT on Polygon is a Permit2 token: the wallet sends approve() then payment().
 - tapOn:
@@ -64,5 +59,3 @@ tags:
     visible:
       id: "button-scan"
     timeout: 10000
-
-- stopRecording

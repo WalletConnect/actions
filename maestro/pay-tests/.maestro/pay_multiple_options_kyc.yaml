@@ -13,8 +13,6 @@ tags:
 
 - clearState
 
-- startRecording: "Pay - Multiple Payment Options with KYC"
-
 # Open wallet, paste payment URL
 - runFlow:
     file: flows/pay_open_and_paste_url.yaml
@@ -74,13 +72,8 @@ tags:
     id: "pay-review-token-${maestro.copiedText}"
 
 # Verify pay button shows the correct amount
-- copyTextFrom:
-    id: "pay-button-pay"
-- assertTrue:
-    condition: "${maestro.copiedText.startsWith('Pay $')}"
+- assertVisible: "Pay \\$.*"
 
 # Tap Pay, verify success
 - runFlow:
     file: flows/pay_confirm_and_verify.yaml
-
-- stopRecording

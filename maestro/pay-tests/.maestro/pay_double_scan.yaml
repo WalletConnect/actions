@@ -12,8 +12,6 @@ tags:
 
 - clearState
 
-- startRecording: "Pay - Double Scan Same Payment"
-
 # === First scan: complete the payment normally ===
 
 # Open wallet, paste payment URL
@@ -31,10 +29,7 @@ tags:
     visible:
       id: "pay-button-pay"
     timeout: 10000
-- copyTextFrom:
-    id: "pay-button-pay"
-- assertTrue:
-    condition: "${maestro.copiedText.startsWith('Pay $')}"
+- assertVisible: "Pay \\$.*"
 
 # Tap Pay, verify success, tap "Got it!"
 - runFlow:
@@ -61,5 +56,3 @@ tags:
 # Dismiss the error dialog
 - tapOn:
     id: "pay-button-result-action-generic"
-
-- stopRecording

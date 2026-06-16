@@ -34,6 +34,10 @@ runs:
         # Copy scripts
         cp "$ACTION_DIR"/.maestro/scripts/*.js "$TARGET_DIR/scripts/"
 
+        # Copy shared runner scripts (e.g. run-pay-flows.sh)
+        cp "$ACTION_DIR"/scripts/*.sh "$TARGET_DIR/scripts/" 2>/dev/null || true
+        chmod +x "$TARGET_DIR"/scripts/*.sh 2>/dev/null || true
+
         echo "Copied Maestro Pay test flows to $TARGET_DIR"
         ls -la "$TARGET_DIR"
 

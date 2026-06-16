@@ -12,8 +12,6 @@ tags:
 
 - clearState
 
-- startRecording: "Pay - Check Back and Close Buttons in KYC Webview"
-
 # Open wallet, paste payment URL
 - runFlow:
     file: flows/pay_open_and_paste_url.yaml
@@ -64,5 +62,3 @@ tags:
     visible:
       id: "button-scan"
     timeout: 10000
-
-- stopRecording
