@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 # Compute 7-day P95 PR feedback time per workflow.
 #
-# Definition: P95 of (run.updated_at - run.created_at) over PR-time runs
-# (event = pull_request) in the last 7 days. updated_at is the latest
-# state change — for a completed run that's when it finished.
+# Definition: P95 of (run.updated_at - run.run_started_at) over PR-time
+# runs (event = pull_request) in the last 7 days. We use run_started_at,
+# NOT created_at, because a workflow run that gets re-run via the UI
+# keeps its original created_at — measuring against that wraps in the
+# (sometimes very long) idle interval between attempts. run_started_at
+# moves to the latest attempt's start, so updated_at - run_started_at
+# is the wall-clock duration of the latest attempt regardless of how
+# many days passed since the original PR push. For attempt=1 runs the
+# two timestamps are identical, so the change is a no-op there.
 #
 # Output: one JSON object per workflow on stdout, e.g.
 #   {"platform":"kotlin","label":"kotlin","p95_seconds":1320,"p95_minutes":22,"count":18}
@@ -28,7 +34,8 @@ while IFS= read -r entry; do
   # is what updated_at captures.
   durations=$(fetch_runs "$repo" "$workflow_path" "event=pull_request&created=>=$SINCE" \
     | jq -r 'select(.status == "completed" and (.conclusion == "success" or .conclusion == "failure")) |
-             ((.updated_at | fromdateiso8601) - (.created_at | fromdateiso8601))')
+             select(.run_started_at != null) |
+             ((.updated_at | fromdateiso8601) - (.run_started_at | fromdateiso8601))')
 
   if [[ -z "$durations" ]]; then
     jq -nc --arg p "$platform" --arg l "$label" \
