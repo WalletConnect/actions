@@ -30,6 +30,15 @@ inputs:
     description: 'Override the min priority fee (gwei). Optional.'
     required: false
     default: ''
+  fail-on-error:
+    description: |
+      When 'false', a revoke failure (RPC error, insufficient gas, etc.) logs a
+      warning and exits 0 instead of failing the job. Best-effort cleanup callers
+      (post-test allowance reset) should set this to 'false'. Default 'true' keeps
+      strict behavior. Needed because `continue-on-error` on a step that `uses:`
+      this composite action is ignored by the runner (actions/runner#1457).
+    required: false
+    default: 'true'
   node-version:
     description: 'Node.js version used to run the helper.'
     required: false
@@ -57,9 +66,19 @@ runs:
         RPC_URL: ${{ inputs.rpc-url }}
         TOKEN_ADDRESS: ${{ inputs.token-address }}
         MIN_PRIORITY_FEE_GWEI: ${{ inputs.min-priority-fee-gwei }}
+        FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+      # set +e: GitHub's default `bash -e` would abort on a node failure before
+      # we can inspect $? and honor fail-on-error.
       run: |
+        set +e
         node revoke-permit2-approval.js \
           --chainId "$CHAIN_ID" \
           --rpcUrl "$RPC_URL" \
           ${TOKEN_ADDRESS:+--tokenAddress "$TOKEN_ADDRESS"} \
           ${MIN_PRIORITY_FEE_GWEI:+--minPriorityFeeGwei "$MIN_PRIORITY_FEE_GWEI"}
+        status=$?
+        if [ "$status" -ne 0 ] && [ "$FAIL_ON_ERROR" = "false" ]; then
+          echo "::warning::Permit2 allowance reset failed (exit $status); continuing (fail-on-error=false)."
+          exit 0
+        fi
+        exit "$status"
