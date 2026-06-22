@@ -10,20 +10,47 @@ var baseUrl = (typeof WPAY_PAY_API_URL !== 'undefined' && WPAY_PAY_API_URL)
   ? WPAY_PAY_API_URL
   : 'https://api.pay.walletconnect.com';
 
-var response = http.post(baseUrl + '/v1/payments', {
-  headers: {
-    'Content-Type': 'application/json',
-    'Api-Key': WPAY_CUSTOMER_KEY,
-    'Merchant-Id': WPAY_MERCHANT_ID,
-  },
-  body: JSON.stringify({
-    referenceId: '' + Date.now() + Math.random().toString(36).substring(2, 10),
-    amount: { value: typeof WPAY_AMOUNT !== 'undefined' ? WPAY_AMOUNT : '1', unit: 'iso4217/USD' },
-  }),
-});
+// Retry the create call. This is a single host-side network hop and, unlike the
+// in-app steps (which run under a Maestro `retry {}`), nothing wraps it — so a
+// single transient 5xx/timeout from the Pay API otherwise fails the whole flow
+// in ~1s, before the app is even launched. Linear backoff; Maestro's JS runtime
+// has no setTimeout, so we busy-wait between attempts.
+var MAX_ATTEMPTS = 4;
+var response = null;
+var lastError = '';
 
-if (response.status < 200 || response.status >= 300) {
-  throw new Error('API returned HTTP ' + response.status + ': ' + response.body);
+for (var attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+  try {
+    var r = http.post(baseUrl + '/v1/payments', {
+      headers: {
+        'Content-Type': 'application/json',
+        'Api-Key': WPAY_CUSTOMER_KEY,
+        'Merchant-Id': WPAY_MERCHANT_ID,
+      },
+      body: JSON.stringify({
+        referenceId: '' + Date.now() + Math.random().toString(36).substring(2, 10),
+        amount: { value: typeof WPAY_AMOUNT !== 'undefined' ? WPAY_AMOUNT : '1', unit: 'iso4217/USD' },
+      }),
+    });
+    if (r.status >= 200 && r.status < 300) {
+      response = r;
+      break;
+    }
+    lastError = 'HTTP ' + r.status + ': ' + r.body;
+  } catch (e) {
+    lastError = '' + e;
+  }
+
+  console.log('create-payment attempt ' + attempt + '/' + MAX_ATTEMPTS + ' failed: ' + lastError);
+
+  if (attempt < MAX_ATTEMPTS) {
+    var until = Date.now() + attempt * 1500; // 1.5s, 3s, 4.5s
+    while (Date.now() < until) { /* busy-wait: no setTimeout in Maestro JS */ }
+  }
+}
+
+if (!response) {
+  throw new Error('create-payment failed after ' + MAX_ATTEMPTS + ' attempts. Last error: ' + lastError);
 }
 
 var data = json(response.body);
