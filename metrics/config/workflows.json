@@ -42,7 +42,7 @@
       "repo": "WalletConnect/pay-core",
       "workflow_path": ".github/workflows/event_release.yml",
       "branch": "main",
-      "job_pattern": "^CD / Validate Staging / WX Pay E2E Maestro - android - staging$"
+      "job_pattern": "^CD / Validate Staging \\(Advisory\\) / WX Pay E2E Maestro - android - staging$"
     }
   ]
 }
