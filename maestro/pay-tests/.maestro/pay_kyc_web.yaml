@@ -7,7 +7,6 @@ name: WalletConnect Pay - Multiple Options KYC (web in-app form)
 # Web equivalent of pay_multiple_options_kyc (which is hosted-webview-only).
 tags:
   - pay-web
-  - pay-needs-kyc-backend
   # On-chain: broadcasts a payment tx on Base (first option). The web CI leg
   # buckets on-chain flows by chain (same chain = serial nonce; different
   # chains run concurrently).

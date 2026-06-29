@@ -5,7 +5,6 @@ name: WalletConnect Pay - Cancel from KYC (web in-app form)
 # form is showing, submit it, then pay — confirmPayment returns `cancelled`.
 tags:
   - pay-web
-  - pay-needs-kyc-backend
 ---
 # Create payment via API (multi-option, KYC merchant)
 - runScript:
