@@ -43,31 +43,22 @@ tags:
 - tapOn:
     id: "pay-option-1"
 
-# Handle personal details webview (KYC)
+# Handle personal details webview (KYC). The /collect form is now a single
+# inline page (no confirmation dialog): fields are autocompleted, tick the
+# inline consent checkbox, then Confirm submits directly.
 - extendedWaitUntil:
     visible: "Add your personal details"
     timeout: 30000
 
-# Data is autocompleted, just tap Add
-- tapOn: "Add"
-
-# Retry tap on "Add" if "Confirm your details" doesn't appear (webview can be slow)
-- runFlow:
-    when:
-      notVisible: "Confirm your details"
-    commands:
-      - tapOn: "Add"
-
-# Confirm your details popup
-- extendedWaitUntil:
-    visible: "Confirm your details"
-    timeout: 10000
-
-# Tap the checkbox / label for terms agreement
+# Tick the inline consent checkbox (Confirm is disabled until checked).
+# See VERIFY note below re: selector choice.
 - tapOn:
-    text: "I agree to the <termsLink>Terms and Conditions</termsLink> and <privacyLink>Privacy Policy</privacyLink>"
+    id: "consent-checkbox"
     retryTapIfNoChange: true
-- tapOn: "Confirm"
+
+# Submit directly — the "Confirm your details" dialog no longer exists.
+- tapOn:
+    id: "identity-form-confirm-button"
 
 # Verify review screen shows the same token we selected
 - assertVisible:
