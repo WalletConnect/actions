@@ -3,6 +3,9 @@ name: WalletConnect Pay - USDT on Polygon (Permit2 approve + pay)
 tags:
   - pay
   - pay-usdt-polygon
+  # Broadcasts on-chain txs (Permit2 approve + payment) -> shares the test
+  # wallet's nonce, so the web CI leg keeps pay-onchain flows serial.
+  - pay-onchain
 ---
 # Create payment via API (merchant that offers USDT on Polygon).
 - runScript:

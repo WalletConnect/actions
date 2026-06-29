@@ -8,6 +8,9 @@ name: WalletConnect Pay - Multiple Options KYC (web in-app form)
 tags:
   - pay-web
   - pay-needs-kyc-backend
+  # Broadcasts an on-chain payment tx -> shares the test wallet's nonce, so the
+  # web CI leg keeps pay-onchain flows serial (read-only flows run concurrently).
+  - pay-onchain
 ---
 # Create payment via API (multi-option, KYC merchant)
 - runScript:
