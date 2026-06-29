@@ -1,0 +1,14 @@
+appId: ${APP_ID}
+---
+# Shared (web-only) flow: submit the in-app identity-collection form.
+#
+# On web the IC/KYC form is rendered in-app from collectData.fields
+# (CollectDataWebView.web.tsx) instead of the hosted webview. Fields are
+# prefilled & valid, so we just tap Continue; the collected values are sent
+# via confirmPayment's collectedData. Reused by the pay-web KYC flows.
+- extendedWaitUntil:
+    visible:
+      id: "pay-collect-submit"
+    timeout: 15000
+- tapOn:
+    id: "pay-collect-submit"
