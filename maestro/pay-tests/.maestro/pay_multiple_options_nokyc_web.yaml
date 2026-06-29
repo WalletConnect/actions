@@ -8,9 +8,11 @@ name: WalletConnect Pay - Multiple Payment Options without KYC (web)
 # present -> select one -> review -> pay -> success.
 tags:
   - pay-web
-  # Broadcasts an on-chain payment tx -> shares the test wallet's nonce, so the
-  # web CI leg keeps pay-onchain flows serial (read-only flows run concurrently).
+  # On-chain: broadcasts a payment tx on Polygon (second option). The web CI leg
+  # buckets on-chain flows by chain (same chain = serial nonce; different
+  # chains run concurrently).
   - pay-onchain
+  - pay-chain-polygon
 ---
 # Create payment via API (multi-option, no-KYC merchant)
 - runScript:

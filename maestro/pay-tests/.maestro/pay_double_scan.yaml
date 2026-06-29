@@ -2,9 +2,10 @@ appId: ${APP_ID}
 name: WalletConnect Pay - Double Scan Same Payment
 tags:
   - pay
-  # Broadcasts an on-chain payment tx -> shares the test wallet's nonce, so the
-  # web CI leg keeps pay-onchain flows serial (read-only flows run concurrently).
+  # On-chain: broadcasts a payment tx on Base. The web CI leg buckets on-chain
+  # flows by chain (same chain = serial nonce; different chains run concurrently).
   - pay-onchain
+  - pay-chain-base
 ---
 # Create payment via API (single-option, no-KYC merchant)
 - runScript:
