@@ -322,15 +322,20 @@ async function main() {
 
   // tx.wait() has no built-in timeout; a dropped/underpriced tx would hang the
   // CI job until its wall-clock limit. Race it against a deadline instead.
+  // clearTimeout in finally: when tx.wait() wins the race, the timeout's timer
+  // is still pending and (being a normal ref'd timer) keeps Node's event loop
+  // alive for the full timeout (~2 min) after a successful revoke before the
+  // process can exit. Clearing it lets the process exit promptly.
+  let waitTimer;
   const receipt = await Promise.race([
     tx.wait(),
-    new Promise((_, reject) =>
-      setTimeout(
+    new Promise((_, reject) => {
+      waitTimer = setTimeout(
         () => reject(new Error(`tx.wait() timed out after ${TX_WAIT_TIMEOUT_MS / 1000}s`)),
         TX_WAIT_TIMEOUT_MS,
-      ),
-    ),
-  ]);
+      );
+    }),
+  ]).finally(() => clearTimeout(waitTimer));
   if (receipt.status !== 1) {
     throw new Error('Transaction reverted.');
   }
