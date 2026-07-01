@@ -42,9 +42,15 @@ fetch_runs() {
     if [[ -z "$response" ]]; then
       break
     fi
-    printf '%s\n' "$response"
+    # Exclude draft-PR runs. Workflows append a " (Draft)" marker to their
+    # run-name when triggered by a draft PR (github.event.pull_request.draft),
+    # which surfaces here as `display_title`. Draft runs are WIP and shouldn't
+    # count toward any KPI (pass/flake/p95/bug-catches). Filter AFTER computing
+    # `count` below so pagination still keys off the raw page size — otherwise a
+    # page that's mostly drafts would look short and stop paging early.
     local count
     count=$(printf '%s\n' "$response" | wc -l)
+    printf '%s\n' "$response" | jq -c 'select((.display_title // "") | contains(" (Draft)") | not)'
     if [[ $count -lt 100 ]]; then
       break
     fi
