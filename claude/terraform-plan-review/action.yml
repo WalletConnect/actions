@@ -35,6 +35,8 @@ runs:
         ENVIRONMENT="${{ inputs.environment }}"
         ENVIRONMENT="${ENVIRONMENT:-$TF_WORKSPACE}"
         ENVIRONMENT="${ENVIRONMENT:-default}"
+        # Lowercase so casing drift across runs can't break the sticky match
+        ENVIRONMENT=$(printf '%s' "$ENVIRONMENT" | tr '[:upper:]' '[:lower:]')
         echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
 
     - name: Upload Terraform Plan to PR
