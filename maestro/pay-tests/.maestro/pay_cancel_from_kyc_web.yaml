@@ -26,6 +26,9 @@ tags:
     timeout: 30000
 - assertVisible:
     id: "pay-option-0"
+# Verify at least a second option exists (genuinely multi-option payload)
+- assertVisible:
+    id: "pay-option-1"
 
 # Select the first option — opens the in-app identity form
 - tapOn:

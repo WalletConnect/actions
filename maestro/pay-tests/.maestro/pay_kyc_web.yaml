@@ -36,6 +36,13 @@ tags:
 - assertVisible:
     id: "pay-option-info-required"
 
+# Verify this is genuinely a multi-option payload (guards against a backend
+# regression silently dropping to a single option)
+- assertVisible:
+    id: "pay-option-0"
+- assertVisible:
+    id: "pay-option-1"
+
 # Select the first option (requires identity collection)
 - tapOn:
     id: "pay-option-0"
