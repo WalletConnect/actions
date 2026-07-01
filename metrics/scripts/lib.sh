@@ -42,15 +42,17 @@ fetch_runs() {
     if [[ -z "$response" ]]; then
       break
     fi
-    # Exclude draft-PR runs. Workflows append a " (Draft)" marker to their
-    # run-name when triggered by a draft PR (github.event.pull_request.draft),
-    # which surfaces here as `display_title`. Draft runs are WIP and shouldn't
-    # count toward any KPI (pass/flake/p95/bug-catches). Filter AFTER computing
-    # `count` below so pagination still keys off the raw page size — otherwise a
-    # page that's mostly drafts would look short and stop paging early.
+    # Exclude runs the workflow marked as out-of-scope for KPIs. Workflows add a
+    # "(skip-metrics)" marker to their run-name (surfaced here as `display_title`)
+    # for runs that shouldn't count toward any KPI (pass/flake/p95/bug-catches):
+    # draft-PR runs, and manual (workflow_dispatch) runs off the default branch.
+    # The decision lives in the workflow — where branch/draft context is free —
+    # so this stays a plain string match with no extra API calls. Filter AFTER
+    # computing `count` below so pagination still keys off the raw page size —
+    # otherwise a page that's mostly skipped would look short and stop paging early.
     local count
     count=$(printf '%s\n' "$response" | wc -l)
-    printf '%s\n' "$response" | jq -c 'select((.display_title // "") | contains(" (Draft)") | not)'
+    printf '%s\n' "$response" | jq -c 'select((.display_title // "") | contains("(skip-metrics)") | not)'
     if [[ $count -lt 100 ]]; then
       break
     fi
