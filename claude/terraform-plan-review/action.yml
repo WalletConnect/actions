@@ -16,6 +16,10 @@ inputs:
   terraform_plan_log_file:
     description: "Optional: Path to file containing raw terraform plan logs (warnings/errors) for diagnostics"
     required: false
+  environment:
+    description: "Environment/stage name keying the sticky plan comment (e.g. staging, prod). Defaults to $TF_WORKSPACE if set, else 'default'."
+    required: false
+    default: ""
   allowed_bots:
     description: "Comma-separated bot actors allowed to trigger the review, or '*' for all bots"
     required: false
@@ -24,14 +28,29 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Resolve environment key
+      id: env-key
+      shell: bash
+      run: |
+        ENVIRONMENT="${{ inputs.environment }}"
+        ENVIRONMENT="${ENVIRONMENT:-$TF_WORKSPACE}"
+        ENVIRONMENT="${ENVIRONMENT:-default}"
+        # Lowercase so casing drift across runs can't break the sticky match
+        ENVIRONMENT=$(printf '%s' "$ENVIRONMENT" | tr '[:upper:]' '[:lower:]')
+        echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
+
     - name: Upload Terraform Plan to PR
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
+        ENVIRONMENT: ${{ steps.env-key.outputs.environment }}
       run: |
+        export MARKER="<!-- claude-terraform-plan-review:${ENVIRONMENT} -->"
+
         # Create a comment with the plan attached
         {
-          echo "## 🤖 Terraform Plan Review Request"
+          echo "$MARKER"
+          echo "## 🤖 Terraform Plan Review Request (\`${ENVIRONMENT}\`)"
           echo ""
           echo "A Terraform plan has been generated and needs review. The plan is attached below:"
           echo ""
@@ -51,7 +70,7 @@ runs:
           echo '```'
           echo ""
           echo "</details>"
-          
+
           if [[ -n "${{ inputs.terraform_plan_log_file }}" && -f "${{ inputs.terraform_plan_log_file }}" ]]; then
             echo ""
             echo "<details><summary>Terraform Plan Logs (click to expand)</summary>"
@@ -67,23 +86,47 @@ runs:
             echo "</details>"
           fi
         } > /tmp/plan_comment.md
-        
-        # Post as a PR comment
+
+        # Update the existing sticky comment for this environment if present,
+        # otherwise create it. Keeps re-runs from piling up plan comments.
         if [[ -n "${{ github.event.pull_request.number }}" ]]; then
-          gh pr comment ${{ github.event.pull_request.number }} \
-            --repo ${{ github.repository }} \
-            --body-file /tmp/plan_comment.md || echo "Failed to post plan comment"
+          COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --paginate --jq '.[] | select(.body | startswith(env.MARKER)) | .id' | sed -n 1p || true)
+          if [[ -n "$COMMENT_ID" ]]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/$COMMENT_ID" \
+              --field body=@/tmp/plan_comment.md > /dev/null || echo "Failed to update plan comment"
+          else
+            gh pr comment ${{ github.event.pull_request.number }} \
+              --repo ${{ github.repository }} \
+              --body-file /tmp/plan_comment.md || echo "Failed to post plan comment"
+          fi
         fi
-    
+
+    - name: Remove superseded Claude review
+      if: github.event_name == 'pull_request'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REVIEW_HEADING: "## 📊 Terraform Plan Review (${{ steps.env-key.outputs.environment }})"
+      run: |
+        # Claude posts a fresh review comment per run; drop the previous one
+        # for this environment so only the latest verdict remains.
+        gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+          --paginate \
+          --jq '.[] | select(.user.type == "Bot") | select(.user.login | ascii_downcase | contains("claude")) | select(.body | contains(env.REVIEW_HEADING)) | .id' \
+        | while read -r id; do
+            gh api -X DELETE "repos/${{ github.repository }}/issues/comments/$id" || echo "Failed to delete comment $id"
+          done || echo "Failed to list previous Claude reviews"
+
     - name: Automatic PR Review with Claude
       uses: anthropics/claude-code-action@v1
       with:
         anthropic_api_key: ${{ inputs.anthropic_api_key }}
         prompt: |
-          As a staff DevOps engineer, analyze the Terraform plan for PR #${{ github.event.pull_request.number }} in repo ${{ github.repository }}.
+          As a staff DevOps engineer, analyze the Terraform plan for the `${{ steps.env-key.outputs.environment }}` environment of PR #${{ github.event.pull_request.number }} in repo ${{ github.repository }}.
 
           IMPORTANT: The full Terraform plan is available at this file path: ${{ inputs.terraform_plan_file }}
-          
+
           To review the plan:
           1. Use bash commands to read the FULL plan file at ${{ inputs.terraform_plan_file }} (don't rely on the truncated PR comment)
           2. Compare the planned changes against the PR's code diff
@@ -95,8 +138,9 @@ runs:
 
           1. Start with a concise summary section (NOT in a details block)
           2. Put the full detailed analysis inside a collapsible <details> section
+          3. The top-level heading must be EXACTLY "## 📊 Terraform Plan Review (${{ steps.env-key.outputs.environment }})" — it is used to identify and replace superseded reviews
 
-          ## 📊 Terraform Plan Review
+          ## 📊 Terraform Plan Review (${{ steps.env-key.outputs.environment }})
 
           **Summary:**
           - X resources to add, Y to change, Z to destroy
@@ -108,7 +152,7 @@ runs:
 
           ### Plan Summary
           - X resources to add
-          - Y resources to change  
+          - Y resources to change
           - Z resources to destroy
           - Cost Impact: [Estimate if possible]
 
