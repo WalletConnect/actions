@@ -46,26 +46,12 @@ tags:
       WPAY_MERCHANT_ID: ${WPAY_MERCHANT_ID_MULTI_KYC}
       PAYMENT_ID: ${output.payment_id}
 
-# Complete KYC form (data is autocompleted, just tap Add)
-- tapOn: "Add"
-
-# Retry tap on "Add" if "Confirm your details" doesn't appear (webview can be slow)
-- runFlow:
-    when:
-      notVisible: "Confirm your details"
-    commands:
-      - tapOn: "Add"
-
-# Confirm your details popup
-- extendedWaitUntil:
-    visible: "Confirm your details"
-    timeout: 10000
-
-# Tap the checkbox / label for terms agreement
+# Complete the redesigned inline IC form: tick consent, then Confirm submits.
 - tapOn:
-    text: "I agree to the <termsLink>Terms and Conditions</termsLink> and <privacyLink>Privacy Policy</privacyLink>"
+    id: "consent-checkbox"
     retryTapIfNoChange: true
-- tapOn: "Confirm"
+- tapOn:
+    id: "identity-form-confirm-button"
 
 # Wait for result screen
 - extendedWaitUntil:
