@@ -42,9 +42,12 @@ fetch_runs() {
     if [[ -z "$response" ]]; then
       break
     fi
-    printf '%s\n' "$response"
+    # Drop runs the workflow tagged "(skip-metrics)" in its run-name (here:
+    # display_title) — they shouldn't count toward any KPI. Filter AFTER computing
+    # `count` so pagination keys off the raw page size, not the post-filter size.
     local count
     count=$(printf '%s\n' "$response" | wc -l)
+    printf '%s\n' "$response" | jq -c 'select((.display_title // "") | contains("(skip-metrics)") | not)'
     if [[ $count -lt 100 ]]; then
       break
     fi
