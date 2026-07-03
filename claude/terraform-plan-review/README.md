@@ -114,6 +114,7 @@ permissions:
 | `model`                  | ❌       | `claude-sonnet-4-6` | Claude model to use for reviews                                  |
 | `terraform_plan_file`    | ✅       | -                            | Path to file containing the Terraform plan output                |
 | `terraform_plan_log_file`| ❌       | -                            | Path to file containing Terraform plan logs (warnings/errors)    |
+| `environment`            | ❌       | `$TF_WORKSPACE` or `default` | Environment/stage name keying the sticky plan comment (e.g. `staging`, `prod`) |
 
 ## Usage Examples
 
@@ -336,10 +337,20 @@ If you're using the `plan-terraform` composite action, you need to copy the plan
 
 The action posts a **concise summary** at the top of the comment with full details in a collapsible section to keep PRs clean and scannable.
 
+### Sticky Comments
+
+Comments are keyed per environment so re-runs (new pushes, PR edits) don't pile up:
+
+- The plan comment carries a hidden `<!-- claude-terraform-plan-review:<environment> -->` marker and is **updated in place** on re-runs
+- The previous Claude review for the same environment is **deleted** before a new review is posted, so only the latest verdict remains
+- The environment key comes from the `environment` input, falling back to `$TF_WORKSPACE`, then `default` (lowercased). If you run plans for multiple environments on one PR without either, they will overwrite each other's plan comment — pass `environment` explicitly in that case.
+
+**Upgrading note:** comments posted by older versions of this action (no hidden marker, no environment suffix in the review heading) are not recognized and will linger once next to the new sticky comments on PRs that were already open. This is one-time cosmetic noise; delete them manually if it bothers you. The cleanup deliberately only matches the environment-suffixed heading — a broader match would let concurrent per-environment runs delete each other's reviews.
+
 ### Summary (Always Visible)
 
 ```markdown
-## 📊 Terraform Plan Review
+## 📊 Terraform Plan Review (staging)
 
 **Summary:**
 - 5 resources to add, 0 to change, 3 to destroy

@@ -2,6 +2,10 @@ appId: ${APP_ID}
 name: WalletConnect Pay - Single Payment Option without KYC
 tags:
   - pay
+  # On-chain: broadcasts a payment tx on Base. The web CI leg buckets on-chain
+  # flows by chain (same chain = serial nonce; different chains run concurrently).
+  - pay-onchain
+  - pay-chain-base
 ---
 # Create payment via API (single-option, no-KYC merchant)
 - runScript:

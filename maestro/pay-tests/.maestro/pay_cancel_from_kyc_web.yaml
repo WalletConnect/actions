@@ -1,0 +1,70 @@
+appId: ${APP_ID}
+name: WalletConnect Pay - Cancel from KYC (web in-app form)
+# Web equivalent of pay_cancel_from_kyc (which drives the hosted KYC webview).
+# On web the IC form is in-app, so we cancel the payment server-side while the
+# form is showing, submit it, then pay — confirmPayment returns `cancelled`.
+tags:
+  - pay-web
+---
+# Create payment via API (multi-option, KYC merchant)
+- runScript:
+    file: scripts/create-payment.js
+    env:
+      WPAY_CUSTOMER_KEY: ${WPAY_CUSTOMER_KEY_MULTI_KYC}
+      WPAY_MERCHANT_ID: ${WPAY_MERCHANT_ID_MULTI_KYC}
+
+- clearState
+
+# Open wallet, paste payment URL
+- runFlow:
+    file: flows/pay_open_and_paste_url.yaml
+
+# Multi-option KYC merchant — wait for the select screen
+- extendedWaitUntil:
+    visible:
+      id: "pay-select-option-header"
+    timeout: 30000
+- assertVisible:
+    id: "pay-option-0"
+# Verify at least a second option exists (genuinely multi-option payload)
+- assertVisible:
+    id: "pay-option-1"
+
+# Select the first option — opens the in-app identity form
+- tapOn:
+    id: "pay-option-0"
+- extendedWaitUntil:
+    visible:
+      id: "pay-collect-submit"
+    timeout: 15000
+
+# Cancel the payment server-side while the form is showing
+- runScript:
+    file: scripts/cancel-payment.js
+    env:
+      WPAY_CUSTOMER_KEY: ${WPAY_CUSTOMER_KEY_MULTI_KYC}
+      WPAY_MERCHANT_ID: ${WPAY_MERCHANT_ID_MULTI_KYC}
+      PAYMENT_ID: ${output.payment_id}
+
+# Submit the form and attempt to pay — the cancelled payment yields a
+# cancelled result from confirmPayment.
+- runFlow:
+    file: flows/pay_submit_collect_data_web.yaml
+- extendedWaitUntil:
+    visible:
+      id: "pay-button-pay"
+    timeout: 15000
+- tapOn:
+    id: "pay-button-pay"
+
+# Cancelled result screen
+- extendedWaitUntil:
+    visible:
+      id: "pay-result-container"
+    timeout: 30000
+- assertVisible:
+    id: "pay-result-cancelled-icon"
+- assertVisible:
+    id: "pay-button-result-action-cancelled"
+- tapOn:
+    id: "pay-button-result-action-cancelled"
