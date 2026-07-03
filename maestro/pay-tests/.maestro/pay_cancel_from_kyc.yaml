@@ -51,7 +51,7 @@ tags:
 # on screen (tapOn does not auto-scroll), then tap "I agree" to enable Confirm.
 - scrollUntilVisible:
     element:
-      text: "I agree"
+      text: "Confirm"
     direction: DOWN
     timeout: 10000
 - tapOn:

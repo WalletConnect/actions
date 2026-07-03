@@ -54,7 +54,7 @@ tags:
 # button are both on screen (tapOn does not auto-scroll).
 - scrollUntilVisible:
     element:
-      text: "I agree"
+      text: "Confirm"
     direction: DOWN
     timeout: 10000
 
