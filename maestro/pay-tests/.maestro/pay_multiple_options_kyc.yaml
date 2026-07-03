@@ -43,31 +43,31 @@ tags:
 - tapOn:
     id: "pay-option-1"
 
-# Handle personal details webview (KYC)
+# Handle personal details webview (KYC): fields are autocompleted, tick the
+# "I agree" consent, then Confirm submits.
 - extendedWaitUntil:
     visible: "Add your personal details"
     timeout: 30000
 
-# Data is autocompleted, just tap Add
-- tapOn: "Add"
-
-# Retry tap on "Add" if "Confirm your details" doesn't appear (webview can be slow)
-- runFlow:
-    when:
-      notVisible: "Confirm your details"
-    commands:
-      - tapOn: "Add"
-
-# Confirm your details popup
-- extendedWaitUntil:
-    visible: "Confirm your details"
+- scrollUntilVisible:
+    element:
+      text: "I agree"
+    direction: DOWN
     timeout: 10000
 
-# Tap the checkbox / label for terms agreement
 - tapOn:
-    text: "I agree to the <termsLink>Terms and Conditions</termsLink> and <privacyLink>Privacy Policy</privacyLink>"
+    text: "I agree"
     retryTapIfNoChange: true
-- tapOn: "Confirm"
+
+- scrollUntilVisible:
+    element:
+      text: "Confirm"
+    direction: DOWN
+    timeout: 10000
+
+- tapOn:
+    text: "Confirm"
+    retryTapIfNoChange: true
 
 # Verify review screen shows the same token we selected
 - assertVisible:
