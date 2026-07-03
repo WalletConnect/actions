@@ -50,18 +50,18 @@ tags:
     visible: "Add your personal details"
     timeout: 30000
 
-# Tick the inline consent checkbox (Confirm is disabled until checked).
-# Selector: prefer id: "consent-checkbox"; a bare text: "I agree" is ambiguous
-# (the consent paragraph also contains "I agree"), so validate on a real WebView
-# run and disambiguate with index if the testID isn't exposed.
-# Wait for the checkbox itself: it can render after the page title appears, and
-# retryTapIfNoChange only retries on no-change, not on element-not-found.
-- extendedWaitUntil:
-    visible:
-      id: "consent-checkbox"
+# Scroll to the bottom of the form so the consent line and the Confirm button
+# are both on screen (tapOn does not auto-scroll; the consent control is the
+# "I agree" text, and Confirm sits below it).
+- scrollUntilVisible:
+    element:
+      text: "I agree"
+    direction: DOWN
     timeout: 10000
+
+# Tick consent by tapping "I agree" (Confirm is disabled until checked).
 - tapOn:
-    id: "consent-checkbox"
+    text: "I agree"
     retryTapIfNoChange: true
 
 # Submit directly — the "Confirm your details" dialog no longer exists.
