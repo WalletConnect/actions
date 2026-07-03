@@ -50,18 +50,20 @@ tags:
     visible: "Add your personal details"
     timeout: 30000
 
-# Scroll to the bottom of the form so the consent line and the Confirm button
-# are both on screen (tapOn does not auto-scroll; the consent control is the
-# "I agree" text, and Confirm sits below it).
+# Scroll to the bottom of the form so the consent control and the Confirm
+# button are both on screen (tapOn does not auto-scroll).
 - scrollUntilVisible:
     element:
       text: "I agree"
     direction: DOWN
     timeout: 10000
 
-# Tick consent by tapping "I agree" (Confirm is disabled until checked).
+# Tick consent (Confirm is disabled until checked). The checkbox surfaces as a
+# value node reading "0" (unchecked) that flips to "1" when tapped — a more
+# reliable target than the "I agree" text, which also appears in the consent
+# paragraph. retryTapIfNoChange re-taps only if the value didn't flip.
 - tapOn:
-    text: "I agree"
+    text: "0"
     retryTapIfNoChange: true
 
 # Submit directly — the "Confirm your details" dialog no longer exists.
