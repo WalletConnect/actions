@@ -46,18 +46,23 @@ tags:
       WPAY_MERCHANT_ID: ${WPAY_MERCHANT_ID_MULTI_KYC}
       PAYMENT_ID: ${output.payment_id}
 
-# Complete the redesigned inline IC form: tick consent, then Confirm submits.
-# Scroll to the bottom so the consent control and the Confirm button are both
-# on screen (tapOn does not auto-scroll), then tap "I agree" to enable Confirm.
+# Complete the inline IC form: tick "I agree" consent, then Confirm submits.
+- scrollUntilVisible:
+    element:
+      text: "I agree"
+    direction: DOWN
+    timeout: 10000
+
+- tapOn:
+    text: "I agree"
+    retryTapIfNoChange: true
+
 - scrollUntilVisible:
     element:
       text: "Confirm"
     direction: DOWN
     timeout: 10000
-- tapOn:
-    text: "I agree"
-    retryTapIfNoChange: true
-# "Confirm your details" dialog is gone, so "Confirm" is now unambiguous.
+
 - tapOn:
     text: "Confirm"
     retryTapIfNoChange: true

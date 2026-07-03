@@ -43,29 +43,28 @@ tags:
 - tapOn:
     id: "pay-option-1"
 
-# Handle personal details webview (KYC). The /collect form is now a single
-# inline page (no confirmation dialog): fields are autocompleted, tick the
-# inline consent checkbox, then Confirm submits directly.
+# Handle personal details webview (KYC): fields are autocompleted, tick the
+# "I agree" consent, then Confirm submits.
 - extendedWaitUntil:
     visible: "Add your personal details"
     timeout: 30000
 
-# Scroll to the bottom of the form so the consent control and the Confirm
-# button are both on screen (tapOn does not auto-scroll).
+- scrollUntilVisible:
+    element:
+      text: "I agree"
+    direction: DOWN
+    timeout: 10000
+
+- tapOn:
+    text: "I agree"
+    retryTapIfNoChange: true
+
 - scrollUntilVisible:
     element:
       text: "Confirm"
     direction: DOWN
     timeout: 10000
 
-# Tick consent by tapping the "I agree" checkbox label (Confirm is disabled
-# until checked). retryTapIfNoChange re-taps only if the check didn't register.
-- tapOn:
-    text: "I agree"
-    retryTapIfNoChange: true
-
-# Submit directly — the "Confirm your details" dialog no longer exists, so
-# "Confirm" is now unambiguous.
 - tapOn:
     text: "Confirm"
     retryTapIfNoChange: true
