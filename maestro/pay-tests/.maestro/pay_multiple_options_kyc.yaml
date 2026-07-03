@@ -58,12 +58,10 @@ tags:
     direction: DOWN
     timeout: 10000
 
-# Tick consent (Confirm is disabled until checked). The checkbox surfaces as a
-# value node reading "0" (unchecked) that flips to "1" when tapped — a more
-# reliable target than the "I agree" text, which also appears in the consent
-# paragraph. retryTapIfNoChange re-taps only if the value didn't flip.
+# Tick consent by tapping the "I agree" checkbox label (Confirm is disabled
+# until checked). retryTapIfNoChange re-taps only if the check didn't register.
 - tapOn:
-    text: "0"
+    text: "I agree"
     retryTapIfNoChange: true
 
 # Submit directly — the "Confirm your details" dialog no longer exists, so

@@ -48,16 +48,14 @@ tags:
 
 # Complete the redesigned inline IC form: tick consent, then Confirm submits.
 # Scroll to the bottom so the consent control and the Confirm button are both
-# on screen (tapOn does not auto-scroll). The checkbox surfaces as a value node
-# reading "0" (unchecked) that flips to "1" when tapped — a more reliable target
-# than the "I agree" text, which also appears in the consent paragraph.
+# on screen (tapOn does not auto-scroll), then tap "I agree" to enable Confirm.
 - scrollUntilVisible:
     element:
       text: "I agree"
     direction: DOWN
     timeout: 10000
 - tapOn:
-    text: "0"
+    text: "I agree"
     retryTapIfNoChange: true
 # "Confirm your details" dialog is gone, so "Confirm" is now unambiguous.
 - tapOn:
