@@ -59,8 +59,10 @@ tags:
 - tapOn:
     text: "0"
     retryTapIfNoChange: true
+# "Confirm your details" dialog is gone, so "Confirm" is now unambiguous.
 - tapOn:
-    id: "identity-form-confirm-button"
+    text: "Confirm"
+    retryTapIfNoChange: true
 
 # Wait for result screen
 - extendedWaitUntil:

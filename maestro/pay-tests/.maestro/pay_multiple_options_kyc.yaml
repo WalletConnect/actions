@@ -66,9 +66,11 @@ tags:
     text: "0"
     retryTapIfNoChange: true
 
-# Submit directly — the "Confirm your details" dialog no longer exists.
+# Submit directly — the "Confirm your details" dialog no longer exists, so
+# "Confirm" is now unambiguous.
 - tapOn:
-    id: "identity-form-confirm-button"
+    text: "Confirm"
+    retryTapIfNoChange: true
 
 # Verify review screen shows the same token we selected
 - assertVisible:
