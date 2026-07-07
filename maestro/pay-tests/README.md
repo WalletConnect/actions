@@ -149,7 +149,6 @@ Each merchant pair represents a different test configuration. The tests use thes
 | Flow | Description | Merchant Config |
 |---|---|---|
 | `pay_single_option_nokyc` | Happy path: single payment option, no KYC | SINGLE_NOKYC |
-| `pay_single_option_nokyc_deeplink` | Same as above but opened via deep link | SINGLE_NOKYC |
 | `pay_multiple_options_nokyc` | Select between multiple options, no KYC | MULTI_NOKYC |
 | `pay_multiple_options_kyc` | Multiple options with KYC webview | MULTI_KYC |
 | `pay_cancel_from_review` | Server-side cancellation on review screen | SINGLE_NOKYC |
@@ -195,12 +194,6 @@ command line / process list:
 from the key — and Polygon's min priority fee defaults to 25 gwei.)
 
 The test wallet must hold USDT **and** a little POL (gas) on Polygon.
-
-## Deep Link Support
-
-The `pay_single_option_nokyc_deeplink` test uses Maestro's `openLink` command to open a `https://pay.walletconnect.com` URL. Your wallet must be configured to handle these URLs as deep links / universal links (Android App Links / iOS Universal Links) for this test to work.
-
-The flow opens the link with `autoVerify: true` and `browser: false` so the OS routes the URL straight into the app and never falls back to a browser. On Android this requires your `pay.walletconnect.com` `intent-filter` to declare `android:autoVerify="true"` and the matching `assetlinks.json` to be served — otherwise `openLink` will fail loudly instead of silently opening Chrome.
 
 ## Test Isolation
 
