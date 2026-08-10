@@ -74,14 +74,14 @@ runs:
   using: "composite"
   steps:
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-    - uses: actions/setup-python@v5
+      uses: hashicorp/setup-terraform@v4
+    - uses: actions/setup-python@v7
       if: ${{ inputs.needs-python == 'true' }}
       with:
         python-version: ${{ inputs.python-version }}
         cli_config_credentials_token: ${{ inputs.tfc_token }}
     - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
+      uses: aws-actions/configure-aws-credentials@v6
       with:
         aws-access-key-id: ${{ inputs.aws-access-key-id }}
         aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
@@ -103,7 +103,7 @@ runs:
         echo "key=$KEY" >> $GITHUB_OUTPUT
     - name: Setup SSH key
       if: ${{ inputs.ssh-key != '' }}
-      uses: webfactory/ssh-agent@v0.9.0
+      uses: webfactory/ssh-agent@v0.10.0
       with:
         ssh-private-key: ${{ inputs.ssh-key }}
     - name: Configure Terraform Variables
