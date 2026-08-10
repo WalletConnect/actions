@@ -49,7 +49,7 @@ runs:
         git remote set-url origin https://x-access-token:${{ inputs.token }}@github.com/${{ github.repository }}
 
     - name: Commit version bump
-      uses: stefanzweifel/git-auto-commit-action@v5
+      uses: stefanzweifel/git-auto-commit-action@v7
       with:
         commit_message: "chore: Bump version for release"
         file_pattern: "Cargo.toml Cargo.lock"
@@ -71,7 +71,7 @@ runs:
       run: cog changelog --at ${{ steps.release.outputs.version }} -t full_hash > GITHUB_CHANGELOG.md
 
     - name: Update GitHub release notes
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v3
       with:
         body_path: GITHUB_CHANGELOG.md
         tag_name: ${{ steps.release.outputs.version }}
