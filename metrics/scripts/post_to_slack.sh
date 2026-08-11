@@ -9,6 +9,10 @@
 #   P95_FILE        — P95 feedback per workflow
 #   YESTERDAY_PASS  — yesterday's pass rate per workflow (optional; for
 #                     "2 consecutive days <90%" alert)
+#   PREVIOUS_ALERT_STATE — active threshold breaches from the previous
+#                          successful report (optional; suppresses repeats)
+#   ALERT_STATE_FILE     — where to write today's active breach state
+#                          (default: alert-state.jsonl)
 #
 # Env: SLACK_KPI_WEBHOOK_URL is required at runtime.
 
@@ -18,6 +22,8 @@ PASS_FILE="${PASS_FILE:?missing}"
 FLAKE_FILE="${FLAKE_FILE:?missing}"
 P95_FILE="${P95_FILE:?missing}"
 YESTERDAY_PASS="${YESTERDAY_PASS:-/dev/null}"
+PREVIOUS_ALERT_STATE="${PREVIOUS_ALERT_STATE:-/dev/null}"
+ALERT_STATE_FILE="${ALERT_STATE_FILE:-alert-state.jsonl}"
 DRY_RUN="${DRY_RUN:-0}"
 if [[ "$DRY_RUN" != "1" ]]; then
   SLACK_WEBHOOK="${SLACK_KPI_WEBHOOK_URL:?missing SLACK_KPI_WEBHOOK_URL}"
@@ -125,33 +131,88 @@ build_attention_line() {
   fi
 }
 
-# Threshold-breach alerts.
+# Return success when a metric was already in breach in the previous
+# successful report. The state is JSONL with one object per workflow.
+previous_alert_active() {
+  local label="$1" metric="$2"
+  [[ -s "$PREVIOUS_ALERT_STATE" ]] || return 1
+  jq -e --arg l "$label" --arg m "$metric" \
+    'select(.label == $l) | .[$m] == true' \
+    "$PREVIOUS_ALERT_STATE" >/dev/null
+}
+
+# Threshold-breach alerts. Persist every currently-active condition, but only
+# emit a Slack alert for a condition that was not active in the previous
+# successful report. This makes the alert a dated transition instead of a
+# daily repeat of the same rolling-window breach.
 build_alerts() {
   local alerts=()
+  local alert_state_initialized=false
+  [[ -s "$PREVIOUS_ALERT_STATE" ]] && alert_state_initialized=true
+  : > "$ALERT_STATE_FILE"
+
   while IFS= read -r pass_entry; do
-    local label rate
+    local label rate total
     label=$(jq -r '.label' <<<"$pass_entry")
     rate=$(jq -r '.rate' <<<"$pass_entry")
-    local flake_rate p95_min
+    total=$(jq -r '.total' <<<"$pass_entry")
+    local flake_rate flake_total p95_min p95_count
     flake_rate=$(jq -r --arg l "$label" 'select(.label == $l) | .rate' "$FLAKE_FILE" | head -1)
+    flake_total=$(jq -r --arg l "$label" 'select(.label == $l) | .total_failures' "$FLAKE_FILE" | head -1)
     p95_min=$(jq -r --arg l "$label" 'select(.label == $l) | .p95_minutes' "$P95_FILE" | head -1)
+    p95_count=$(jq -r --arg l "$label" 'select(.label == $l) | .count' "$P95_FILE" | head -1)
     flake_rate="${flake_rate:-0.00}"
+    flake_total="${flake_total:-0}"
     p95_min="${p95_min:-0}"
+    p95_count="${p95_count:-0}"
 
-    if awk -v v="$rate" -v t="$PASS_ALERT" 'BEGIN { exit (v < t) ? 0 : 1 }'; then
-      local yesterday_rate=""
+    local pass_active=false flake_active=false p95_active=false
+    local yesterday_rate="" yesterday_total=""
+
+    # Pass-rate alerts become active only after two consecutive reports below
+    # the threshold. Require real runs on both days so a "no runs" row cannot
+    # be interpreted as a 0% pass rate.
+    if [[ "${total:-0}" != "0" ]] && awk -v v="$rate" -v t="$PASS_ALERT" 'BEGIN { exit (v < t) ? 0 : 1 }'; then
       if [[ -s "$YESTERDAY_PASS" ]]; then
         yesterday_rate=$(jq -r --arg l "$label" 'select(.label == $l) | .rate' "$YESTERDAY_PASS" | head -1)
+        yesterday_total=$(jq -r --arg l "$label" 'select(.label == $l) | .total' "$YESTERDAY_PASS" | head -1)
       fi
-      if [[ -n "$yesterday_rate" ]] && awk -v v="$yesterday_rate" -v t="$PASS_ALERT" 'BEGIN { exit (v < t) ? 0 : 1 }'; then
-        alerts+=("🚨 \`$label\` pass rate <$PASS_ALERT% for 2 consecutive days (today $rate%, yesterday $yesterday_rate%)")
+      if [[ -n "$yesterday_rate" && "${yesterday_total:-0}" != "0" ]] \
+        && awk -v v="$yesterday_rate" -v t="$PASS_ALERT" 'BEGIN { exit (v < t) ? 0 : 1 }'; then
+        pass_active=true
       fi
     fi
-    if awk -v v="$flake_rate" -v t="$FLAKE_ALERT" 'BEGIN { exit (v > t) ? 0 : 1 }'; then
-      alerts+=("🚨 \`$label\` flake rate $flake_rate% exceeds $FLAKE_ALERT%")
+
+    if [[ "${flake_total:-0}" != "0" ]] \
+      && awk -v v="$flake_rate" -v t="$FLAKE_ALERT" 'BEGIN { exit (v > t) ? 0 : 1 }'; then
+      flake_active=true
     fi
-    if awk -v v="$p95_min" -v t="$P95_ALERT_MIN" 'BEGIN { exit (v > t) ? 0 : 1 }'; then
-      alerts+=("🚨 \`$label\` P95 feedback ${p95_min}m exceeds ${P95_ALERT_MIN}m")
+
+    if [[ "${p95_count:-0}" != "0" ]] \
+      && awk -v v="$p95_min" -v t="$P95_ALERT_MIN" 'BEGIN { exit (v > t) ? 0 : 1 }'; then
+      p95_active=true
+    fi
+
+    jq -nc \
+      --arg label "$label" \
+      --arg date "$WINDOW_END" \
+      --argjson pass "$pass_active" \
+      --argjson flake "$flake_active" \
+      --argjson p95 "$p95_active" \
+      '{label:$label, date:$date, pass:$pass, flake:$flake, p95:$p95}' \
+      >> "$ALERT_STATE_FILE"
+
+    if [[ "$alert_state_initialized" == "true" && "$pass_active" == "true" ]] \
+      && ! previous_alert_active "$label" pass; then
+      alerts+=("🚨 $WINDOW_END — \`$label\` pass rate <$PASS_ALERT% for 2 consecutive days (today $rate%, previous report $yesterday_rate%)")
+    fi
+    if [[ "$alert_state_initialized" == "true" && "$flake_active" == "true" ]] \
+      && ! previous_alert_active "$label" flake; then
+      alerts+=("🚨 $WINDOW_END — \`$label\` flake rate $flake_rate% exceeds $FLAKE_ALERT%")
+    fi
+    if [[ "$alert_state_initialized" == "true" && "$p95_active" == "true" ]] \
+      && ! previous_alert_active "$label" p95; then
+      alerts+=("🚨 $WINDOW_END — \`$label\` P95 feedback ${p95_min}m exceeds ${P95_ALERT_MIN}m")
     fi
   done < "$PASS_FILE"
 
@@ -181,7 +242,7 @@ $attention"
 fi
 
 daily="\`\`\`$body\`\`\`"
-alerts=$(build_alerts || true)
+alerts=$(build_alerts)
 
 if [[ "$DRY_RUN" == "1" ]]; then
   echo "--- daily summary ---"

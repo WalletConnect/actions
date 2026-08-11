@@ -15,7 +15,9 @@ metrics/
     ├── kpi_flake_rate.sh       ← recovered / total failures, 7d
     ├── kpi_p95_feedback.sh     ← P95(updated_at - created_at), PR runs, 7d
     ├── kpi_bug_catches.sh      ← PR-time + main red→green pairs, 30d
-    └── post_to_slack.sh        ← assemble message + POST to webhook
+    ├── post_to_slack.sh        ← assemble message + POST to webhook
+    └── tests/
+        └── post_to_slack_test.sh ← dated alert + deduplication regression tests
 
 .github/workflows/maestro-kpi-aggregate.yml  ← daily cron + workflow_dispatch
 ```
@@ -97,6 +99,22 @@ Separate threshold-breach alerts post when:
 | Pass rate on `main` | `<90%` for 2 consecutive days |
 | Flake rate | `>10%` |
 | P95 feedback | `>45m` |
+
+Each separate alert includes the UTC report date and is posted only when its
+condition becomes active. It is suppressed on subsequent reports while the
+same rolling-window breach remains active. After the metric recovers, a later
+breach posts a new dated alert. The `Attention` line inside the daily summary
+continues to show all metrics that currently miss their targets.
+
+When alert-state tracking is first deployed (or its retained artifact is
+missing), the report initializes the current conditions without emitting
+alerts. This avoids assigning today's date to a breach that began earlier.
+
+Run the Slack formatting and alert-state regression tests locally with:
+
+```bash
+bash metrics/scripts/tests/post_to_slack_test.sh
+```
 
 ## Limitations
 
