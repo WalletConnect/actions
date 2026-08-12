@@ -112,4 +112,21 @@ output=$(run_report 2026-08-18 "$recovered_state" "$no_runs_state")
 assert_not_contains "$output" 'pass rate <90%'
 jq -e 'select(.label == "swift") | .pass == false' "$no_runs_state" >/dev/null
 
+# Alert-state errors are non-fatal: the primary daily summary is still
+# produced and the separate threshold alert is skipped with a visible warning.
+write_metrics 100.00 10 10 50.00 1 2 16 1
+output=$(run_report 2026-08-19 "$recovered_state" "$TEST_TMP_DIR" 2>&1)
+assert_contains "$output" '::warning::build_alerts failed; skipping threshold alerts'
+assert_contains "$output" '--- daily summary ---'
+assert_contains "$output" '📊 Maestro E2E KPIs — 7d window: 2026-08-04 → 2026-08-19'
+assert_not_contains "$output" '--- threshold alerts ---'
+
+# Malformed previous state follows the same best-effort path.
+malformed_state="$TEST_TMP_DIR/malformed-state.jsonl"
+printf '{malformed\n' > "$malformed_state"
+output=$(run_report 2026-08-20 "$malformed_state" "$TEST_TMP_DIR/ignored-state.jsonl" 2>&1)
+assert_contains "$output" '::warning::build_alerts failed; skipping threshold alerts'
+assert_contains "$output" '--- daily summary ---'
+assert_not_contains "$output" '--- threshold alerts ---'
+
 echo "post_to_slack tests passed"

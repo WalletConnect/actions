@@ -148,19 +148,28 @@ previous_alert_active() {
 build_alerts() {
   local alerts=()
   local alert_state_initialized=false
-  [[ -s "$PREVIOUS_ALERT_STATE" ]] && alert_state_initialized=true
-  : > "$ALERT_STATE_FILE"
+  if [[ -s "$PREVIOUS_ALERT_STATE" ]]; then
+    jq -s -e '
+      all(.[];
+        ((.label | type) == "string") and
+        ((.pass | type) == "boolean") and
+        ((.flake | type) == "boolean") and
+        ((.p95 | type) == "boolean"))
+    ' "$PREVIOUS_ALERT_STATE" >/dev/null || return 1
+    alert_state_initialized=true
+  fi
+  : > "$ALERT_STATE_FILE" || return 1
 
   while IFS= read -r pass_entry; do
     local label rate total
-    label=$(jq -r '.label' <<<"$pass_entry")
-    rate=$(jq -r '.rate' <<<"$pass_entry")
-    total=$(jq -r '.total' <<<"$pass_entry")
+    label=$(jq -r '.label' <<<"$pass_entry") || return 1
+    rate=$(jq -r '.rate' <<<"$pass_entry") || return 1
+    total=$(jq -r '.total' <<<"$pass_entry") || return 1
     local flake_rate flake_total p95_min p95_count
-    flake_rate=$(jq -r --arg l "$label" 'select(.label == $l) | .rate' "$FLAKE_FILE" | head -1)
-    flake_total=$(jq -r --arg l "$label" 'select(.label == $l) | .total_failures' "$FLAKE_FILE" | head -1)
-    p95_min=$(jq -r --arg l "$label" 'select(.label == $l) | .p95_minutes' "$P95_FILE" | head -1)
-    p95_count=$(jq -r --arg l "$label" 'select(.label == $l) | .count' "$P95_FILE" | head -1)
+    flake_rate=$(jq -r --arg l "$label" 'select(.label == $l) | .rate' "$FLAKE_FILE" | head -1) || return 1
+    flake_total=$(jq -r --arg l "$label" 'select(.label == $l) | .total_failures' "$FLAKE_FILE" | head -1) || return 1
+    p95_min=$(jq -r --arg l "$label" 'select(.label == $l) | .p95_minutes' "$P95_FILE" | head -1) || return 1
+    p95_count=$(jq -r --arg l "$label" 'select(.label == $l) | .count' "$P95_FILE" | head -1) || return 1
     flake_rate="${flake_rate:-0.00}"
     flake_total="${flake_total:-0}"
     p95_min="${p95_min:-0}"
@@ -174,8 +183,8 @@ build_alerts() {
     # be interpreted as a 0% pass rate.
     if [[ "${total:-0}" != "0" ]] && awk -v v="$rate" -v t="$PASS_ALERT" 'BEGIN { exit (v < t) ? 0 : 1 }'; then
       if [[ -s "$YESTERDAY_PASS" ]]; then
-        yesterday_rate=$(jq -r --arg l "$label" 'select(.label == $l) | .rate' "$YESTERDAY_PASS" | head -1)
-        yesterday_total=$(jq -r --arg l "$label" 'select(.label == $l) | .total' "$YESTERDAY_PASS" | head -1)
+        yesterday_rate=$(jq -r --arg l "$label" 'select(.label == $l) | .rate' "$YESTERDAY_PASS" | head -1) || return 1
+        yesterday_total=$(jq -r --arg l "$label" 'select(.label == $l) | .total' "$YESTERDAY_PASS" | head -1) || return 1
       fi
       if [[ -n "$yesterday_rate" && "${yesterday_total:-0}" != "0" ]] \
         && awk -v v="$yesterday_rate" -v t="$PASS_ALERT" 'BEGIN { exit (v < t) ? 0 : 1 }'; then
@@ -200,7 +209,7 @@ build_alerts() {
       --argjson flake "$flake_active" \
       --argjson p95 "$p95_active" \
       '{label:$label, date:$date, pass:$pass, flake:$flake, p95:$p95}' \
-      >> "$ALERT_STATE_FILE"
+      >> "$ALERT_STATE_FILE" || return 1
 
     if [[ "$alert_state_initialized" == "true" && "$pass_active" == "true" ]] \
       && ! previous_alert_active "$label" pass; then
@@ -242,7 +251,10 @@ $attention"
 fi
 
 daily="\`\`\`$body\`\`\`"
-alerts=$(build_alerts)
+alerts=$(build_alerts) || {
+  echo "::warning::build_alerts failed; skipping threshold alerts" >&2
+  alerts=""
+}
 
 if [[ "$DRY_RUN" == "1" ]]; then
   echo "--- daily summary ---"
