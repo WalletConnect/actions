@@ -41,17 +41,31 @@ jobs:
           fi
           gh auth status 2>&1 | head -5
 
-      # Retrieve yesterday's pass-rate output for the "2 consecutive days
-      # <90%" alert. Best-effort — first run + post-retention-expiry both
-      # return nothing, which is fine (the alert just won't fire).
-      - name: Download yesterday's pass rates (best-effort)
-        id: yesterday
+      # Resolve the previous completed report explicitly. download-artifact
+      # defaults to the current run, which cannot contain yesterday's state.
+      - name: Find previous successful KPI report
+        id: previous
+        run: |
+          set -euo pipefail
+          run_id=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/maestro-kpi-aggregate.yml/runs?status=success&per_page=1" \
+            --jq '.workflow_runs[0].id // empty')
+          if [[ -n "$run_id" ]]; then
+            echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Retrieve the previous pass rates + active alert state. Best-effort:
+      # the first run after deployment has pass.jsonl only, and the very first
+      # report has no prior artifact at all.
+      - name: Download previous KPI state (best-effort)
+        if: steps.previous.outputs.run_id != ''
         continue-on-error: true
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           name: kpi-pass-rate-latest
-          path: yesterday/
+          path: previous/
           github-token: ${{ secrets.KPI_GITHUB_PAT }}
+          run-id: ${{ steps.previous.outputs.run_id }}
 
       - name: Compute pass rate (7d, main)
         run: bash metrics/scripts/kpi_pass_rate.sh > pass.jsonl
@@ -77,16 +91,20 @@ jobs:
           PASS_FILE: pass.jsonl
           FLAKE_FILE: flake.jsonl
           P95_FILE: p95.jsonl
-          YESTERDAY_PASS: yesterday/pass.jsonl
+          YESTERDAY_PASS: previous/pass.jsonl
+          PREVIOUS_ALERT_STATE: previous/alert-state.jsonl
+          ALERT_STATE_FILE: alert-state.jsonl
         run: bash metrics/scripts/post_to_slack.sh
 
-      # Persist today's pass rates as an artifact so tomorrow's run can
-      # detect a 2-consecutive-day breach. 7-day retention is more than
-      # enough (we only ever read the most-recent artifact).
-      - name: Upload today's pass rates
+      # Persist today's pass rates and active breach state. The next report
+      # uses them for the 2-day pass-rate rule and to avoid repeating an alert
+      # until that metric first recovers and breaches again.
+      - name: Upload today's KPI state
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: kpi-pass-rate-latest
-          path: pass.jsonl
+          path: |
+            pass.jsonl
+            alert-state.jsonl
           retention-days: 7
           overwrite: true
