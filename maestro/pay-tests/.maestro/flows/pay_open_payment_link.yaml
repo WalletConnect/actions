@@ -21,10 +21,13 @@ appId: ${APP_ID}
 # attach to system_server, APK load, Hermes init, RN bridge, JS bundle,
 # home screen render. On a contended CI emulator the first fork can hit
 # `ActivityManager: Process ... failed to attach`, ActivityManager
-# re-forks, and total time-to-render becomes ~30-40s. The per-attempt
-# wait was bumped 20s → 90s (#98) because the re-fork consistently
-# hadn't finished rendering inside 20s on pay-core CD runs — every
-# attempt timed out at exactly 20s on a black screen.
+# re-forks, and total time-to-render becomes ~30-40s, so a 20s wait
+# was too short (#98: every attempt timed out on a black screen).
+#
+# 45s per attempt covers that slow path. The other failure mode — the
+# launch never reaching the app (emulator stays on the launcher, nothing
+# in logcat) — doesn't recover by waiting, so a longer wait only delays
+# the relaunch that fixes it.
 - retry:
     maxRetries: 3
     commands:
@@ -37,7 +40,7 @@ appId: ${APP_ID}
       - extendedWaitUntil:
           visible:
             id: "button-scan"
-          timeout: 90000
+          timeout: 45000
 
 # Deliver the payment link as a deep link — far faster than typing the URL
 # into a text input (~15-30s per flow on CI emulators/simulators).
