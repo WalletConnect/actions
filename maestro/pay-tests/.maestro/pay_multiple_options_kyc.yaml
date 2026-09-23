@@ -15,9 +15,9 @@ tags:
 
 - startRecording: "Pay - Multiple Payment Options with KYC"
 
-# Open wallet, paste payment URL
+# Open wallet, deliver the payment link
 - runFlow:
-    file: flows/pay_open_and_paste_url.yaml
+    file: flows/pay_open_payment_link.yaml
 
 # Wait for payment options to load
 - extendedWaitUntil:

@@ -1,7 +1,17 @@
 appId: ${APP_ID}
 ---
-# Shared flow: Launch wallet, open scanner, paste payment URL, wait for merchant info
-# Requires: ${output.gateway_url} to be set by a prior runScript step
+# Shared flow: Launch wallet, then hand it the payment URL via a deep link.
+# Requires: ${output.gateway_url} to be set by a prior runScript/evalScript step
+# Requires: DEEPLINK_PREFIX env — the wallet's deep-link prefix that the
+#   URL-encoded payment link is appended to, e.g.
+#   rn-web3wallet-internal://wc?uri=  (React Native, internal build)
+#   http://localhost:8081/wc?uri=     (React Native web build)
+# The wallet must route <prefix><encoded payment link> to the same handler it
+# uses for scanned QR codes.
+
+- assertTrue:
+    condition: ${typeof DEEPLINK_PREFIX !== 'undefined' && !!DEEPLINK_PREFIX}
+    label: "DEEPLINK_PREFIX env must be set (e.g. --env DEEPLINK_PREFIX='my-wallet://wc?uri=')"
 
 # Launch wallet app, retrying the launch if it gets killed mid-startup
 # by a stale-task teardown (stopApp clears the prior task first).
@@ -29,29 +39,7 @@ appId: ${APP_ID}
             id: "button-scan"
           timeout: 90000
 
-# Tap scan button to open scanner options modal
-- tapOn:
-    id: "button-scan"
-
-# Type the payment URL into the test input field
-- tapOn:
-    id: "input-paste-url"
-
-# Dismiss iOS keyboard language prompt if it appears
-- runFlow:
-    when:
-      visible: "Continue"
-    commands:
-      - tapOn: "Continue"
-
-- inputText: ${output.gateway_url}
-
-- pressKey: Enter
-
-- extendedWaitUntil:
-    visible:
-      id: "button-submit-url"
-    timeout: 10000
-
-- tapOn:
-    id: "button-submit-url"
+# Deliver the payment link as a deep link — far faster than typing the URL
+# into a text input (~15-30s per flow on CI emulators/simulators).
+- openLink:
+    link: ${DEEPLINK_PREFIX + encodeURIComponent(output.gateway_url)}
