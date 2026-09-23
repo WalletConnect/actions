@@ -43,3 +43,12 @@ appId: ${APP_ID}
 # into a text input (~15-30s per flow on CI emulators/simulators).
 - openLink:
     link: ${DEEPLINK_PREFIX + encodeURIComponent(output.gateway_url)}
+
+# iOS asks "Open in “<App>”?" the first time a custom scheme is opened on a
+# simulator (fresh CI simulators always hit it); confirm it when shown.
+- runFlow:
+    when:
+      platform: iOS
+      visible: "Open in .*"
+    commands:
+      - tapOn: "Open"
