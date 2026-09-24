@@ -9,10 +9,6 @@ appId: ${APP_ID}
 # The wallet must route <prefix><encoded payment link> to the same handler it
 # uses for scanned QR codes.
 
-- assertTrue:
-    condition: ${typeof DEEPLINK_PREFIX !== 'undefined' && !!DEEPLINK_PREFIX}
-    label: "DEEPLINK_PREFIX env must be set (e.g. --env DEEPLINK_PREFIX='my-wallet://wc?uri=')"
-
 # Launch wallet app, retrying the launch if it gets killed mid-startup
 # by a stale-task teardown (stopApp clears the prior task first).
 #
@@ -41,6 +37,14 @@ appId: ${APP_ID}
           visible:
             id: "button-scan"
           timeout: 45000
+
+# Keep this check after the launch block. On Android, clearState schedules the
+# previous task's teardown ~1s later, which kills an app process still
+# attached to it; any extra step between the caller's clearState and launchApp
+# (this assert cost ~150ms) pushes the new process into that window.
+- assertTrue:
+    condition: ${typeof DEEPLINK_PREFIX !== 'undefined' && !!DEEPLINK_PREFIX}
+    label: "DEEPLINK_PREFIX env must be set (e.g. --env DEEPLINK_PREFIX='my-wallet://wc?uri=')"
 
 # Deliver the payment link as a deep link — far faster than typing the URL
 # into a text input (~15-30s per flow on CI emulators/simulators).
