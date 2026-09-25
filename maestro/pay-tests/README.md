@@ -10,7 +10,7 @@ This action copies shared Maestro test flows and helper scripts into your worksp
 
 - **Maestro CLI** installed — use [`WalletConnect/actions/maestro/setup`](../setup) action
 - **App built and installed** on simulator/emulator
-- **Test mode enabled** in the wallet app (to expose the URL input field)
+- **Deep-link entry** — the wallet opens a payment link passed as `<DEEPLINK_PREFIX><url-encoded payment link>` (see [Payment Link Deep Link](#payment-link-deep-link))
 
 ## Required TestIDs
 
@@ -20,9 +20,7 @@ Every wallet platform must add these accessibility identifiers to the correspond
 
 | TestID | Element | Description |
 |---|---|---|
-| `button-scan` | Scan button on home screen | Opens the scanner/QR modal |
-| `input-paste-url` | Text input in scan modal | For pasting payment URLs (**test mode only** — see below) |
-| `button-submit-url` | Submit button in scan modal | Submits the pasted URL (**test mode only**) |
+| `button-scan` | Scan button on home screen | Used to detect that the home screen has rendered after launch |
 
 ### Payment Modal — Header
 
@@ -81,53 +79,28 @@ Some testIDs include dynamic values:
 - **`pay-review-token-{networkName}`** — lowercase network name. Example: `pay-review-token-base`, `pay-review-token-ethereum`
 - **`pay-button-result-action-{type}`** — one of: `success`, `insufficient_funds`, `expired`, `cancelled`, `generic`
 
-## Test Input Field Requirement
+## Payment Link Deep Link
 
-Each wallet must add a **text input field** and **submit button** inside the scan/QR modal. This is required for Maestro to bypass camera/QR scanning and submit payment URLs directly.
+The flows don't scan QR codes or type URLs. After launching the wallet they deliver each payment link with Maestro `openLink`:
 
-**Important:** This input should only be visible when a test mode flag is enabled (e.g. `ENV_TEST_MODE=true`). It should never appear in production builds.
-
-### Reference Implementation (React Native)
-
-From `ScannerOptionsModal.tsx` in the React Native wallet sample:
-
-```tsx
-import Config from 'react-native-config';
-
-const showTestInput = Config.ENV_TEST_MODE === 'true';
-
-// Inside the modal component's render:
-{showTestInput && (
-  <View style={styles.testInputContainer}>
-    <TextInput
-      testID="input-paste-url"
-      style={styles.testInput}
-      placeholder="Paste payment URL here"
-      value={urlInput}
-      onChangeText={setUrlInput}
-      autoCapitalize="none"
-      autoCorrect={false}
-    />
-    <Button
-      testID="button-submit-url"
-      onPress={() => {
-        const url = urlInput.trim();
-        if (!url) return;
-        closeModal();
-        handleUriOrPaymentLink(url);
-      }}
-    >
-      <Text>Go</Text>
-    </Button>
-  </View>
-)}
+```
+<DEEPLINK_PREFIX><encodeURIComponent(paymentLink)>
 ```
 
+`DEEPLINK_PREFIX` is passed with `--env` (like `APP_ID`), because every wallet registers its own scheme:
+
+| Wallet | `DEEPLINK_PREFIX` |
+|---|---|
+| React Native (internal build) | `rn-web3wallet-internal://wc?uri=` |
+| React Native (web build) | `http://localhost:8081/wc?uri=` |
+| Kotlin sample wallet | `kotlin-web3wallet://wc?uri=` *(expected — not yet verified)* |
+| Swift WalletApp | `walletapp://wc?uri=` *(expected — not yet verified)* |
+| Flutter example wallet | `wcflutterwallet-internal://wc?uri=` *(needs a handler fix: its `wc?uri=` path pairs instead of routing pay links)* |
+
 The key points for any platform:
-1. Gate visibility behind a test/debug build flag
-2. Use `input-paste-url` as the accessibility ID for the text input
-3. Use `button-submit-url` as the accessibility ID for the submit button
-4. On submit, pass the URL to the same handler that processes scanned QR codes or deep links
+1. Register the custom URL scheme (Android intent filter / iOS `CFBundleURLSchemes`) in the build under test
+2. Read the `uri` query parameter, URL-decode it, and pass it to the same handler that processes scanned QR codes (so payment links reach the pay flow, not WalletConnect pairing)
+3. Handle it on both cold start (initial URL) and while running — the flows open the link after the home screen (`button-scan`) is visible
 
 ## Required Secrets
 
@@ -259,6 +232,7 @@ steps:
         adb install path/to/app.apk
         $HOME/.maestro/bin/maestro test \
           --env APP_ID="com.example.wallet.internal" \
+          --env DEEPLINK_PREFIX="example-wallet://wc?uri=" \
           --env WPAY_CUSTOMER_KEY_SINGLE_NOKYC="${{ secrets.WPAY_CUSTOMER_KEY_SINGLE_NOKYC }}" \
           --env WPAY_MERCHANT_ID_SINGLE_NOKYC="${{ secrets.WPAY_MERCHANT_ID_SINGLE_NOKYC }}" \
           --env WPAY_CUSTOMER_KEY_MULTI_NOKYC="${{ secrets.WPAY_CUSTOMER_KEY_MULTI_NOKYC }}" \

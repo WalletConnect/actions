@@ -1,0 +1,61 @@
+appId: ${APP_ID}
+---
+# Shared flow: Launch wallet, then hand it the payment URL via a deep link.
+# Requires: ${output.gateway_url} to be set by a prior runScript/evalScript step
+# Requires: DEEPLINK_PREFIX env — the wallet's deep-link prefix that the
+#   URL-encoded payment link is appended to, e.g.
+#   rn-web3wallet-internal://wc?uri=  (React Native, internal build)
+#   http://localhost:8081/wc?uri=     (React Native web build)
+# The wallet must route <prefix><encoded payment link> to the same handler it
+# uses for scanned QR codes.
+
+# Launch wallet app, retrying the launch if it gets killed mid-startup
+# by a stale-task teardown (stopApp clears the prior task first).
+#
+# Each attempt waits for a full cold start: launchApp follows a
+# `clearState`/stopApp force-stop, so it triggers ActivityManager fork,
+# attach to system_server, APK load, Hermes init, RN bridge, JS bundle,
+# home screen render. On a contended CI emulator the first fork can hit
+# `ActivityManager: Process ... failed to attach`, ActivityManager
+# re-forks, and total time-to-render becomes ~30-40s, so a 20s wait
+# was too short (#98: every attempt timed out on a black screen).
+#
+# 45s per attempt covers that slow path. The other failure mode — the
+# launch never reaching the app (emulator stays on the launcher, nothing
+# in logcat) — doesn't recover by waiting, so a longer wait only delays
+# the relaunch that fixes it.
+- retry:
+    maxRetries: 3
+    commands:
+      - stopApp:
+          appId: ${APP_ID}
+      - launchApp:
+          appId: ${APP_ID}
+          permissions:
+            all: allow
+      - extendedWaitUntil:
+          visible:
+            id: "button-scan"
+          timeout: 45000
+
+# Keep this check after the launch block. On Android, clearState schedules the
+# previous task's teardown ~1s later, which kills an app process still
+# attached to it; any extra step between the caller's clearState and launchApp
+# (this assert cost ~150ms) pushes the new process into that window.
+- assertTrue:
+    condition: ${typeof DEEPLINK_PREFIX !== 'undefined' && !!DEEPLINK_PREFIX}
+    label: "DEEPLINK_PREFIX env must be set (e.g. --env DEEPLINK_PREFIX='my-wallet://wc?uri=')"
+
+# Deliver the payment link as a deep link — far faster than typing the URL
+# into a text input (~15-30s per flow on CI emulators/simulators).
+- openLink:
+    link: ${DEEPLINK_PREFIX + encodeURIComponent(output.gateway_url)}
+
+# iOS asks "Open in “<App>”?" the first time a custom scheme is opened on a
+# simulator (fresh CI simulators always hit it); confirm it when shown.
+- runFlow:
+    when:
+      platform: iOS
+      visible: "Open in .*"
+    commands:
+      - tapOn: "Open"
