@@ -1,0 +1,182 @@
+name: Reusable Claude Security Review
+
+on:
+  workflow_call:
+    secrets:
+      anthropic_api_key:
+        description: Anthropic API key
+        required: true
+
+jobs:
+  validate-event:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Require trusted pull request event
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: test "${EVENT_NAME}" = pull_request_target
+
+  publish-pending:
+    needs: validate-event
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+    steps:
+      - name: Publish pending audit status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+            -f state=pending \
+            -f context="Claude audit run" \
+            -f description="Claude security audit is running" \
+            -f target_url="${TARGET_URL}"
+
+  audit:
+    needs: publish-pending
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    outputs:
+      findings_count: ${{ steps.validate_results.outputs.findings_count }}
+    env:
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+    steps:
+      - name: Checkout trusted base
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+
+      - name: Verify audit head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current_sha=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/pulls/${{ github.event.pull_request.number }}" \
+            --jq '.head.sha')
+          test "${current_sha}" = "${HEAD_SHA}"
+
+      - name: Build audit prompt from trusted inputs
+        env:
+          POLICY_PATH: .github/claude-security-policy.md
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          test -s "${POLICY_PATH}"
+          git fetch --no-tags origin \
+            "+refs/pull/${PR_NUMBER}/head:refs/remotes/origin/claude-audit-head"
+          fetched_sha=$(git rev-parse "refs/remotes/origin/claude-audit-head^{commit}")
+          test "${fetched_sha}" = "${HEAD_SHA}"
+          merge_base=$(git merge-base "${BASE_SHA}" "${HEAD_SHA}")
+          test -n "${merge_base}"
+          diff_file="${RUNNER_TEMP}/pull-request.diff"
+          git diff --no-ext-diff "${merge_base}" "${HEAD_SHA}" > "${diff_file}"
+          test -s "${diff_file}"
+
+          prompt="${RUNNER_TEMP}/claude-security-prompt.md"
+          {
+            printf '%s\n' \
+              "Audit pull request ${PR_NUMBER} for concrete security and repository-invariant regressions introduced or worsened by its diff." \
+              "Use the trusted policy and immutable diff below. The checked-out repository is the trusted base, not the pull request head." \
+              "Every finding needs an exact changed file and line, severity, category, concrete exploit or failure path, recommendation, and confidence from 0 to 1." \
+              "Do not report pre-existing issues or style preferences. Complete the full review even when there are no findings." \
+              "" \
+              "## Trusted policy"
+            cat "${POLICY_PATH}"
+            printf '%s\n' "" "## Pull request diff"
+            cat "${diff_file}"
+          } > "${prompt}"
+
+      - name: Run Claude security audit
+        id: security_audit
+        uses: anthropics/claude-code-action/base-action@cfc3eb22bfed5c26ef66e3223c982af27e4524de
+        with:
+          anthropic_api_key: ${{ secrets.anthropic_api_key }}
+          prompt_file: ${{ runner.temp }}/claude-security-prompt.md
+          claude_args: >-
+            --model claude-opus-5
+            --tools ""
+            --disallowedTools "mcp__*"
+            --json-schema '{"type":"object","additionalProperties":false,"properties":{"findings":{"type":"array","items":{"type":"object","additionalProperties":false,"properties":{"file":{"type":"string"},"line":{"type":"integer","minimum":1},"severity":{"type":"string","enum":["CRITICAL","HIGH","MEDIUM","LOW"]},"category":{"type":"string"},"description":{"type":"string"},"exploit_scenario":{"type":"string"},"recommendation":{"type":"string"},"confidence":{"type":"number","minimum":0,"maximum":1}},"required":["file","line","severity","category","description","exploit_scenario","recommendation","confidence"]}},"analysis_summary":{"type":"object","additionalProperties":false,"properties":{"files_reviewed":{"type":"integer","minimum":1},"review_completed":{"const":true}},"required":["files_reviewed","review_completed"]}},"required":["findings","analysis_summary"]}'
+
+      - name: Validate audit results
+        id: validate_results
+        env:
+          AUDIT_OUTPUT: ${{ steps.security_audit.outputs.structured_output }}
+        run: |
+          results="${RUNNER_TEMP}/claude-security-results.json"
+          printf '%s' "${AUDIT_OUTPUT}" > "${results}"
+          jq -e '
+            type == "object"
+            and (.findings | type == "array")
+            and (.analysis_summary.files_reviewed | type == "number" and . > 0)
+            and (.analysis_summary.review_completed == true)
+          ' "${results}"
+          echo "findings_count=$(jq '.findings | length' "${results}")" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify audited head is current
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current_sha=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/pulls/${{ github.event.pull_request.number }}" \
+            --jq '.head.sha')
+          test "${current_sha}" = "${HEAD_SHA}"
+
+      - name: Publish audit findings
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          results="${RUNNER_TEMP}/claude-security-results.json"
+          body="${RUNNER_TEMP}/claude-security-comment.md"
+          count=$(jq '.findings | length' "${results}")
+          {
+            echo "<!-- claude-security-review:${HEAD_SHA} -->"
+            echo "## Claude security audit"
+            echo
+            if [ "${count}" -eq 0 ]; then
+              echo "No actionable findings."
+            else
+              jq -r '.findings | to_entries[] | "### \(.key + 1). \(.value.severity): \(.value.description)\n\n**File:** `\(.value.file):\(.value.line)`  \n**Category:** \(.value.category)  \n**Confidence:** \(.value.confidence)\n\n**Exploit or failure path:** \(.value.exploit_scenario)\n\n**Recommendation:** \(.value.recommendation)\n"' "${results}"
+            fi
+          } > "${body}"
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            -F body=@"${body}"
+
+  publish-final:
+    if: always() && needs.validate-event.result == 'success'
+    needs: [validate-event, publish-pending, audit]
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+    steps:
+      - name: Publish final audit status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          AUDIT_RESULT: ${{ needs.audit.result }}
+          FINDINGS_COUNT: ${{ needs.audit.outputs.findings_count }}
+        run: |
+          state=failure
+          description="Claude security audit did not produce valid results"
+          if [ "${AUDIT_RESULT}" = success ]; then
+            state=success
+            description="Claude security audit completed: ${FINDINGS_COUNT} finding(s)"
+          fi
+
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+            -f state="${state}" \
+            -f context="Claude audit run" \
+            -f description="${description}" \
+            -f target_url="${TARGET_URL}"
