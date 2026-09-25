@@ -9,6 +9,26 @@ appId: ${APP_ID}
 # The wallet must route <prefix><encoded payment link> to the same handler it
 # uses for scanned QR codes.
 
+# Android: wait out the previous task's teardown before launching.
+# The caller's clearState schedules that teardown ~1.0-1.1s later, and it
+# kills any app process already forked for the new launch (logcat:
+# "Destroy timeout of remove-task" -> "Killing <pid> ... remove task" ->
+# "failed to attach"). stopApp + launchApp normally fork ~0.75-0.9s after
+# clearState, which leaves only ~100-200ms of margin; on a slower CI run the
+# fork lands at ~0.95-1.05s, gets killed, and the flow burns a 45s retry.
+# Waiting 1s here always puts the launch after the teardown. There is no
+# sleep command, so wait for an element that never appears (optional, so
+# the timeout doesn't fail the flow).
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: "maestro-wait-for-task-teardown"
+          timeout: 1000
+          optional: true
+
 # Launch wallet app, retrying the launch if it gets killed mid-startup
 # by a stale-task teardown (stopApp clears the prior task first).
 #
@@ -38,10 +58,8 @@ appId: ${APP_ID}
             id: "button-scan"
           timeout: 45000
 
-# Keep this check after the launch block. On Android, clearState schedules the
-# previous task's teardown ~1s later, which kills an app process still
-# attached to it; any extra step between the caller's clearState and launchApp
-# (this assert cost ~150ms) pushes the new process into that window.
+# Checked after launching so it doesn't add time between the caller's
+# clearState and launchApp (see the teardown wait above).
 - assertTrue:
     condition: ${typeof DEEPLINK_PREFIX !== 'undefined' && !!DEEPLINK_PREFIX}
     label: "DEEPLINK_PREFIX env must be set (e.g. --env DEEPLINK_PREFIX='my-wallet://wc?uri=')"
