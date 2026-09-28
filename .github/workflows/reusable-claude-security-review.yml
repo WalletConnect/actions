@@ -2,6 +2,19 @@ name: Reusable Claude Security Review
 
 on:
   workflow_call:
+    inputs:
+      diff_exclude:
+        description: Newline-separated git glob pathspecs whose content is omitted from the prompt; changed files stay listed in the summary
+        type: string
+        default: |
+          **/Cargo.lock
+          **/package-lock.json
+          **/pnpm-lock.yaml
+          **/yarn.lock
+      max_diff_bytes:
+        description: Fail with an explicit error when the reviewable diff exceeds this size
+        type: number
+        default: 400000
     secrets:
       anthropic_api_key:
         description: Anthropic API key
@@ -68,17 +81,36 @@ jobs:
         env:
           POLICY_PATH: .github/claude-security-policy.md
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          DIFF_EXCLUDE: ${{ inputs.diff_exclude }}
+          MAX_DIFF_BYTES: ${{ inputs.max_diff_bytes }}
         run: |
-          test -s "${POLICY_PATH}"
+          if ! test -s "${POLICY_PATH}"; then
+            echo "::error::${POLICY_PATH} is missing or empty on base ${BASE_SHA}. Land it on the base branch first."
+            exit 1
+          fi
           git fetch --no-tags origin \
             "+refs/pull/${PR_NUMBER}/head:refs/remotes/origin/claude-audit-head"
           fetched_sha=$(git rev-parse "refs/remotes/origin/claude-audit-head^{commit}")
           test "${fetched_sha}" = "${HEAD_SHA}"
           merge_base=$(git merge-base "${BASE_SHA}" "${HEAD_SHA}")
           test -n "${merge_base}"
+          stat_file="${RUNNER_TEMP}/pull-request.stat"
+          git diff --no-ext-diff --stat=200 "${merge_base}" "${HEAD_SHA}" > "${stat_file}"
+          test -s "${stat_file}"
+
+          excludes=()
+          while IFS= read -r pattern; do
+            if [ -n "${pattern}" ]; then
+              excludes+=(":(exclude,glob)${pattern}")
+            fi
+          done <<< "${DIFF_EXCLUDE}"
           diff_file="${RUNNER_TEMP}/pull-request.diff"
-          git diff --no-ext-diff "${merge_base}" "${HEAD_SHA}" > "${diff_file}"
-          test -s "${diff_file}"
+          git diff --no-ext-diff "${merge_base}" "${HEAD_SHA}" -- . "${excludes[@]}" > "${diff_file}"
+          diff_bytes=$(wc -c < "${diff_file}")
+          if [ "${diff_bytes}" -gt "${MAX_DIFF_BYTES}" ]; then
+            echo "::error::Reviewable diff is ${diff_bytes} bytes, above max_diff_bytes=${MAX_DIFF_BYTES}. Split the pull request or exclude generated files."
+            exit 1
+          fi
 
           prompt="${RUNNER_TEMP}/claude-security-prompt.md"
           {
@@ -90,6 +122,9 @@ jobs:
               "" \
               "## Trusted policy"
             cat "${POLICY_PATH}"
+            printf '%s\n' "" "## Changed files" "" \
+              "Content of files matching these patterns is omitted from the diff: $(tr '\n' ' ' <<< "${DIFF_EXCLUDE}")" ""
+            cat "${stat_file}"
             printf '%s\n' "" "## Pull request diff"
             cat "${diff_file}"
           } > "${prompt}"
@@ -139,8 +174,10 @@ jobs:
           body="${RUNNER_TEMP}/claude-security-comment.md"
           count=$(jq '.findings | length' "${results}")
           {
-            echo "<!-- claude-security-review:${HEAD_SHA} -->"
+            echo "<!-- claude-security-review -->"
             echo "## Claude security audit"
+            echo
+            echo "Audited commit: \`${HEAD_SHA}\`"
             echo
             if [ "${count}" -eq 0 ]; then
               echo "No actionable findings."
@@ -148,9 +185,19 @@ jobs:
               jq -r '.findings | to_entries[] | "### \(.key + 1). \(.value.severity): \(.value.description)\n\n**File:** `\(.value.file):\(.value.line)`  \n**Category:** \(.value.category)  \n**Confidence:** \(.value.confidence)\n\n**Exploit or failure path:** \(.value.exploit_scenario)\n\n**Recommendation:** \(.value.recommendation)\n"' "${results}"
             fi
           } > "${body}"
-          gh api \
+          comment_id=$(gh api --paginate \
             "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
-            -F body=@"${body}"
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- claude-security-review"))) | .id' \
+            | tail -n 1)
+          if [ -n "${comment_id}" ]; then
+            gh api -X PATCH \
+              "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" \
+              -F body=@"${body}"
+          else
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+              -F body=@"${body}"
+          fi
 
   publish-final:
     if: always() && needs.validate-event.result == 'success'
