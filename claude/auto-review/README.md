@@ -8,7 +8,6 @@ This GitHub Action provides automated code reviews for your pull requests using 
 
 - **Smart incremental reviews** - Only flags new issues in subsequent commits
 - **Configurable prompts** - Customize review focus with project-specific context
-- **Repository guidance** - Reads `AGENTS.md` or `CLAUDE.md` and the review rules it routes to, and reviews against them
 - **Multiple trigger modes** - Automatic on PR open or manual via comments
 - **Security-focused** - Built-in emphasis on security, performance, and best practices
 
