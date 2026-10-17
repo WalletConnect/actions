@@ -130,7 +130,7 @@ Each merchant pair represents a different test configuration. The tests use thes
 | `pay_insufficient_funds` | Payment amount exceeds wallet balance | SINGLE_NOKYC |
 | `pay_double_scan` | Re-scan same QR after completion | SINGLE_NOKYC |
 | `pay_usdt_polygon` | USDT on Polygon — Permit2 token: wallet sends `approve` then `pay` (two-tx path) | MULTI_NOKYC |
-| `pay_expired_link` | Hardcoded expired payment URL | None (hardcoded) |
+| `pay_expired_link` | Expired payment link (see [Expired payment pool](#expired-payment-pool-pay_expired_link)) | SINGLE_NOKYC (optional) |
 | `pay_cancelled` | Hardcoded cancelled payment URL | None (hardcoded) |
 
 All flows are tagged with `pay` for filtering via `--include-tags`. `pay_usdt_polygon` additionally
@@ -167,6 +167,29 @@ command line / process list:
 from the key — and Polygon's min priority fee defaults to 25 gwei.)
 
 The test wallet must hold USDT **and** a little POL (gas) on Polygon.
+
+### Expired payment pool (`pay_expired_link`)
+
+Payments expire 15 minutes after creation, so `pay_expired_link` can't create its own. By default it
+falls back to a hardcoded prod link, which stops working once that payment is no longer returned as
+`expired`. Pass a test merchant to this action and it keeps a pool of payments in `actions/cache`
+instead: each run rewrites the flow's fallback to a payment an earlier run created (older than
+20 minutes) and seeds a new one for later runs.
+
+```yaml
+- name: Copy shared Pay test flows
+  uses: WalletConnect/actions/maestro/pay-tests@<sha>
+  with:
+    merchant-api-key: ${{ secrets.WPAY_CUSTOMER_KEY_SINGLE_NOKYC }}
+    merchant-id: ${{ secrets.WPAY_MERCHANT_ID_SINGLE_NOKYC }}
+```
+
+- The cache is scoped to the consumer repo, so the first run after enabling it has nothing old
+  enough yet and keeps the hardcoded link; runs that start 20+ minutes later use the pool.
+- `WPAY_EXPIRED_GATEWAY_URL` (passed with `--env`) still takes precedence, e.g. for a local pay-core
+  that seeds its own expired payment. The picked link is also exposed as the `expired-gateway-url` output.
+- Each run creates one unpaid payment on the merchant; nothing pays it, so it simply expires.
+- Pool problems never fail the job; they show up as warnings and the flow keeps its hardcoded link.
 
 ## Test Isolation
 
