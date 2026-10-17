@@ -63,6 +63,16 @@ runs:
 
     # Expired-payment pool (see scripts/expired-payment.sh). The cache is scoped
     # to the consumer repo, so each repo keeps its own pool.
+    - name: Mask merchant credentials
+      if: inputs.merchant-api-key != '' && inputs.merchant-id != ''
+      shell: bash
+      env:
+        WPAY_CUSTOMER_KEY: ${{ inputs.merchant-api-key }}
+        WPAY_MERCHANT_ID: ${{ inputs.merchant-id }}
+      run: |
+        echo "::add-mask::$WPAY_CUSTOMER_KEY"
+        echo "::add-mask::$WPAY_MERCHANT_ID"
+
     - name: Restore expired-payment pool
       if: inputs.merchant-api-key != '' && inputs.merchant-id != ''
       continue-on-error: true
