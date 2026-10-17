@@ -76,7 +76,7 @@ runs:
     - name: Restore expired-payment pool
       if: inputs.merchant-api-key != '' && inputs.merchant-id != ''
       continue-on-error: true
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ${{ runner.temp }}/pay-expired-pool/pool.tsv
         key: ${{ steps.copy.outputs.pool-key }}
@@ -99,7 +99,7 @@ runs:
     - name: Save expired-payment pool
       if: steps.expired-payment.outcome == 'success'
       continue-on-error: true
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ${{ runner.temp }}/pay-expired-pool/pool.tsv
         key: ${{ steps.copy.outputs.pool-key }}
