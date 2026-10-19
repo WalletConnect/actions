@@ -6,11 +6,31 @@ inputs:
     description: 'Directory to copy test flows into (relative to workspace root)'
     required: false
     default: '.maestro'
+  merchant-api-key:
+    description: |
+      Optional. API key of a test merchant (e.g. WPAY_CUSTOMER_KEY_SINGLE_NOKYC).
+      With merchant-id, enables the expired-payment pool: pay_expired_link.yaml
+      gets a payment an earlier run of this repo created (already expired), and
+      a new one is seeded for later runs. Without it the flow keeps its
+      hardcoded link.
+    required: false
+    default: ''
+  merchant-id:
+    description: 'Optional. Merchant id paired with merchant-api-key (e.g. WPAY_MERCHANT_ID_SINGLE_NOKYC).'
+    required: false
+    default: ''
+  pay-api-url:
+    description: 'Optional. Pay API base URL used to seed the expired-payment pool. Defaults to prod.'
+    required: false
+    default: ''
 
 outputs:
   maestro-dir:
     description: 'Absolute path to the directory containing the test flows'
     value: ${{ steps.copy.outputs.maestro-dir }}
+  expired-gateway-url:
+    description: 'Expired payment link picked from the pool (empty when the pool is disabled or has none old enough)'
+    value: ${{ steps.expired-payment.outputs.url }}
 
 runs:
   using: composite
@@ -38,3 +58,48 @@ runs:
         ls -la "$TARGET_DIR"
 
         echo "maestro-dir=$TARGET_DIR" >> "$GITHUB_OUTPUT"
+        # Unique per invocation so parallel jobs/matrix legs don't collide on save.
+        echo "pool-key=pay-expired-pool-${{ github.run_id }}-${{ github.run_attempt }}-$(date +%s)-$RANDOM" >> "$GITHUB_OUTPUT"
+
+    # Expired-payment pool (see scripts/expired-payment.sh). The cache is scoped
+    # to the consumer repo, so each repo keeps its own pool.
+    - name: Mask merchant credentials
+      if: inputs.merchant-api-key != '' && inputs.merchant-id != ''
+      shell: bash
+      env:
+        WPAY_CUSTOMER_KEY: ${{ inputs.merchant-api-key }}
+        WPAY_MERCHANT_ID: ${{ inputs.merchant-id }}
+      run: |
+        echo "::add-mask::$WPAY_CUSTOMER_KEY"
+        echo "::add-mask::$WPAY_MERCHANT_ID"
+
+    - name: Restore expired-payment pool
+      if: inputs.merchant-api-key != '' && inputs.merchant-id != ''
+      continue-on-error: true
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ${{ runner.temp }}/pay-expired-pool/pool.tsv
+        key: ${{ steps.copy.outputs.pool-key }}
+        restore-keys: pay-expired-pool-
+
+    - name: Pick and seed expired payment
+      id: expired-payment
+      if: inputs.merchant-api-key != '' && inputs.merchant-id != ''
+      continue-on-error: true
+      shell: bash
+      env:
+        WPAY_CUSTOMER_KEY: ${{ inputs.merchant-api-key }}
+        WPAY_MERCHANT_ID: ${{ inputs.merchant-id }}
+        WPAY_PAY_API_URL: ${{ inputs.pay-api-url }}
+      run: >-
+        bash "${{ github.action_path }}/scripts/expired-payment.sh"
+        "$RUNNER_TEMP/pay-expired-pool/pool.tsv"
+        "${{ steps.copy.outputs.maestro-dir }}/pay_expired_link.yaml"
+
+    - name: Save expired-payment pool
+      if: steps.expired-payment.outcome == 'success'
+      continue-on-error: true
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ${{ runner.temp }}/pay-expired-pool/pool.tsv
+        key: ${{ steps.copy.outputs.pool-key }}
