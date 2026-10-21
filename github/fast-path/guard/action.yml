@@ -1,0 +1,80 @@
+name: Fast Path Guard
+description: >-
+  Refuses (or warns about) a production deploy of a ref that does not contain
+  a hotfix shipped through the fast path. A fast-path deploy marks its PR with
+  a label (default `fast-path:deployed`); until that PR is merged, main does
+  not contain the hotfix, and a normal release of main would silently roll it
+  back. Call this before the prod deploy of every release pipeline. It needs
+  no checkout: ancestry is checked with the compare API, so `ref` must exist
+  on the remote.
+
+inputs:
+  label:
+    description: Label a fast-path deploy leaves on its PR
+    required: false
+    default: fast-path:deployed
+  ref:
+    description: Commit SHA (or ref) about to be deployed to production
+    required: false
+    default: ${{ github.sha }}
+  mode:
+    description: "`fail` exits non-zero when a hotfix is missing; `warn` only annotates and sets `blocked`"
+    required: false
+    default: fail
+  token:
+    description: Token with pull-requests:read and contents:read
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  blocked:
+    description: "true when at least one fast-pathed hotfix is not contained in `ref`"
+    value: ${{ steps.check.outputs.blocked }}
+  missing:
+    description: Space-separated PR numbers whose hotfix is missing from `ref`
+    value: ${{ steps.check.outputs.missing }}
+
+runs:
+  using: composite
+  steps:
+    - id: check
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ github.repository }}
+        LABEL: ${{ inputs.label }}
+        REF: ${{ inputs.ref }}
+        MODE: ${{ inputs.mode }}
+      run: |
+        set -euo pipefail
+        case "$MODE" in fail|warn) ;; *) echo "::error::mode must be fail or warn (got $MODE)"; exit 1 ;; esac
+
+        # Open PRs still carrying a fast-path deploy. A GitHub API failure must never read as "none".
+        prs=$(gh pr list --repo "$REPO" --state open --label "$LABEL" --limit 50 \
+          --json number,url,headRefOid --jq '.[] | "\(.number) \(.headRefOid) \(.url)"')
+        if [ -z "$prs" ]; then
+          echo "no open PR carries '$LABEL'; nothing to guard"
+          echo "blocked=false" >> "$GITHUB_OUTPUT"; echo "missing=" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        missing=""
+        while read -r number sha url; do
+          # compare/<hotfix>...<ref>: identical|ahead = ref contains the hotfix; behind|diverged = it does not.
+          status=$(gh api "repos/$REPO/compare/$sha...$REF" --jq .status)
+          case "$status" in
+            identical|ahead) echo "PR #$number (${sha:0:7}) is contained in $REF" ;;
+            *) echo "::error::PR #$number ($url) was deployed through the fast path at ${sha:0:7} but $REF does not contain it (compare status: $status)"
+               missing="$missing $number" ;;
+          esac
+        done <<< "$prs"
+        missing="${missing# }"
+
+        if [ -n "$missing" ]; then
+          echo "blocked=true" >> "$GITHUB_OUTPUT"; echo "missing=$missing" >> "$GITHUB_OUTPUT"
+          msg="deploying $REF would roll back the fast-pathed hotfix of PR(s) $missing; merge them (or remove '$LABEL' if they were reverted on purpose) first"
+          if [ "$MODE" = fail ]; then echo "::error::$msg"; exit 1; fi
+          echo "::warning::$msg"
+        else
+          echo "blocked=false" >> "$GITHUB_OUTPUT"; echo "missing=" >> "$GITHUB_OUTPUT"
+        fi

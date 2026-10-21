@@ -1,0 +1,136 @@
+name: Fast Path Trigger
+description: >-
+  Turns a label on a pull request into a workflow_dispatch of the repository's
+  fast-path (break-glass) workflow on the default branch, pinned to the PR head
+  SHA, and reports the run on the PR. Call it from a pull_request_target
+  workflow so that this code is the base branch's, never the PR's; it never
+  checks out or executes PR code. The label only requests a deploy: the
+  authorization is the `break-glass` environment approval inside the
+  dispatched workflow.
+
+inputs:
+  workflow:
+    description: Workflow file to dispatch, e.g. fast-path.yaml
+    required: true
+  label:
+    description: Label that requests a fast-path deploy
+    required: false
+    default: fast-path
+  ref:
+    description: Ref to dispatch on. The workflow code comes from this ref, not from the PR.
+    required: false
+    default: ${{ github.event.repository.default_branch }}
+  inputs:
+    description: Extra workflow inputs, one key=value per line, passed in addition to pr and sha
+    required: false
+    default: ''
+  token:
+    description: Token with actions:write and pull-requests:write on the repository
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  dispatched:
+    description: "true when a run was dispatched; false when the event was not the label being added"
+    value: ${{ steps.dispatch.outputs.dispatched }}
+  pr:
+    description: Pull request number
+    value: ${{ steps.dispatch.outputs.pr }}
+  sha:
+    description: PR head SHA the run was pinned to
+    value: ${{ steps.dispatch.outputs.sha }}
+  run-url:
+    description: URL of the dispatched run, or of the workflow's runs page when the run could not be resolved in time
+    value: ${{ steps.dispatch.outputs.run-url }}
+
+runs:
+  using: composite
+  steps:
+    - id: dispatch
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ github.repository }}
+        SERVER: ${{ github.server_url }}
+        WORKFLOW: ${{ inputs.workflow }}
+        LABEL: ${{ inputs.label }}
+        REF: ${{ inputs.ref }}
+        EXTRA_INPUTS: ${{ inputs.inputs }}
+        EVENT_NAME: ${{ github.event_name }}
+        EVENT_ACTION: ${{ github.event.action }}
+        EVENT_LABEL: ${{ github.event.label.name }}
+        PR: ${{ github.event.pull_request.number }}
+        PR_STATE: ${{ github.event.pull_request.state }}
+        PR_DRAFT: ${{ github.event.pull_request.draft }}
+        PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        ACTOR: ${{ github.actor }}
+      run: |
+        set -euo pipefail
+        MARKER="<!-- fast-path-trigger -->"
+
+        # Create or edit the single fast-path status comment on the PR.
+        upsert_comment() {
+          local body="$MARKER"$'\n'"$1" cid
+          cid=$(gh api --paginate "repos/$REPO/issues/$PR/comments" \
+            --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" | head -1)
+          if [ -n "$cid" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$cid" -f body="$body" >/dev/null
+          else
+            gh api "repos/$REPO/issues/$PR/comments" -f body="$body" >/dev/null
+          fi
+        }
+
+        case "$EVENT_NAME" in
+          pull_request_target|pull_request) ;;
+          *) echo "::error::fast-path trigger must run on pull_request_target (got $EVENT_NAME)"; exit 1 ;;
+        esac
+        if [ "$EVENT_ACTION" != labeled ] || [ "$EVENT_LABEL" != "$LABEL" ]; then
+          echo "not a '$LABEL' label event (action=$EVENT_ACTION label=$EVENT_LABEL); nothing to do"
+          echo "dispatched=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        # Forks never get a deploy: the dispatched workflow holds credentials.
+        if [ "$PR_HEAD_REPO" != "$REPO" ]; then
+          upsert_comment "⛔ **Fast path refused**: pull requests from forks cannot be fast-pathed."
+          echo "::error::PR #$PR comes from $PR_HEAD_REPO, not $REPO"; exit 1
+        fi
+        if [ "$PR_DRAFT" = true ] || [ "$PR_STATE" != open ]; then
+          upsert_comment "⛔ **Fast path refused**: the pull request must be open and not a draft."
+          echo "::error::PR #$PR is draft=$PR_DRAFT state=$PR_STATE"; exit 1
+        fi
+
+        args=(-f "pr=$PR" -f "sha=$PR_HEAD_SHA")
+        while IFS= read -r line; do
+          line="${line#"${line%%[![:space:]]*}"}"   # ltrim
+          [ -n "$line" ] && args+=(-f "$line")
+        done <<< "$EXTRA_INPUTS"
+
+        started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        gh workflow run "$WORKFLOW" --ref "$REF" "${args[@]}"
+        echo "dispatched $WORKFLOW on $REF for PR #$PR at ${PR_HEAD_SHA:0:7}"
+
+        # `gh workflow run` returns no run id; the run appears a few seconds later.
+        run_url=""
+        for _ in $(seq 1 12); do
+          sleep 5
+          run_url=$(gh run list --workflow "$WORKFLOW" --branch "$REF" --event workflow_dispatch \
+            --limit 10 --json url,createdAt \
+            --jq --arg t "$started" '[.[] | select(.createdAt >= $t)] | first // empty | .url')
+          [ -n "$run_url" ] && break
+        done
+        if [ -z "$run_url" ]; then
+          run_url="$SERVER/$REPO/actions/workflows/$WORKFLOW"
+          echo "::warning::could not resolve the dispatched run; linking the workflow page"
+        fi
+
+        upsert_comment "🚨 **Fast path requested** by @$ACTOR for \`${PR_HEAD_SHA:0:7}\` → $run_url
+
+        The image is being built now. The deploy starts only after a \`break-glass\` environment approval on that run, and only if the PR head is still \`${PR_HEAD_SHA:0:7}\` at that point (push again and the run must be re-requested by re-adding the \`$LABEL\` label)."
+
+        {
+          echo "dispatched=true"
+          echo "pr=$PR"
+          echo "sha=$PR_HEAD_SHA"
+          echo "run-url=$run_url"
+        } >> "$GITHUB_OUTPUT"

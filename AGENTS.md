@@ -29,8 +29,8 @@ pre-commit run --all-files # Run all checks
 
 - **actions/** - High-level composite actions (deploy-terraform, deploy-ecs, plan-terraform)
 - **terraform/** - Terraform primitives (init, plan, apply, validate, select-workspace, check-fmt)
-- **aws/** - AWS-specific actions (ECS deploy/task-image, Grafana key management)
-- **github/** - GitHub utilities (paths-filter, branch-name, release versioning, CTA assistant)
+- **aws/** - AWS-specific actions (ECS deploy/task-image, Grafana key management, ECR image lookup)
+- **github/** - GitHub utilities (paths-filter, branch-name, release versioning, CTA assistant, fast-path trigger/guard — see `github/fast-path/README.md`)
 - **claude/** - AI review actions
   - **auto-review/** - PR code review with inline findings comments
   - **terraform-plan-review/** - Terraform plan analysis
