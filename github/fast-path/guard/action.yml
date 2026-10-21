@@ -2,7 +2,7 @@ name: Fast Path Guard
 description: >-
   Refuses (or warns about) a production deploy of a ref that does not contain
   a hotfix shipped through the fast path. A fast-path deploy marks its PR with
-  a label (default `fast-path:deployed`); until that PR is merged, main does
+  a label (default `break-glass:deployed`); until that PR is merged, main does
   not contain the hotfix, and a normal release of main would silently roll it
   back. Call this before the prod deploy of every release pipeline. It needs
   no checkout: ancestry is checked with the compare API, so `ref` must exist
@@ -10,9 +10,9 @@ description: >-
 
 inputs:
   label:
-    description: Label a fast-path deploy leaves on its PR
+    description: Label a fast-path deploy leaves on its PR (see the README for the label definition)
     required: false
-    default: fast-path:deployed
+    default: break-glass:deployed
   ref:
     description: Commit SHA (or ref) about to be deployed to production
     required: false

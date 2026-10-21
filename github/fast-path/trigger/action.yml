@@ -13,9 +13,9 @@ inputs:
     description: Workflow file to dispatch, e.g. fast-path.yaml
     required: true
   label:
-    description: Label that requests a fast-path deploy
+    description: Label that requests a fast-path deploy (see the README for the label definition)
     required: false
-    default: fast-path
+    default: break-glass
   ref:
     description: Ref to dispatch on. The workflow code comes from this ref, not from the PR.
     required: false
