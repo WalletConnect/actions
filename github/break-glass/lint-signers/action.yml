@@ -36,5 +36,7 @@ runs:
           fi
           echo "ok: $principals ($ktype)"
         done < "$SIGNERS"
-        [ "$n" -gt 0 ] || { echo "::error::$SIGNERS lists no keys"; exit 1; }
+        # An empty file is allowed (a repo before its first enrolment); verify-proof
+        # then rejects every run with a clear message.
+        [ "$n" -gt 0 ] || echo "::warning::$SIGNERS lists no keys yet; no one can run the break-glass path until a key is enrolled"
         exit $rc
