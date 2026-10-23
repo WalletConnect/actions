@@ -20,7 +20,7 @@ end-to-end stage of the regular release.
 
    ```bash
    break-glass-sign.sh WalletConnect/pay-core --pr 2090      # merged hotfix
-   break-glass-sign.sh WalletConnect/rs-relay --tag v1.80.3   # redeploy or roll back an existing image
+   break-glass-sign.sh reown-com/rs-relay --tag v1.80.3     # redeploy or roll back an existing image
    ```
 
    Dispatching from the Actions page also works: the run then posts the
@@ -50,6 +50,8 @@ The challenge is bound to what is deployed:
 - PR mode: `break-glass:<owner/repo>:pr:<number>:<merge commit sha>`
 - Tag mode: `break-glass:<owner/repo>:tag:<image tag>`
 
+`<owner/repo>` is the canonical name, as `GITHUB_REPOSITORY` reports it
+(rs-relay is `reown-com/rs-relay`); the helper resolves it for you.
 A captured signature can only redeploy that same commit or tag, which is
 harmless; a compromised laptop cannot sign for any other commit without the
 device being touched. The dispatcher and the signer must be the same login.

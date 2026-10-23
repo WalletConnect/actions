@@ -19,6 +19,9 @@ while [ $# -gt 0 ]; do
 done
 { [ -n "$PR" ] && [ -z "$TAG" ]; } || { [ -z "$PR" ] && [ -n "$TAG" ]; } || { echo "give exactly one of --pr or --tag" >&2; exit 2; }
 [ -f "$KEY" ] || { echo "key $KEY not found; enrol with: ssh-keygen -t ed25519-sk -O resident -O verify-required -f $KEY" >&2; exit 2; }
+# The challenge names the repository as GITHUB_REPOSITORY does, so use the
+# canonical owner/name even when the caller passed an old (redirected) one.
+REPO=$(gh api "repos/$REPO" --jq .full_name)
 
 if [ -n "$PR" ]; then
   pr=$(gh api "repos/$REPO/pulls/$PR")
