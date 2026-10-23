@@ -1,8 +1,10 @@
 name: ECR Image Exists
 description: >-
   Reports whether an image tag exists in an ECR repository, so a pipeline can
-  skip a build whose image was already published (for example a PR image
-  published by CI). AWS credentials must be configured by the caller.
+  skip a build whose image was already published (for example by the regular
+  release). Uses BatchGetImage, which every credential that can push already
+  has (DescribeImages is a separate permission). AWS credentials must be
+  configured by the caller.
 
 inputs:
   repository:
@@ -27,9 +29,6 @@ outputs:
   digest:
     description: Image digest when it exists
     value: ${{ steps.lookup.outputs.digest }}
-  pushed-at:
-    description: Push timestamp when it exists
-    value: ${{ steps.lookup.outputs.pushed-at }}
 
 runs:
   using: composite
@@ -47,18 +46,16 @@ runs:
         [ -n "$REGION" ] && args+=(--region "$REGION")
         [ -n "$REGISTRY_ID" ] && args+=(--registry-id "$REGISTRY_ID")
 
-        if out=$(aws ecr describe-images "${args[@]}" 2>&1); then
+        # Any error from the call itself (auth, missing repository, throttling)
+        # fails the step: it must never read as "not found".
+        out=$(aws ecr batch-get-image "${args[@]}")
+        if [ "$(jq '.images | length' <<< "$out")" -gt 0 ]; then
           echo "$REPOSITORY:$TAG exists"
-          {
-            echo "exists=true"
-            echo "digest=$(jq -r '.imageDetails[0].imageDigest' <<< "$out")"
-            echo "pushed-at=$(jq -r '.imageDetails[0].imagePushedAt' <<< "$out")"
-          } >> "$GITHUB_OUTPUT"
-        elif grep -q ImageNotFoundException <<< "$out"; then
+          { echo "exists=true"; echo "digest=$(jq -r '.images[0].imageId.imageDigest' <<< "$out")"; } >> "$GITHUB_OUTPUT"
+        elif [ "$(jq -r '.failures[0].failureCode // empty' <<< "$out")" = ImageNotFound ]; then
           echo "$REPOSITORY:$TAG does not exist"
-          { echo "exists=false"; echo "digest="; echo "pushed-at="; } >> "$GITHUB_OUTPUT"
+          { echo "exists=false"; echo "digest="; } >> "$GITHUB_OUTPUT"
         else
-          # Any other error (auth, missing repository, throttling) must not read as "not found".
           echo "$out"
-          echo "::error::describe-images failed for $REPOSITORY:$TAG"; exit 1
+          echo "::error::unexpected BatchGetImage result for $REPOSITORY:$TAG"; exit 1
         fi

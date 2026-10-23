@@ -3,13 +3,13 @@
 #
 #   break-glass-sign.sh <owner/repo> --pr <number>          # merged hotfix PR
 #   break-glass-sign.sh <owner/repo> --tag <image tag>      # redeploy / roll back an existing image
-#   options: --key ~/.ssh/break_glass  --workflow break-glass.yaml  --ref main  --dry-run
+#   options: --key ~/.ssh/break_glass  --workflow <file, auto-detected>  --ref main  --dry-run
 #
 # The challenge is bound to the PR's merge commit (or the tag), so the signature
 # authorises exactly that deploy and nothing else. Touch the key when it blinks.
 set -euo pipefail
 REPO=${1:?usage: break-glass-sign.sh <owner/repo> --pr N | --tag T}; shift
-KEY=~/.ssh/break_glass; WORKFLOW=break-glass.yaml; REF=main; PR=""; TAG=""; DRY=""
+KEY=~/.ssh/break_glass; WORKFLOW=""; REF=main; PR=""; TAG=""; DRY=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --pr) PR=$2; shift 2 ;; --tag) TAG=$2; shift 2 ;; --key) KEY=$2; shift 2 ;;
@@ -22,6 +22,11 @@ done
 # The challenge names the repository as GITHUB_REPOSITORY does, so use the
 # canonical owner/name even when the caller passed an old (redirected) one.
 REPO=$(gh api "repos/$REPO" --jq .full_name)
+# The workflow file is break-glass.yml or break-glass.yaml depending on the repo.
+if [ -z "$WORKFLOW" ]; then
+  WORKFLOW=$(gh workflow list -R "$REPO" --all --json path --jq '.[] | .path | select(test("/break-glass\\.ya?ml$"))' | head -1 | xargs -r basename)
+  [ -n "$WORKFLOW" ] || { echo "no break-glass.yml/.yaml workflow in $REPO; pass --workflow" >&2; exit 2; }
+fi
 
 if [ -n "$PR" ]; then
   pr=$(gh api "repos/$REPO/pulls/$PR")
