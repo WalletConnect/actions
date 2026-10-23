@@ -56,25 +56,59 @@ A captured signature can only redeploy that same commit or tag, which is
 harmless; a compromised laptop cannot sign for any other commit without the
 device being touched. The dispatcher and the signer must be the same login.
 
-### Enrolment
+### Enrolling a YubiKey
 
-```bash
-ssh-keygen -t ed25519-sk -O resident -O verify-required -f ~/.ssh/break_glass
-cat ~/.ssh/break_glass.pub
-```
+Prerequisites: OpenSSH 8.2 or newer built with FIDO2 support (macOS: `brew
+install openssh`; Ubuntu 22.04 and newer ship it), a YubiKey 5 with a FIDO2
+PIN set (`ykman fido access change-pin`), and `gh` logged in.
 
-`verify-required` makes every signature ask for the PIN and a touch. Add a
-line to the repo's `.github/break-glass-signers`, through a normal PR
-(CODEOWNERS covers the file):
+1. **Generate the key on the device.** Plug the YubiKey in and run:
 
-```
-<github-login> namespaces="break-glass" sk-ssh-ed25519@openssh.com AAAA... <comment>
-```
+   ```bash
+   ssh-keygen -t ed25519-sk -O resident -O verify-required \
+     -O write-attestation="$HOME/.ssh/break_glass.att" -f ~/.ssh/break_glass
+   cat ~/.ssh/break_glass.pub
+   ```
 
-[`lint-signers`](lint-signers/action.yml) runs on PRs touching the file and
-rejects any key that is not an `sk-` type. To require the YubiKey brand
-specifically, verify the attestation `ssh-keygen -O write-attestation=...`
-produces at enrolment; the workflow cannot check the brand later.
+   `-sk` means the key pair is created inside the authenticator and the
+   private key never leaves it; `~/.ssh/break_glass` is only a handle to it.
+   `verify-required` makes every signature ask for the PIN and a touch;
+   `resident` keeps the credential on the device so another laptop can use it
+   after `ssh-keygen -K`. The command fails without a FIDO2 device attached.
+   Keep the `.att` file: it is the device's attestation, see step 3.
+
+2. **Add one line to the repository's signers file**,
+   `.github/break-glass-signers`, through a normal PR. The first field is your
+   GitHub login exactly as GitHub shows it (principal matching is
+   case-sensitive), then the namespace option, then the public line as printed:
+
+   ```
+   <github-login> namespaces="break-glass" sk-ssh-ed25519@openssh.com AAAA... <comment>
+   ```
+
+   One repository, one file: to run the break-glass path in both `rs-relay`
+   and `pay-core`, the same line goes into both repositories.
+
+3. **Review.** [`lint-signers`](lint-signers/action.yml) runs on the PR and
+   rejects any key that is not an `sk-` type. CODEOWNERS covers the file, so a
+   codeowner approves it. If the device brand matters, the reviewer checks
+   that the attestation from step 1 chains to the Yubico FIDO root CA; the
+   workflow only proves that a FIDO2 authenticator was touched, not which one.
+
+4. **Try it without deploying.** Signing works as soon as the key exists;
+   the signers file is only consulted by the run:
+
+   ```bash
+   break-glass-sign.sh <owner/repo> --tag <any existing image tag> --dry-run
+   ```
+
+   The YubiKey blinks, you touch it, the signature prints, nothing is
+   dispatched.
+
+5. **Rotation and loss.** Remove the line through a PR and the key stops
+   working on the next run; a replacement device is a new line. Enrolling a
+   second YubiKey as a second line is the backup, since a lost device cannot
+   be recovered.
 
 ## What each repository provides
 
