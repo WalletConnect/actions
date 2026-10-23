@@ -1,0 +1,56 @@
+name: Merged PR Labels
+description: >-
+  Finds the pull request a commit was merged from and reports its labels, so
+  a push-to-main pipeline can act on a label such as `skip-deploy`. A commit
+  with no merged PR (direct push) reports no labels.
+
+inputs:
+  sha:
+    description: Commit to look up
+    required: false
+    default: ${{ github.sha }}
+  label:
+    description: Label to test for; sets the `has-label` output
+    required: false
+    default: ''
+  token:
+    description: Token with pull-requests:read
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  pr:
+    description: Number of the merged PR, empty when none
+    value: ${{ steps.lookup.outputs.pr }}
+  labels:
+    description: JSON array of label names
+    value: ${{ steps.lookup.outputs.labels }}
+  has-label:
+    description: "true when `label` is set and present on the PR"
+    value: ${{ steps.lookup.outputs.has-label }}
+
+runs:
+  using: composite
+  steps:
+    - id: lookup
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ github.repository }}
+        SHA: ${{ inputs.sha }}
+        LABEL: ${{ inputs.label }}
+      run: |
+        set -euo pipefail
+        # Merged PRs only: an open PR that merely contains the commit must not count.
+        prs=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '[.[] | select(.merged_at != null)]')
+        if [ "$(jq length <<< "$prs")" -eq 0 ]; then
+          echo "no merged PR for ${SHA:0:7}"
+          { echo "pr="; echo "labels=[]"; echo "has-label=false"; } >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        pr=$(jq -r '.[0].number' <<< "$prs")
+        labels=$(jq -c '.[0].labels | map(.name)' <<< "$prs")
+        has=false
+        if [ -n "$LABEL" ] && [ "$(jq -r --arg l "$LABEL" 'index($l) != null' <<< "$labels")" = true ]; then has=true; fi
+        echo "PR #$pr labels: $labels${LABEL:+ (has '$LABEL': $has)}"
+        { echo "pr=$pr"; echo "labels=$labels"; echo "has-label=$has"; } >> "$GITHUB_OUTPUT"

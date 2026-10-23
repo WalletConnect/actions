@@ -1,0 +1,61 @@
+name: ECR Image Exists
+description: >-
+  Reports whether an image tag exists in an ECR repository, so a pipeline can
+  skip a build whose image was already published (for example by the regular
+  release). Uses BatchGetImage, which every credential that can push already
+  has (DescribeImages is a separate permission). AWS credentials must be
+  configured by the caller.
+
+inputs:
+  repository:
+    description: ECR repository name
+    required: true
+  tag:
+    description: Image tag to look up
+    required: true
+  region:
+    description: AWS region; defaults to the configured AWS_REGION
+    required: false
+    default: ''
+  registry-id:
+    description: AWS account id of the registry; defaults to the caller's account
+    required: false
+    default: ''
+
+outputs:
+  exists:
+    description: "true or false"
+    value: ${{ steps.lookup.outputs.exists }}
+  digest:
+    description: Image digest when it exists
+    value: ${{ steps.lookup.outputs.digest }}
+
+runs:
+  using: composite
+  steps:
+    - id: lookup
+      shell: bash
+      env:
+        REPOSITORY: ${{ inputs.repository }}
+        TAG: ${{ inputs.tag }}
+        REGION: ${{ inputs.region }}
+        REGISTRY_ID: ${{ inputs.registry-id }}
+      run: |
+        set -euo pipefail
+        args=(--repository-name "$REPOSITORY" --image-ids "imageTag=$TAG" --output json)
+        [ -n "$REGION" ] && args+=(--region "$REGION")
+        [ -n "$REGISTRY_ID" ] && args+=(--registry-id "$REGISTRY_ID")
+
+        # Any error from the call itself (auth, missing repository, throttling)
+        # fails the step: it must never read as "not found".
+        out=$(aws ecr batch-get-image "${args[@]}")
+        if [ "$(jq '.images | length' <<< "$out")" -gt 0 ]; then
+          echo "$REPOSITORY:$TAG exists"
+          { echo "exists=true"; echo "digest=$(jq -r '.images[0].imageId.imageDigest' <<< "$out")"; } >> "$GITHUB_OUTPUT"
+        elif [ "$(jq -r '.failures[0].failureCode // empty' <<< "$out")" = ImageNotFound ]; then
+          echo "$REPOSITORY:$TAG does not exist"
+          { echo "exists=false"; echo "digest="; } >> "$GITHUB_OUTPUT"
+        else
+          echo "$out"
+          echo "::error::unexpected BatchGetImage result for $REPOSITORY:$TAG"; exit 1
+        fi

@@ -1,0 +1,149 @@
+name: Break-Glass Verify Proof
+description: >-
+  Verifies that the person who dispatched the run holds an enrolled FIDO2
+  (YubiKey) SSH key: an `ssh-keygen -Y` signature, in the `break-glass`
+  namespace, over the challenge the run computed. The signer must be the
+  dispatcher (`github.actor`), listed in the repository's signers file, and the
+  key must be an `sk-` type, which cannot sign without the device being
+  touched. The proof is a dispatch input; without one, the challenge is posted
+  as a comment on `issue` (the hotfix PR, or a tracking issue) and the run
+  waits for the dispatcher to reply with the signature. Needs the repository
+  checked out (the signers file comes from main).
+
+inputs:
+  message:
+    description: The challenge text computed by the run, e.g. break-glass:<repo>:pr:<n>:<sha>
+    required: true
+  proof:
+    description: SSH signature over `message` (the PEM block, or its base64), from the dispatch input
+    required: false
+    default: ''
+  issue:
+    description: Issue or PR number to post the challenge on and poll for the reply when `proof` is empty
+    required: false
+    default: ''
+  signers-file:
+    description: allowed_signers file; principal = GitHub login, keys must be sk- types
+    required: false
+    default: .github/break-glass-signers
+  namespace:
+    description: Signature namespace
+    required: false
+    default: break-glass
+  poll-minutes:
+    description: How long to wait for a reply comment
+    required: false
+    default: '10'
+  token:
+    description: Token with issues:write (comment) and pull-requests:read
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  signer:
+    description: Login whose key verified the proof (always the dispatcher)
+    value: ${{ steps.verify.outputs.signer }}
+  key-type:
+    description: SSH key type of the verifying key
+    value: ${{ steps.verify.outputs.key-type }}
+
+runs:
+  using: composite
+  steps:
+    - id: verify
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ github.repository }}
+        ACTOR: ${{ github.actor }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        MESSAGE: ${{ inputs.message }}
+        PROOF: ${{ inputs.proof }}
+        ISSUE: ${{ inputs.issue }}
+        SIGNERS: ${{ inputs.signers-file }}
+        NAMESPACE: ${{ inputs.namespace }}
+        POLL_MINUTES: ${{ inputs.poll-minutes }}
+      run: |
+        set -euo pipefail
+        MARKER="<!-- break-glass-challenge -->"
+        [ -f "$SIGNERS" ] || { echo "::error::signers file $SIGNERS not found; enrol keys first (see github/break-glass/README.md)"; exit 1; }
+        HINT="is @$ACTOR's sk- key in $SIGNERS with principal '$ACTOR' (case-sensitive) and namespace '$NAMESPACE'?"
+        work=$(mktemp -d)
+        printf '%s' "$MESSAGE" > "$work/msg"
+
+        # Key type of the key embedded in an SSH signature (SSHSIG wire format).
+        key_type() {
+          python3 - "$1" <<'PY'
+        import base64, struct, sys
+        pem = open(sys.argv[1]).read().split("-----")[2]
+        blob = base64.b64decode("".join(pem.split()))
+        assert blob[:6] == b"SSHSIG", "not an SSH signature"
+        off = 10                                   # magic(6) + version(4)
+        (klen,) = struct.unpack(">I", blob[off:off+4]); key = blob[off+4:off+4+klen]
+        (tlen,) = struct.unpack(">I", key[:4]); print(key[4:4+tlen].decode())
+        PY
+        }
+        # Verify one PEM signature file against the message; prints the key type on success.
+        verify() {
+          ssh-keygen -Y verify -f "$SIGNERS" -I "$ACTOR" -n "$NAMESPACE" -s "$1" < "$work/msg" >/dev/null 2>&1 || return 1
+          local kt; kt=$(key_type "$1")
+          case "$kt" in
+            sk-ssh-ed25519@openssh.com|sk-ecdsa-sha2-nistp256@openssh.com) echo "$kt" ;;
+            *) echo "::error::proof verified but with a non-FIDO2 key ($kt); only sk- keys are accepted" >&2; return 1 ;;
+          esac
+        }
+        extract_sig() { awk '/-----BEGIN SSH SIGNATURE-----/,/-----END SSH SIGNATURE-----/' ; }
+        upsert_comment() {
+          local body="$MARKER"$'\n'"$1" cid
+          # No `| head -1` under pipefail: gh would get EPIPE on a later page.
+          cid=$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
+            --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id"); cid=${cid%%$'\n'*}
+          if [ -n "$cid" ]; then gh api -X PATCH "repos/$REPO/issues/comments/$cid" -f body="$body" >/dev/null
+          else gh api "repos/$REPO/issues/$ISSUE/comments" -f body="$body" >/dev/null; fi
+        }
+
+        kt=""
+        if [ -n "$PROOF" ]; then
+          if grep -q 'BEGIN SSH SIGNATURE' <<< "$PROOF"; then extract_sig <<< "$PROOF" > "$work/sig.pem"
+          else base64 -d <<< "$PROOF" > "$work/sig.pem"; fi
+          kt=$(verify "$work/sig.pem") || { echo "::error::the proof passed at dispatch does not verify for @$ACTOR over '$MESSAGE'; $HINT"; exit 1; }
+        else
+          [ -n "$ISSUE" ] || { echo "::error::no proof was passed and no issue/PR is set to post the challenge on"; exit 1; }
+          started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          upsert_comment "🔐 **Break-glass challenge** for @$ACTOR ($RUN_URL)
+
+        Sign this exact text with your enrolled YubiKey and reply with the signature block:
+        \`\`\`
+        $MESSAGE
+        \`\`\`
+        \`\`\`bash
+        printf '%s' '$MESSAGE' | ssh-keygen -Y sign -n $NAMESPACE -f ~/.ssh/break_glass
+        \`\`\`
+        The run waits $POLL_MINUTES minutes. Only a reply by @$ACTOR counts."
+          deadline=$(( $(date +%s) + POLL_MINUTES * 60 ))
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            sleep 20
+            # Only comments by the dispatcher, posted after the challenge. A transient
+            # API failure must not abort the wait, so the call is guarded.
+            if ! list=$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
+                --jq ".[] | select(.user.login == \"$ACTOR\") | select(.created_at >= \"$started\") | select(.body | contains(\"BEGIN SSH SIGNATURE\")) | \"\(.id) \(.body | @base64)\""); then
+              echo "::warning::comments API failed; retrying"; continue
+            fi
+            while read -r cid b64; do   # newest first
+              [ -n "$cid" ] || continue
+              base64 -d <<< "$b64" | extract_sig > "$work/sig.pem"
+              if kt=$(verify "$work/sig.pem"); then break; fi
+              echo "comment $cid by @$ACTOR does not verify; $HINT"
+            done < <(tac <<< "$list")
+            [ -n "$kt" ] && break
+            echo "waiting for @$ACTOR's signed reply on #$ISSUE ($(( (deadline - $(date +%s)) / 60 )) min left)"
+          done
+          if [ -z "$kt" ]; then
+            upsert_comment "⛔ **Break-glass challenge expired** for @$ACTOR ($RUN_URL): no valid signature within $POLL_MINUTES minutes. Dispatch again."
+            echo "::error::no valid proof from @$ACTOR within $POLL_MINUTES minutes"; exit 1
+          fi
+          upsert_comment "✅ **Break-glass proof verified** for @$ACTOR ($RUN_URL): $kt signature over \`$MESSAGE\`."
+        fi
+        echo "proof verified: @$ACTOR signed '$MESSAGE' with a $kt key"
+        { echo "signer=$ACTOR"; echo "key-type=$kt"; } >> "$GITHUB_OUTPUT"
+        echo "- 🔐 Proof: @$ACTOR, \`$kt\`, over \`$MESSAGE\`" >> "$GITHUB_STEP_SUMMARY"
