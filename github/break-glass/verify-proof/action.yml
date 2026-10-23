@@ -67,9 +67,7 @@ runs:
         set -euo pipefail
         MARKER="<!-- break-glass-challenge -->"
         [ -f "$SIGNERS" ] || { echo "::error::signers file $SIGNERS not found; enrol keys first (see github/break-glass/README.md)"; exit 1; }
-        if ! grep -qE "^$ACTOR[ ,]" "$SIGNERS"; then
-          echo "::error::@$ACTOR has no enrolled break-glass key in $SIGNERS"; exit 1
-        fi
+        HINT="is @$ACTOR's sk- key in $SIGNERS with principal '$ACTOR' (case-sensitive) and namespace '$NAMESPACE'?"
         work=$(mktemp -d)
         printf '%s' "$MESSAGE" > "$work/msg"
 
@@ -97,8 +95,9 @@ runs:
         extract_sig() { awk '/-----BEGIN SSH SIGNATURE-----/,/-----END SSH SIGNATURE-----/' ; }
         upsert_comment() {
           local body="$MARKER"$'\n'"$1" cid
+          # No `| head -1` under pipefail: gh would get EPIPE on a later page.
           cid=$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
-            --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" | head -1)
+            --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id"); cid=${cid%%$'\n'*}
           if [ -n "$cid" ]; then gh api -X PATCH "repos/$REPO/issues/comments/$cid" -f body="$body" >/dev/null
           else gh api "repos/$REPO/issues/$ISSUE/comments" -f body="$body" >/dev/null; fi
         }
@@ -107,7 +106,7 @@ runs:
         if [ -n "$PROOF" ]; then
           if grep -q 'BEGIN SSH SIGNATURE' <<< "$PROOF"; then extract_sig <<< "$PROOF" > "$work/sig.pem"
           else base64 -d <<< "$PROOF" > "$work/sig.pem"; fi
-          kt=$(verify "$work/sig.pem") || { echo "::error::the proof passed at dispatch does not verify for @$ACTOR over '$MESSAGE'"; exit 1; }
+          kt=$(verify "$work/sig.pem") || { echo "::error::the proof passed at dispatch does not verify for @$ACTOR over '$MESSAGE'; $HINT"; exit 1; }
         else
           [ -n "$ISSUE" ] || { echo "::error::no proof was passed and no issue/PR is set to post the challenge on"; exit 1; }
           started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -124,14 +123,19 @@ runs:
           deadline=$(( $(date +%s) + POLL_MINUTES * 60 ))
           while [ "$(date +%s)" -lt "$deadline" ]; do
             sleep 20
-            # Only comments by the dispatcher, posted after the challenge; newest first.
-            gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
-              --jq ".[] | select(.user.login == \"$ACTOR\") | select(.created_at >= \"$started\") | select(.body | contains(\"BEGIN SSH SIGNATURE\")) | .id" \
-              | tac | while read -r cid; do
-                  gh api "repos/$REPO/issues/comments/$cid" --jq .body | extract_sig > "$work/sig.pem"
-                  if kt=$(verify "$work/sig.pem"); then echo "$kt" > "$work/ok"; break; fi
-                done
-            [ -f "$work/ok" ] && { kt=$(cat "$work/ok"); break; }
+            # Only comments by the dispatcher, posted after the challenge. A transient
+            # API failure must not abort the wait, so the call is guarded.
+            if ! list=$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
+                --jq ".[] | select(.user.login == \"$ACTOR\") | select(.created_at >= \"$started\") | select(.body | contains(\"BEGIN SSH SIGNATURE\")) | \"\(.id) \(.body | @base64)\""); then
+              echo "::warning::comments API failed; retrying"; continue
+            fi
+            while read -r cid b64; do   # newest first
+              [ -n "$cid" ] || continue
+              base64 -d <<< "$b64" | extract_sig > "$work/sig.pem"
+              if kt=$(verify "$work/sig.pem"); then break; fi
+              echo "comment $cid by @$ACTOR does not verify; $HINT"
+            done < <(tac <<< "$list")
+            [ -n "$kt" ] && break
             echo "waiting for @$ACTOR's signed reply on #$ISSUE ($(( (deadline - $(date +%s)) / 60 )) min left)"
           done
           if [ -z "$kt" ]; then

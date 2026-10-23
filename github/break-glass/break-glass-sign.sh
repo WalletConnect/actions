@@ -35,6 +35,12 @@ if [ -n "$PR" ]; then
   msg="break-glass:$REPO:pr:$PR:$sha"
   inputs=(-f "pr=$PR")
 else
+  if [ "$TAG" = previous ]; then
+    echo "'previous' is resolved inside the workflow, so it cannot be signed here. Either pass the concrete tag" >&2
+    echo "(the workflow's run summary / README show how each repo defines 'previous'), or dispatch from the" >&2
+    echo "Actions page with image-tag=previous and answer the challenge comment with your signature." >&2
+    exit 2
+  fi
   msg="break-glass:$REPO:tag:$TAG"
   inputs=(-f "image-tag=$TAG")
 fi
