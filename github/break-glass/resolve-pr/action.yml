@@ -66,12 +66,12 @@ runs:
           echo "- PR: $url — $title (by @$author)"
           echo "- Commit: \`$sha\`"
           echo "- Triggered by: @$ACTOR"
-          echo "- Approval: any codeowner **except @$ACTOR** (self-review is prevented on the \`break-glass\` environment)"
+          echo "- Authorisation: @$ACTOR's YubiKey proof over the challenge (see the verify step)"
         } >> "$GITHUB_STEP_SUMMARY"
         if [ "$COMMENT" = true ]; then
           gh api "repos/$REPO/issues/$PR/comments" -f body="🚨 **Break-glass deploy requested** by @$ACTOR for merge commit \`${sha:0:7}\`: $RUN_URL
 
-        The regular post-merge validation is skipped. A codeowner other than @$ACTOR must approve the \`break-glass\` environment on that run before anything is deployed." >/dev/null
+        The regular post-merge validation is skipped: staging and prod are deployed in parallel once @$ACTOR's YubiKey proof verifies, and the usual tests run afterwards." >/dev/null
         fi
         {
           echo "sha=$sha"; echo "author=$author"; echo "url=$url"
