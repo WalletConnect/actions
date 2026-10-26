@@ -24,11 +24,10 @@ end-to-end stage of the regular release.
    ```
 
    This command is the only way to run it: a dispatch from the Actions page
-   carries no proof and fails at the `verify` job. `--tag previous` resolves
-   the image before the running one (rs-relay: the release tag before the
-   newest; pay-core: the newest earlier prod task-definition revision with a
-   different image, which needs AWS credentials for the prod account) and
-   signs that concrete tag.
+   carries no proof and fails at the `verify` job. For a rollback, pass the
+   tag you want: a `v*` release tag in rs-relay, the commit SHA of the release
+   in pay-core (both visible in the release run that deployed it, or on the
+   running ECS task definition).
 3. The run resolves the target ([`resolve-pr`](resolve-pr/action.yml) for a
    PR, the ECR lookup for a tag) and comments on the PR. It takes the `cd`
    concurrency group with `cancel-in-progress: true`, which cancels the
@@ -136,8 +135,7 @@ jobs:
   tests:           # needs: deploy-staging; the regular test suite, continue-on-error
 ```
 
-`.github/break-glass-signers` and a lint job on PRs that touch it. The rule
-for `previous` lives in `break-glass-sign.sh`, per repository.
+`.github/break-glass-signers` and a lint job on PRs that touch it.
 
 The regular release honours `skip-deploy` with one step before its deploy job:
 
