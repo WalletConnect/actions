@@ -3,6 +3,7 @@
 #
 #   break-glass-sign.sh <owner/repo> --pr <number>          # merged hotfix PR
 #   break-glass-sign.sh <owner/repo> --tag <image tag>      # redeploy / roll back an existing image
+#   break-glass-sign.sh <owner/repo> --tag previous         # the image before the running one (see below)
 #   options: --key ~/.ssh/break_glass  --workflow <file, auto-detected>  --ref main  --dry-run
 #
 # The challenge is bound to the PR's merge commit (or the tag), so the signature
@@ -36,10 +37,33 @@ if [ -n "$PR" ]; then
   inputs=(-f "pr=$PR")
 else
   if [ "$TAG" = previous ]; then
-    echo "'previous' is resolved inside the workflow, so it cannot be signed here. Either pass the concrete tag" >&2
-    echo "(the workflow's run summary / README show how each repo defines 'previous'), or dispatch from the" >&2
-    echo "Actions page with image-tag=previous and answer the challenge comment with your signature." >&2
-    exit 2
+    # The run deploys exactly the tag that is signed, so `previous` is resolved
+    # here, not in the workflow. How depends on the repository.
+    case "$REPO" in
+      reown-com/rs-relay)
+        # Releases are tagged v* and every tag is published to ECR; "previous" is the
+        # release before the newest one (assumes the newest is what runs now).
+        TAG=$(gh api "repos/$REPO/git/matching-refs/tags/v" --paginate --jq '.[].ref | ltrimstr("refs/tags/")' \
+              | grep -E '^v[0-9]' | sort -V | tail -2 | head -1)
+        ;;
+      WalletConnect/pay-core)
+        # The newest earlier prod task-definition revision whose image differs from
+        # the running one. Needs AWS credentials for the prod account (AWS_PROFILE).
+        command -v aws >/dev/null || { echo "aws CLI needed to resolve 'previous' for $REPO; pass the tag explicitly" >&2; exit 2; }
+        name=wc-${AWS_REGION:-eu-central-1}-prod-pay-core
+        image_of() { aws ecs describe-task-definition --task-definition "$1" --query "taskDefinition.containerDefinitions[?name=='$name'].image | [0]" --output text; }
+        td=$(aws ecs describe-services --cluster "$name-cluster" --services "$name-service" --query 'services[0].taskDefinition' --output text)
+        family=${td%:*}; rev=${td##*:}; running=$(image_of "$td"); running=${running##*:}; TAG=""
+        for prev in $(seq $((rev - 1)) -1 $((rev - 25))); do
+          [ "$prev" -ge 1 ] || break
+          image=$(image_of "$family:$prev" 2>/dev/null) || continue
+          t=${image##*:}; if [ -n "$t" ] && [ "$t" != None ] && [ "$t" != "$running" ]; then TAG=$t; break; fi
+        done
+        [ -n "$TAG" ] || { echo "no earlier prod revision runs a different image than $running; pass the tag explicitly" >&2; exit 2; }
+        ;;
+      *) echo "'previous' is not defined for $REPO; pass the tag explicitly" >&2; exit 2 ;;
+    esac
+    echo "previous = $TAG"
   fi
   msg="break-glass:$REPO:tag:$TAG"
   inputs=(-f "image-tag=$TAG")

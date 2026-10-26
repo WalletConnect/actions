@@ -23,15 +23,18 @@ end-to-end stage of the regular release.
    break-glass-sign.sh reown-com/rs-relay --tag v1.80.3     # redeploy or roll back an existing image
    ```
 
-   Dispatching from the Actions page also works: the run then posts the
-   challenge as a comment on the PR (or the repo's tracking issue in tag mode)
-   and waits up to ten minutes for your signed reply.
+   This command is the only way to run it: a dispatch from the Actions page
+   carries no proof and fails at the `verify` job. `--tag previous` resolves
+   the image before the running one (rs-relay: the release tag before the
+   newest; pay-core: the newest earlier prod task-definition revision with a
+   different image, which needs AWS credentials for the prod account) and
+   signs that concrete tag.
 3. The run resolves the target ([`resolve-pr`](resolve-pr/action.yml) for a
    PR, the ECR lookup for a tag) and comments on the PR. It takes the `cd`
    concurrency group with `cancel-in-progress: true`, which cancels the
    regular pipeline's deploy stage in both repos while its image build keeps
    going.
-4. [`verify-proof`](verify-proof/action.yml) checks the signature: by the
+4. [`verify-proof`](verify-proof/action.yml) checks the `proof` input: by the
    dispatcher, listed in `.github/break-glass-signers`, `sk-` key, over the
    challenge the run computed itself. Nothing is built or deployed before this
    passes.
@@ -119,23 +122,22 @@ on:
   workflow_dispatch:
     inputs:
       pr:        { description: Merged hotfix PR number, required: false }
-      image-tag: { description: Existing image tag to deploy (or "previous"), required: false }
-      proof:     { description: YubiKey signature from break-glass-sign.sh, required: false }
+      image-tag: { description: Existing image tag to deploy, required: false }
+      proof:     { description: YubiKey signature from break-glass-sign.sh, required: true }
 concurrency:
   group: cd              # the regular deploy stage's group in both repos
   cancel-in-progress: true
 jobs:
   resolve:         # exactly one of pr / image-tag; resolve-pr → sha, or ECR lookup → tag; computes the challenge
-  verify:          # needs: resolve; verify-proof (issue = the PR, or the tracking issue in tag mode)
+  verify:          # needs: resolve; verify-proof on the proof input
   build:           # needs: verify; large runner; skipped when aws/ecr/image-exists is true or in tag mode
   deploy-staging:  # needs: build
   deploy-prod:     # needs: build        (in parallel with staging)
   tests:           # needs: deploy-staging; the regular test suite, continue-on-error
 ```
 
-`.github/break-glass-signers`, a lint job on PRs that touch it, and in tag
-mode the repo's rule for `previous` (pay-core: the ECS task definition's
-previous revision; rs-relay: the previous `v*` tag).
+`.github/break-glass-signers` and a lint job on PRs that touch it. The rule
+for `previous` lives in `break-glass-sign.sh`, per repository.
 
 The regular release honours `skip-deploy` with one step before its deploy job:
 
