@@ -42,7 +42,14 @@ runs:
       run: |
         set -euo pipefail
         # Merged PRs only: an open PR that merely contains the commit must not count.
-        prs=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '[.[] | select(.merged_at != null)]')
+        # Fail open: this runs in every regular release, and a transient API error
+        # must not fail the release. A missed label only means the deploy stage is
+        # not skipped, which the break-glass run's cancel-in-progress covers.
+        if ! prs=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '[.[] | select(.merged_at != null)]'); then
+          echo "::warning::could not look up the PR for ${SHA:0:7}; treating it as unlabelled"
+          { echo "pr="; echo "labels=[]"; echo "has-label=false"; } >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
         if [ "$(jq length <<< "$prs")" -eq 0 ]; then
           echo "no merged PR for ${SHA:0:7}"
           { echo "pr="; echo "labels=[]"; echo "has-label=false"; } >> "$GITHUB_OUTPUT"
