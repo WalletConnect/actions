@@ -147,6 +147,17 @@ The regular release honours `skip-deploy` with one step before its deploy job:
       # then: if: steps.merged.outputs.has-label != 'true' on the deploy job
 ```
 
+## Rules the run enforces
+
+- Dispatched on `main` only; the signers file is read from main.
+- Nothing runs before `verify`: no cloud role, no build, no PR comment.
+- A re-run must be by the dispatcher; the proof is bound to them.
+- `terraform/` must not differ between the target commit and main HEAD: the
+  deploy applies main's Terraform with the target image. Deploy main HEAD
+  instead, or an image whose Terraform matches.
+- After `verify`, in-flight regular releases of older commits are cancelled,
+  so none of them can redeploy a version without the hotfix afterwards.
+
 ## Notes
 
 - A Terraform Cloud apply that is already running is not cancelled with the

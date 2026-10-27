@@ -40,6 +40,8 @@ runs:
       env:
         REPO: ${{ github.repository }}
         ACTOR: ${{ github.actor }}
+        TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+        RUN_ATTEMPT: ${{ github.run_attempt }}
         MESSAGE: ${{ inputs.message }}
         PROOF: ${{ inputs.proof }}
         SIGNERS: ${{ inputs.signers-file }}
@@ -48,6 +50,12 @@ runs:
         set -euo pipefail
         [ -f "$SIGNERS" ] || { echo "::error::signers file $SIGNERS not found; enrol keys first (see github/break-glass/README.md)"; exit 1; }
         HINT="is @$ACTOR's sk- key in $SIGNERS with principal '$ACTOR' (case-sensitive) and namespace '$NAMESPACE'?"
+        # On a re-run, github.actor stays the original dispatcher and the proof input is
+        # kept, so anyone with write access could replay a verified deploy. Only the
+        # dispatcher may re-run their own run.
+        if [ "$TRIGGERING_ACTOR" != "$ACTOR" ]; then
+          echo "::error::run attempt $RUN_ATTEMPT was started by @$TRIGGERING_ACTOR but the proof belongs to @$ACTOR; a break-glass run can only be re-run by its dispatcher. Dispatch a new run with your own proof."; exit 1
+        fi
         if [ -z "$PROOF" ]; then
           echo "::error::no proof: dispatch with break-glass-sign.sh, which signs the challenge on your YubiKey and passes it as the 'proof' input. Dispatching from the Actions page is not supported."; exit 1
         fi
