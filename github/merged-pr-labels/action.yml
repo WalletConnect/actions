@@ -1,8 +1,9 @@
 name: Merged PR Labels
 description: >-
-  Finds the pull request a commit was merged from and reports its labels, so
-  a push-to-main pipeline can act on a label such as `skip-deploy`. A commit
-  with no merged PR (direct push) reports no labels.
+  Finds the pull request a commit was merged from and reports its labels and
+  title, so a push-to-main pipeline can act on a label such as `skip-deploy`
+  or a title prefix such as `hotfix:`. A commit with no merged PR (direct
+  push) reports no labels and an empty title.
 
 inputs:
   sha:
@@ -28,6 +29,9 @@ outputs:
   has-label:
     description: "true when `label` is set and present on the PR"
     value: ${{ steps.lookup.outputs.has-label }}
+  title:
+    description: Title of the merged PR, empty when none
+    value: ${{ steps.lookup.outputs.title }}
 
 runs:
   using: composite
@@ -47,17 +51,18 @@ runs:
         # not skipped, which the break-glass run's cancel-in-progress covers.
         if ! prs=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '[.[] | select(.merged_at != null)]'); then
           echo "::warning::could not look up the PR for ${SHA:0:7}; treating it as unlabelled"
-          { echo "pr="; echo "labels=[]"; echo "has-label=false"; } >> "$GITHUB_OUTPUT"
+          { echo "pr="; echo "labels=[]"; echo "has-label=false"; echo "title="; } >> "$GITHUB_OUTPUT"
           exit 0
         fi
         if [ "$(jq length <<< "$prs")" -eq 0 ]; then
           echo "no merged PR for ${SHA:0:7}"
-          { echo "pr="; echo "labels=[]"; echo "has-label=false"; } >> "$GITHUB_OUTPUT"
+          { echo "pr="; echo "labels=[]"; echo "has-label=false"; echo "title="; } >> "$GITHUB_OUTPUT"
           exit 0
         fi
         pr=$(jq -r '.[0].number' <<< "$prs")
         labels=$(jq -c '.[0].labels | map(.name)' <<< "$prs")
         has=false
         if [ -n "$LABEL" ] && [ "$(jq -r --arg l "$LABEL" 'index($l) != null' <<< "$labels")" = true ]; then has=true; fi
-        echo "PR #$pr labels: $labels${LABEL:+ (has '$LABEL': $has)}"
-        { echo "pr=$pr"; echo "labels=$labels"; echo "has-label=$has"; } >> "$GITHUB_OUTPUT"
+        title=$(jq -r '.[0].title' <<< "$prs")
+        echo "PR #$pr labels: $labels${LABEL:+ (has '$LABEL': $has)}; title: $title"
+        { echo "pr=$pr"; echo "labels=$labels"; echo "has-label=$has"; echo "title<<EOT"; echo "$title"; echo "EOT"; } >> "$GITHUB_OUTPUT"
