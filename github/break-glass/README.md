@@ -12,9 +12,11 @@ end-to-end stage of the regular release.
 
 ## Flow
 
-1. Review and merge the hotfix PR. Add the `skip-deploy` label **before
-   merging**: the regular release then builds and publishes the image but
-   does not deploy (see below).
+1. Review and merge the hotfix PR. Add two labels **before merging**:
+   `skip-deploy`, so the regular release builds and publishes the image but
+   does not deploy, and `hotfix`, so it builds on the large runner
+   (`vars.BREAK_GLASS_RUNNER`). Both labels are defined in
+   `WalletConnect/infra`.
 2. Dispatch `break-glass.yaml` on `main` with the helper, which signs the
    challenge on your YubiKey and dispatches in one go:
 
