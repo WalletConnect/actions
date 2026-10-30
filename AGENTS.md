@@ -29,8 +29,8 @@ pre-commit run --all-files # Run all checks
 
 - **actions/** - High-level composite actions (deploy-terraform, deploy-ecs, plan-terraform)
 - **terraform/** - Terraform primitives (init, plan, apply, validate, select-workspace, check-fmt)
-- **aws/** - AWS-specific actions (ECS deploy/task-image, Grafana key management)
-- **github/** - GitHub utilities (paths-filter, branch-name, release versioning, CTA assistant)
+- **aws/** - AWS-specific actions (ECS deploy/task-image, Grafana key management, ECR image lookup)
+- **github/** - GitHub utilities (paths-filter, branch-name, release versioning, CTA assistant, merged-pr-labels, break-glass resolve-pr/verify-proof/lint-signers — see `github/break-glass/README.md`)
 - **claude/** - AI review actions
   - **auto-review/** - PR code review with inline findings comments
   - **terraform-plan-review/** - Terraform plan analysis
@@ -88,6 +88,12 @@ Specialized review tasks run as conditional subagents to keep the main review co
 ### Action References
 - Consumers should pin to full 40-char commit SHA, not branch names
 - Internal action refs use `@master` for this repo
+
+### Break-glass (`github/break-glass/`)
+- Runbook and the contract each consumer repo implements: `github/break-glass/README.md`. Read it before changing any of these actions; `rs-relay` and `pay-core` depend on the exact challenge format (`break-glass:<owner/repo>:pr:<n>:<sha>` / `…:tag:<tag>`, signed with `printf '%s'`, no trailing newline) and on `verify-proof` rejecting every key type that is not `sk-` (FIDO2). Keep both invariants.
+- `break-glass-sign.sh` must stay in step with `verify-proof`: same challenge, same namespace (`break-glass`), canonical repo name from `gh api repos/<repo>`.
+- The signers file lives in each consumer repo (`.github/break-glass-signers`, `allowed_signers` format, GitHub login as principal), never here.
+- `aws/ecr/image-exists` uses `BatchGetImage` on purpose: push credentials have it, `DescribeImages` is a separate permission.
 
 ## Testing Guidelines
 

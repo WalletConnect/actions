@@ -1,0 +1,112 @@
+name: Break-Glass Verify Proof
+description: >-
+  Verifies that the person who dispatched the run holds an enrolled FIDO2
+  (YubiKey) SSH key: an `ssh-keygen -Y` signature, in the `break-glass`
+  namespace, over the challenge the run computed, passed as the dispatch
+  input `proof` by break-glass-sign.sh. The signer must be the dispatcher
+  (`github.actor`), listed in the repository's signers file, and the key must
+  be an `sk-` type, which cannot sign without the device being touched. The
+  run must be on the repository's default branch, and the signers file is
+  read from that branch through the API, not from the checkout, so neither
+  rule depends on the calling workflow.
+
+inputs:
+  message:
+    description: The challenge text computed by the run, e.g. break-glass:<repo>:pr:<n>:<sha>
+    required: true
+  proof:
+    description: SSH signature over `message` (the PEM block, or its base64), from the dispatch input
+    required: true
+  signers-file:
+    description: Path of the allowed_signers file in the repository (read from the default branch); principal = GitHub login, keys must be sk- types
+    required: false
+    default: .github/break-glass-signers
+  token:
+    description: Token with contents:read, to read the signers file from the default branch
+    required: false
+    default: ${{ github.token }}
+  namespace:
+    description: Signature namespace
+    required: false
+    default: break-glass
+
+outputs:
+  signer:
+    description: Login whose key verified the proof (always the dispatcher)
+    value: ${{ steps.verify.outputs.signer }}
+  key-type:
+    description: SSH key type of the verifying key
+    value: ${{ steps.verify.outputs.key-type }}
+
+runs:
+  using: composite
+  steps:
+    - id: verify
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ github.repository }}
+        REF: ${{ github.ref }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        ACTOR: ${{ github.actor }}
+        TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+        RUN_ATTEMPT: ${{ github.run_attempt }}
+        MESSAGE: ${{ inputs.message }}
+        PROOF: ${{ inputs.proof }}
+        SIGNERS: ${{ inputs.signers-file }}
+        NAMESPACE: ${{ inputs.namespace }}
+      run: |
+        set -euo pipefail
+        # Default branch only: a workflow copy on another branch must not be able to
+        # deploy, whatever its own gates say.
+        if [ "$REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
+          echo "::error::break-glass runs only on $DEFAULT_BRANCH (this run is on $REF)"; exit 1
+        fi
+        # The signers file comes from the default branch through the API, never from
+        # the checkout, so a branch cannot supply its own key list.
+        work=$(mktemp -d)
+        if ! gh api "repos/$REPO/contents/$SIGNERS?ref=$DEFAULT_BRANCH" --jq .content | base64 -d > "$work/signers" 2>/dev/null || [ ! -s "$work/signers" ]; then
+          echo "::error::signers file $SIGNERS not found on $DEFAULT_BRANCH; enrol keys first (see github/break-glass/README.md)"; exit 1
+        fi
+        SIGNERS=$work/signers
+        HINT="is @$ACTOR's sk- key in $SIGNERS with principal '$ACTOR' (case-sensitive) and namespace '$NAMESPACE'?"
+        # On a re-run, github.actor stays the original dispatcher and the proof input is
+        # kept, so anyone with write access could replay a verified deploy. Only the
+        # dispatcher may re-run their own run.
+        if [ "$TRIGGERING_ACTOR" != "$ACTOR" ]; then
+          echo "::error::run attempt $RUN_ATTEMPT was started by @$TRIGGERING_ACTOR but the proof belongs to @$ACTOR; a break-glass run can only be re-run by its dispatcher. Dispatch a new run with your own proof."; exit 1
+        fi
+        if [ -z "$PROOF" ]; then
+          echo "::error::no proof: dispatch with break-glass-sign.sh, which signs the challenge on your YubiKey and passes it as the 'proof' input. Dispatching from the Actions page is not supported."; exit 1
+        fi
+        printf '%s' "$MESSAGE" > "$work/msg"
+
+        # Key type of the key embedded in an SSH signature (SSHSIG wire format).
+        key_type() {
+          python3 - "$1" <<'PY'
+        import base64, struct, sys
+        pem = open(sys.argv[1]).read().split("-----")[2]
+        blob = base64.b64decode("".join(pem.split()))
+        assert blob[:6] == b"SSHSIG", "not an SSH signature"
+        off = 10                                   # magic(6) + version(4)
+        (klen,) = struct.unpack(">I", blob[off:off+4]); key = blob[off+4:off+4+klen]
+        (tlen,) = struct.unpack(">I", key[:4]); print(key[4:4+tlen].decode())
+        PY
+        }
+        # Verify one PEM signature file against the message; prints the key type on success.
+        verify() {
+          ssh-keygen -Y verify -f "$SIGNERS" -I "$ACTOR" -n "$NAMESPACE" -s "$1" < "$work/msg" >/dev/null 2>&1 || return 1
+          local kt; kt=$(key_type "$1")
+          case "$kt" in
+            sk-ssh-ed25519@openssh.com|sk-ecdsa-sha2-nistp256@openssh.com) echo "$kt" ;;
+            *) echo "::error::proof verified but with a non-FIDO2 key ($kt); only sk- keys are accepted" >&2; return 1 ;;
+          esac
+        }
+        extract_sig() { awk '/-----BEGIN SSH SIGNATURE-----/,/-----END SSH SIGNATURE-----/' ; }
+
+        if grep -q 'BEGIN SSH SIGNATURE' <<< "$PROOF"; then extract_sig <<< "$PROOF" > "$work/sig.pem"
+        else base64 -d <<< "$PROOF" > "$work/sig.pem"; fi
+        kt=$(verify "$work/sig.pem") || { echo "::error::the proof passed at dispatch does not verify for @$ACTOR over '$MESSAGE'; $HINT"; exit 1; }
+        echo "proof verified: @$ACTOR signed '$MESSAGE' with a $kt key"
+        { echo "signer=$ACTOR"; echo "key-type=$kt"; } >> "$GITHUB_OUTPUT"
+        echo "- 🔐 Proof: @$ACTOR, \`$kt\`, over \`$MESSAGE\`" >> "$GITHUB_STEP_SUMMARY"

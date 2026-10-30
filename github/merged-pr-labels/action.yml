@@ -1,0 +1,68 @@
+name: Merged PR Labels
+description: >-
+  Finds the pull request a commit was merged from and reports its labels and
+  title, so a push-to-main pipeline can act on a label such as `skip-deploy`
+  or a title prefix such as `hotfix:`. A commit with no merged PR (direct
+  push) reports no labels and an empty title.
+
+inputs:
+  sha:
+    description: Commit to look up
+    required: false
+    default: ${{ github.sha }}
+  label:
+    description: Label to test for; sets the `has-label` output
+    required: false
+    default: ''
+  token:
+    description: Token with pull-requests:read
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  pr:
+    description: Number of the merged PR, empty when none
+    value: ${{ steps.lookup.outputs.pr }}
+  labels:
+    description: JSON array of label names
+    value: ${{ steps.lookup.outputs.labels }}
+  has-label:
+    description: "true when `label` is set and present on the PR"
+    value: ${{ steps.lookup.outputs.has-label }}
+  title:
+    description: Title of the merged PR, empty when none
+    value: ${{ steps.lookup.outputs.title }}
+
+runs:
+  using: composite
+  steps:
+    - id: lookup
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ github.repository }}
+        SHA: ${{ inputs.sha }}
+        LABEL: ${{ inputs.label }}
+      run: |
+        set -euo pipefail
+        # Merged PRs only: an open PR that merely contains the commit must not count.
+        # Fail open: this runs in every regular release, and a transient API error
+        # must not fail the release. A missed label only means the deploy stage is
+        # not skipped, which the break-glass run's cancel-in-progress covers.
+        if ! prs=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '[.[] | select(.merged_at != null)]'); then
+          echo "::warning::could not look up the PR for ${SHA:0:7}; treating it as unlabelled"
+          { echo "pr="; echo "labels=[]"; echo "has-label=false"; echo "title="; } >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        if [ "$(jq length <<< "$prs")" -eq 0 ]; then
+          echo "no merged PR for ${SHA:0:7}"
+          { echo "pr="; echo "labels=[]"; echo "has-label=false"; echo "title="; } >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        pr=$(jq -r '.[0].number' <<< "$prs")
+        labels=$(jq -c '.[0].labels | map(.name)' <<< "$prs")
+        has=false
+        if [ -n "$LABEL" ] && [ "$(jq -r --arg l "$LABEL" 'index($l) != null' <<< "$labels")" = true ]; then has=true; fi
+        title=$(jq -r '.[0].title' <<< "$prs")
+        echo "PR #$pr labels: $labels${LABEL:+ (has '$LABEL': $has)}; title: $title"
+        { echo "pr=$pr"; echo "labels=$labels"; echo "has-label=$has"; echo "title<<EOT"; echo "$title"; echo "EOT"; } >> "$GITHUB_OUTPUT"

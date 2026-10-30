@@ -1,0 +1,79 @@
+name: Break-Glass Resolve PR
+description: >-
+  Turns a hotfix pull request number into the commit a break-glass run
+  deploys: checks the PR is merged into the default branch, outputs its merge
+  commit, and announces the run on the PR and in the step summary.
+
+inputs:
+  pr:
+    description: Number of the merged hotfix pull request
+    required: true
+  token:
+    description: Token with pull-requests:write and contents:read
+    required: false
+    default: ${{ github.token }}
+  comment:
+    description: Post a comment on the PR linking this run
+    required: false
+    default: 'true'
+
+outputs:
+  sha:
+    description: Merge commit of the PR on the default branch, the commit to build and deploy
+    value: ${{ steps.resolve.outputs.sha }}
+  author:
+    description: PR author login
+    value: ${{ steps.resolve.outputs.author }}
+  title:
+    description: PR title
+    value: ${{ steps.resolve.outputs.title }}
+  url:
+    description: PR URL
+    value: ${{ steps.resolve.outputs.url }}
+
+runs:
+  using: composite
+  steps:
+    - id: resolve
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ github.repository }}
+        PR: ${{ inputs.pr }}
+        COMMENT: ${{ inputs.comment }}
+        ACTOR: ${{ github.actor }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        set -euo pipefail
+        [[ "$PR" =~ ^[0-9]+$ ]] || { echo "::error::pr must be a pull request number (got '$PR')"; exit 1; }
+        pr=$(gh api "repos/$REPO/pulls/$PR")
+        default=$(gh api "repos/$REPO" --jq .default_branch)
+        merged=$(jq -r .merged <<< "$pr"); base=$(jq -r .base.ref <<< "$pr")
+        if [ "$merged" != true ]; then
+          echo "::error::PR #$PR is not merged; break-glass deploys merged hotfixes only"; exit 1
+        fi
+        if [ "$base" != "$default" ]; then
+          echo "::error::PR #$PR was merged into '$base', not '$default'"; exit 1
+        fi
+        sha=$(jq -r .merge_commit_sha <<< "$pr")
+        # The merge commit must still be on the default branch (not rewritten away).
+        status=$(gh api "repos/$REPO/compare/$sha...$default" --jq .status)
+        case "$status" in identical|ahead) ;; *) echo "::error::merge commit ${sha:0:7} of PR #$PR is not on $default (compare: $status)"; exit 1 ;; esac
+        author=$(jq -r .user.login <<< "$pr"); title=$(jq -r .title <<< "$pr"); url=$(jq -r .html_url <<< "$pr")
+
+        {
+          echo "### 🚨 Break-glass deploy of PR #$PR"
+          echo "- PR: $url — $title (by @$author)"
+          echo "- Commit: \`$sha\`"
+          echo "- Triggered by: @$ACTOR"
+          echo "- Authorisation: @$ACTOR's YubiKey proof over the challenge (see the verify step)"
+        } >> "$GITHUB_STEP_SUMMARY"
+        if [ "$COMMENT" = true ]; then
+          gh api "repos/$REPO/issues/$PR/comments" -f body="🚨 **Break-glass deploy requested** by @$ACTOR for merge commit \`${sha:0:7}\`: $RUN_URL
+
+        The regular post-merge validation is skipped: staging and prod are deployed in parallel once @$ACTOR's YubiKey proof verifies, and the usual tests run afterwards." >/dev/null
+        fi
+        {
+          echo "sha=$sha"; echo "author=$author"; echo "url=$url"
+          echo "title<<EOT"; echo "$title"; echo "EOT"
+        } >> "$GITHUB_OUTPUT"

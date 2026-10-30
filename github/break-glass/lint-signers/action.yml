@@ -1,0 +1,42 @@
+name: Break-Glass Lint Signers
+description: >-
+  Checks a break-glass signers file: every non-comment line is a valid
+  allowed_signers entry whose key is an `sk-` (FIDO2) type and parses with
+  ssh-keygen. Run it on pull requests that touch the file.
+
+inputs:
+  signers-file:
+    description: allowed_signers file to check
+    required: false
+    default: .github/break-glass-signers
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        SIGNERS: ${{ inputs.signers-file }}
+      run: |
+        set -euo pipefail
+        [ -f "$SIGNERS" ] || { echo "::error::$SIGNERS not found"; exit 1; }
+        rc=0; n=0
+        while IFS= read -r line || [ -n "$line" ]; do
+          [[ -z "${line// }" || "$line" =~ ^[[:space:]]*# ]] && continue
+          n=$((n+1))
+          # principals [options] key-type key [comment]; options contain '='.
+          read -r principals rest <<< "$line"
+          while [[ "$rest" == *=* ]] && [[ "${rest%% *}" == *=* ]]; do rest="${rest#* }"; done
+          read -r ktype key _ <<< "$rest"
+          case "$ktype" in
+            sk-ssh-ed25519@openssh.com|sk-ecdsa-sha2-nistp256@openssh.com) ;;
+            *) echo "::error file=$SIGNERS::'$principals': key type '$ktype' is not a FIDO2 (sk-) key"; rc=1; continue ;;
+          esac
+          if ! ssh-keygen -l -f <(echo "$ktype $key") >/dev/null 2>&1; then
+            echo "::error file=$SIGNERS::'$principals': key does not parse"; rc=1; continue
+          fi
+          echo "ok: $principals ($ktype)"
+        done < "$SIGNERS"
+        # An empty file is allowed (a repo before its first enrolment); verify-proof
+        # then rejects every run with a clear message.
+        [ "$n" -gt 0 ] || echo "::warning::$SIGNERS lists no keys yet; no one can run the break-glass path until a key is enrolled"
+        exit $rc
