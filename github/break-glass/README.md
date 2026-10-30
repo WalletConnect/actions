@@ -154,6 +154,18 @@ The regular release honours `skip-deploy` with one step before its deploy job:
       # then: if: steps.merged.outputs.has-label != 'true' on the deploy job
 ```
 
+## Paging
+
+Every dispatch fires a **P1** to the team's on-call through incident.io, and
+the run resolves it when it ends, successfully or not. Each repo's
+`break-glass` workflow calls [`incident-io/alert`](../../incident-io/alert/action.yml)
+right after `resolve` and again in a final job; the alert source and the two
+routes (service `relay` → Relay path, `pay-core` → Pay Core path) are defined
+in `infra-monitoring-grafana`, `terraform/break_glass.tf`. The repo needs the
+variable `BREAK_GLASS_INCIDENT_IO_URL` and the secret
+`BREAK_GLASS_INCIDENT_IO_TOKEN` (both from that Terraform's outputs); without
+them the paging job warns and the deploy proceeds.
+
 ## Rules the run enforces
 
 - Dispatched on the default branch only, and the signers file is read from

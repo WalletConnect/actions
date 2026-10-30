@@ -35,6 +35,7 @@ pre-commit run --all-files # Run all checks
   - **auto-review/** - PR code review with inline findings comments
   - **terraform-plan-review/** - Terraform plan analysis
 - **deploy-window/** - Deploy timing controls
+- **incident-io/** - incident.io HTTP alert events (fire/resolve); used by the break-glass workflows to page a P1
 
 ### Auto-Review Action (`claude/auto-review/`)
 

@@ -1,0 +1,79 @@
+name: incident.io Alert
+description: >-
+  Fires or resolves an alert on an incident.io HTTP alert source. The source
+  decides priority and routing (for the break-glass sources, every event is a
+  P1 routed by `metadata.service`); this action only posts the event. With no
+  URL or token configured it warns and succeeds, so a missing secret never
+  blocks the caller.
+
+inputs:
+  url:
+    description: The alert source's alert_events_url (https://api.incident.io/v2/alert_events/http/...)
+    required: false
+    default: ''
+  token:
+    description: The alert source's bearer token
+    required: false
+    default: ''
+  title:
+    description: Alert title
+    required: true
+  description:
+    description: Alert description (markdown)
+    required: false
+    default: ''
+  deduplication-key:
+    description: Same key for the firing and the resolving event of one occurrence
+    required: true
+  status:
+    description: firing or resolved
+    required: false
+    default: firing
+  metadata:
+    description: JSON object attached to the alert; the source's routing reads it
+    required: false
+    default: '{}'
+  source-url:
+    description: Link shown on the alert
+    required: false
+    default: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+outputs:
+  sent:
+    description: "true when the event was accepted, false when skipped or refused"
+    value: ${{ steps.post.outputs.sent }}
+
+runs:
+  using: composite
+  steps:
+    - id: post
+      shell: bash
+      env:
+        URL: ${{ inputs.url }}
+        TOKEN: ${{ inputs.token }}
+        TITLE: ${{ inputs.title }}
+        DESCRIPTION: ${{ inputs.description }}
+        DEDUP: ${{ inputs.deduplication-key }}
+        STATUS: ${{ inputs.status }}
+        METADATA: ${{ inputs.metadata }}
+        SOURCE_URL: ${{ inputs.source-url }}
+      run: |
+        set -euo pipefail
+        case "$STATUS" in firing|resolved) ;; *) echo "::error::status must be firing or resolved (got $STATUS)"; exit 1 ;; esac
+        if [ -z "$URL" ] || [ -z "$TOKEN" ]; then
+          echo "::warning::incident.io alert not sent: url or token not configured (BREAK_GLASS_INCIDENT_IO_URL / BREAK_GLASS_INCIDENT_IO_TOKEN)"
+          echo "sent=false" >> "$GITHUB_OUTPUT"; exit 0
+        fi
+        jq -e 'type == "object"' <<< "$METADATA" >/dev/null || { echo "::error::metadata must be a JSON object"; exit 1; }
+        body=$(jq -n --arg t "$TITLE" --arg d "$DESCRIPTION" --arg k "$DEDUP" --arg s "$STATUS" --arg u "$SOURCE_URL" --argjson m "$METADATA" \
+          '{title: $t, description: $d, deduplication_key: $k, status: $s, source_url: $u, metadata: $m}')
+        code=$(curl -sS -o /tmp/incident-io-response -w '%{http_code}' -X POST "$URL" \
+          -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data "$body")
+        if [ "$code" -ge 200 ] && [ "$code" -lt 300 ]; then
+          echo "incident.io alert $STATUS: $TITLE"
+          echo "sent=true" >> "$GITHUB_OUTPUT"
+        else
+          cat /tmp/incident-io-response; echo
+          echo "::error::incident.io refused the alert event (HTTP $code)"
+          echo "sent=false" >> "$GITHUB_OUTPUT"; exit 1
+        fi
