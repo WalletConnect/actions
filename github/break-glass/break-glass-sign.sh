@@ -9,6 +9,8 @@
 # authorises exactly that deploy and nothing else. Touch the key when it blinks.
 set -euo pipefail
 REPO=${1:?usage: break-glass-sign.sh <owner/repo> --pr N | --tag T}; shift
+# macOS: Apple's ssh-keygen has no FIDO2 support; prefer Homebrew's when present.
+SSH_KEYGEN=${SSH_KEYGEN:-$( [ -x /opt/homebrew/bin/ssh-keygen ] && echo /opt/homebrew/bin/ssh-keygen || echo ssh-keygen )}
 KEY=~/.ssh/break_glass; WORKFLOW=""; REF=main; PR=""; TAG=""; DRY=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -40,7 +42,7 @@ else
 fi
 echo "challenge: $msg"
 echo "touch the YubiKey (and enter its PIN) to sign..."
-sig=$(printf '%s' "$msg" | ssh-keygen -Y sign -n break-glass -f "$KEY")
+sig=$(printf '%s' "$msg" | "$SSH_KEYGEN" -Y sign -n break-glass -f "$KEY")
 proof=$(printf '%s' "$sig" | base64 | tr -d '\n')
 if [ -n "$DRY" ]; then echo "$sig"; exit 0; fi
 gh workflow run "$WORKFLOW" -R "$REPO" --ref "$REF" "${inputs[@]}" -f "proof=$proof"

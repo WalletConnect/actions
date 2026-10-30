@@ -5,8 +5,10 @@ description: >-
   namespace, over the challenge the run computed, passed as the dispatch
   input `proof` by break-glass-sign.sh. The signer must be the dispatcher
   (`github.actor`), listed in the repository's signers file, and the key must
-  be an `sk-` type, which cannot sign without the device being touched. Needs
-  the repository checked out (the signers file comes from main).
+  be an `sk-` type, which cannot sign without the device being touched. The
+  run must be on the repository's default branch, and the signers file is
+  read from that branch through the API, not from the checkout, so neither
+  rule depends on the calling workflow.
 
 inputs:
   message:
@@ -16,9 +18,13 @@ inputs:
     description: SSH signature over `message` (the PEM block, or its base64), from the dispatch input
     required: true
   signers-file:
-    description: allowed_signers file; principal = GitHub login, keys must be sk- types
+    description: Path of the allowed_signers file in the repository (read from the default branch); principal = GitHub login, keys must be sk- types
     required: false
     default: .github/break-glass-signers
+  token:
+    description: Token with contents:read, to read the signers file from the default branch
+    required: false
+    default: ${{ github.token }}
   namespace:
     description: Signature namespace
     required: false
@@ -38,7 +44,10 @@ runs:
     - id: verify
       shell: bash
       env:
+        GH_TOKEN: ${{ inputs.token }}
         REPO: ${{ github.repository }}
+        REF: ${{ github.ref }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         ACTOR: ${{ github.actor }}
         TRIGGERING_ACTOR: ${{ github.triggering_actor }}
         RUN_ATTEMPT: ${{ github.run_attempt }}
@@ -48,7 +57,18 @@ runs:
         NAMESPACE: ${{ inputs.namespace }}
       run: |
         set -euo pipefail
-        [ -f "$SIGNERS" ] || { echo "::error::signers file $SIGNERS not found; enrol keys first (see github/break-glass/README.md)"; exit 1; }
+        # Default branch only: a workflow copy on another branch must not be able to
+        # deploy, whatever its own gates say.
+        if [ "$REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
+          echo "::error::break-glass runs only on $DEFAULT_BRANCH (this run is on $REF)"; exit 1
+        fi
+        # The signers file comes from the default branch through the API, never from
+        # the checkout, so a branch cannot supply its own key list.
+        work=$(mktemp -d)
+        if ! gh api "repos/$REPO/contents/$SIGNERS?ref=$DEFAULT_BRANCH" --jq .content | base64 -d > "$work/signers" 2>/dev/null || [ ! -s "$work/signers" ]; then
+          echo "::error::signers file $SIGNERS not found on $DEFAULT_BRANCH; enrol keys first (see github/break-glass/README.md)"; exit 1
+        fi
+        SIGNERS=$work/signers
         HINT="is @$ACTOR's sk- key in $SIGNERS with principal '$ACTOR' (case-sensitive) and namespace '$NAMESPACE'?"
         # On a re-run, github.actor stays the original dispatcher and the proof input is
         # kept, so anyone with write access could replay a verified deploy. Only the
@@ -59,7 +79,6 @@ runs:
         if [ -z "$PROOF" ]; then
           echo "::error::no proof: dispatch with break-glass-sign.sh, which signs the challenge on your YubiKey and passes it as the 'proof' input. Dispatching from the Actions page is not supported."; exit 1
         fi
-        work=$(mktemp -d)
         printf '%s' "$MESSAGE" > "$work/msg"
 
         # Key type of the key embedded in an SSH signature (SSHSIG wire format).

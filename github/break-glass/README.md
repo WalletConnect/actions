@@ -61,9 +61,12 @@ device being touched. The dispatcher and the signer must be the same login.
 
 ### Enrolling a YubiKey
 
-Prerequisites: OpenSSH 8.2 or newer built with FIDO2 support (macOS: `brew
-install openssh`; Ubuntu 22.04 and newer ship it), a YubiKey 5 with a FIDO2
-PIN set (`ykman fido access change-pin`), and `gh` logged in.
+Prerequisites: OpenSSH 8.2 or newer built with FIDO2 support. On macOS that
+is `brew install openssh`, used by full path (`/opt/homebrew/bin/ssh-keygen`,
+which `break-glass-sign.sh` picks up on its own); Apple's own `ssh-keygen`
+cannot talk to FIDO2 devices and there is no provider library to add to it.
+Ubuntu 22.04 and newer ship it. Plus a YubiKey 5 with a FIDO2 PIN set
+(`ykman fido access change-pin`), and `gh` logged in.
 
 1. **Generate the key on the device.** Plug the YubiKey in and run:
 
@@ -72,6 +75,9 @@ PIN set (`ykman fido access change-pin`), and `gh` logged in.
      -O write-attestation="$HOME/.ssh/break_glass.att" -f ~/.ssh/break_glass
    cat ~/.ssh/break_glass.pub
    ```
+
+   (macOS: `/opt/homebrew/bin/ssh-keygen …`, and make sure `SSH_SK_PROVIDER`
+   is not set in your shell.)
 
    `-sk` means the key pair is created inside the authenticator and the
    private key never leaves it; `~/.ssh/break_glass` is only a handle to it.
@@ -150,7 +156,9 @@ The regular release honours `skip-deploy` with one step before its deploy job:
 
 ## Rules the run enforces
 
-- Dispatched on `main` only; the signers file is read from main.
+- Dispatched on the default branch only, and the signers file is read from
+  that branch through the API: `verify-proof` enforces both itself, so a
+  workflow copy on another branch cannot relax them.
 - Nothing runs before `verify`: no cloud role, no build, no PR comment.
 - A re-run must be by the dispatcher; the proof is bound to them.
 - `terraform/` must not differ between the target commit and main HEAD: the
