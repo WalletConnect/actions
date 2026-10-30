@@ -329,40 +329,28 @@ async function main() {
   console.log(`Revoke successful in block ${receipt.blockNumber}.`);
 }
 
-// Polls for the receipt instead of tx.wait(): ethers' wait gives up on the
-// first RPC error, and some public RPCs answer eth_getTransactionReceipt for a
-// not-yet-mined tx with an error instead of null (polygon-bor-rpc.publicnode.com
-// returns 403 "Archive requests require a personal token"). That failed the
-// step even though the revoke tx was sent and mined. Errors here are treated as
-// "not mined yet" until the deadline; a dropped/underpriced tx still fails on
-// the timeout instead of hanging the job.
+// Polls instead of tx.wait(), which gives up on the first RPC error. Some RPCs
+// (e.g. publicnode on Polygon) return an error, not null, for a pending tx.
 async function waitForReceipt(provider, txHash) {
   const deadline = Date.now() + TX_WAIT_TIMEOUT_MS;
   let lastError;
-  let errorCount = 0;
   while (Date.now() < deadline) {
     try {
       const receipt = await provider.getTransactionReceipt(txHash);
       if (receipt) {
-        if (errorCount > 0) {
-          console.log(`Receipt found after ${errorCount} RPC error(s) while polling.`);
-        }
         return receipt;
       }
     } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error);
-      errorCount += 1;
-      // Log only the first one: ethers messages embed response headers (with
-      // a timestamp), so repeats can't be deduplicated by text.
-      if (errorCount === 1) {
-        console.log(`Receipt not available yet (RPC error, will retry): ${lastError.slice(0, 200)}`);
+      if (!lastError) {
+        console.log('Receipt lookup failed; retrying until the timeout.');
       }
+      lastError = error instanceof Error ? error.message : String(error);
     }
     await new Promise(resolve => setTimeout(resolve, RECEIPT_POLL_INTERVAL_MS));
   }
   throw new Error(
-    `No receipt for ${txHash} after ${TX_WAIT_TIMEOUT_MS / 1000}s` +
-      (lastError ? ` (${errorCount} RPC error(s), last: ${lastError.slice(0, 200)})` : ''),
+    `No receipt after ${TX_WAIT_TIMEOUT_MS / 1000}s` +
+      (lastError ? ` (last RPC error: ${lastError.slice(0, 200)})` : ''),
   );
 }
 

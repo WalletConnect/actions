@@ -25,27 +25,12 @@ runs:
           export MAESTRO_VERSION="$VERSION"
         fi
 
-        # The installer can exit 0 without installing anything (e.g. it prints
-        # "Downloaded zip archive is corrupt" and stops), which only surfaces
-        # later as `maestro: No such file or directory` in the test step. So
-        # check the binary after each attempt and retry a broken install.
-        MAESTRO_BIN="$HOME/.maestro/bin/maestro"
-        installed=""
-        for attempt in 1 2 3; do
-          echo "Installing Maestro (attempt $attempt/3)..."
-          curl -fsSL --retry 3 --retry-delay 5 "https://get.maestro.mobile.dev" | bash || true
-          # Last line only: a first run can print an analytics notice first.
-          if installed="$("$MAESTRO_BIN" --version 2>/dev/null | tail -n 1 | tr -d '[:space:]')" && [ -n "$installed" ]; then
-            break
-          fi
-          installed=""
-          echo "::warning::Maestro install attempt $attempt/3 left no working binary at $MAESTRO_BIN"
-          rm -rf "$HOME/.maestro"
-          [ "$attempt" -lt 3 ] && sleep 10
-        done
+        curl -fsSL "https://get.maestro.mobile.dev" | bash
 
+        # The installer can exit 0 without installing (e.g. a corrupt download).
+        installed="$("$HOME/.maestro/bin/maestro" --version 2>/dev/null | tail -n 1 | tr -d '[:space:]' || true)"
         if [ -z "$installed" ]; then
-          echo "::error::Could not install Maestro${VERSION:+ $VERSION} after 3 attempts"
+          echo "::error::Maestro${VERSION:+ $VERSION} was not installed"
           exit 1
         fi
         if [ -n "$VERSION" ] && [ "$installed" != "$VERSION" ]; then

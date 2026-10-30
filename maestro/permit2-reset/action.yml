@@ -16,8 +16,6 @@ inputs:
       RPC URL to use. Recommended over the WalletConnect Blockchain API for chains
       where it gates methods (e.g. Arbitrum eth_blockNumber). For Polygon, avoid
       polygon-rpc.com (gated, HTTP 401 in CI) — e.g. https://polygon.drpc.org.
-      polygon-bor-rpc.publicnode.com answers receipt lookups for a not-yet-mined
-      tx with HTTP 403 instead of null; the script retries through that.
     required: true
   private-key:
     description: |
