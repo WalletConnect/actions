@@ -19,6 +19,10 @@ set -euo pipefail
 usage() { sed -n '2,8p' "$0" >&2; exit 2; }
 die() { echo "error: $*" >&2; exit 1; }
 
+# Usage before anything else, so help works on any machine.
+[ $# -gt 0 ] || usage
+case "$1" in -h|--help) usage ;; esac
+
 # ---- find an ssh-keygen that can do FIDO2 ------------------------------------
 pick_ssh_keygen() {
   if [ -n "${SSH_KEYGEN:-}" ]; then echo "$SSH_KEYGEN"; return; fi
@@ -50,8 +54,7 @@ esac
 
 # ---- arguments ----------------------------------------------------------------
 REPO=""; KEY=~/.ssh/break_glass; WORKFLOW=""; REF=main; PR=""; TAG=""; DRY=""; ENROL=""
-[ $# -gt 0 ] || usage
-case "$1" in --enrol|--enroll) ENROL=1; shift ;; -h|--help) usage ;; *) REPO=$1; shift ;; esac
+case "$1" in --enrol|--enroll) ENROL=1; shift ;; *) REPO=$1; shift ;; esac
 while [ $# -gt 0 ]; do
   case "$1" in
     --pr) PR=$2; shift 2 ;; --tag) TAG=$2; shift 2 ;; --key) KEY=$2; shift 2 ;;
