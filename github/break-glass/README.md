@@ -61,42 +61,36 @@ device being touched. The dispatcher and the signer must be the same login.
 
 ### Enrolling a YubiKey
 
-Prerequisites: OpenSSH 8.2 or newer built with FIDO2 support. On macOS that
-is `brew install openssh`, used by full path (`/opt/homebrew/bin/ssh-keygen`,
-which `break-glass-sign.sh` picks up on its own); Apple's own `ssh-keygen`
-cannot talk to FIDO2 devices and there is no provider library to add to it.
-Ubuntu 22.04 and newer ship it. Plus a YubiKey 5 with a FIDO2 PIN set
-(`ykman fido access change-pin`), and `gh` logged in.
+Prerequisites: an OpenSSH with FIDO2 support and `gh` logged in.
+- macOS: `brew install openssh`. Apple's own `ssh-keygen` cannot talk to FIDO2
+  devices and there is no provider library to add to it; the helper finds
+  Homebrew's binary by path, so no PATH change is needed. If you ever exported
+  `SSH_SK_PROVIDER`, the helper ignores a dangling value, but remove it anyway.
+- Linux: the distribution's `openssh-client` (Ubuntu 22.04+, Debian 12+ ship
+  it built with libfido2). If the device is not detected, install
+  `libfido2-1` and its udev rules and re-plug the key.
+- A YubiKey 5 with a FIDO2 PIN set: `ykman fido access change-pin`.
 
-1. **Generate the key on the device.** Plug the YubiKey in and run:
+1. **Generate the key on the device and get your signers line in one go:**
 
    ```bash
-   ssh-keygen -t ed25519-sk -O resident -O verify-required \
-     -O write-attestation="$HOME/.ssh/break_glass.att" -f ~/.ssh/break_glass
-   cat ~/.ssh/break_glass.pub
+   break-glass-sign.sh --enrol
    ```
 
-   (macOS: `/opt/homebrew/bin/ssh-keygen …`, and make sure `SSH_SK_PROVIDER`
-   is not set in your shell.)
-
-   `-sk` means the key pair is created inside the authenticator and the
-   private key never leaves it; `~/.ssh/break_glass` is only a handle to it.
-   `verify-required` makes every signature ask for the PIN and a touch;
-   `resident` keeps the credential on the device so another laptop can use it
-   after `ssh-keygen -K`. The command fails without a FIDO2 device attached.
-   Keep the `.att` file: it is the device's attestation, see step 3.
-
-2. **Add one line to the repository's signers file**,
-   `.github/break-glass-signers`, through a normal PR. The first field is your
-   GitHub login exactly as GitHub shows it (principal matching is
-   case-sensitive), then the namespace option, then the public line as printed:
+   Touch the key when it blinks and enter the PIN. The key is created inside
+   the authenticator (`ed25519-sk`, resident, `verify-required`: PIN and touch
+   per signature); `~/.ssh/break_glass` is only a handle to it, and
+   `~/.ssh/break_glass.att` is the device attestation, see step 3. The command
+   prints the line to add, with your GitHub login as principal:
 
    ```
-   <github-login> namespaces="break-glass" sk-ssh-ed25519@openssh.com AAAA... <comment>
+   <github-login> namespaces="break-glass" sk-ssh-ed25519@openssh.com AAAA... <github-login> YubiKey
    ```
 
-   One repository, one file: to run the break-glass path in both `rs-relay`
-   and `pay-core`, the same line goes into both repositories.
+2. **Add that line to the repository's signers file**,
+   `.github/break-glass-signers`, through a normal PR. One repository, one
+   file: to run the break-glass path in both `rs-relay` and `pay-core`, the
+   same line goes into both repositories.
 
 3. **Review.** [`lint-signers`](lint-signers/action.yml) runs on the PR and
    rejects any key that is not an `sk-` type. CODEOWNERS covers the file, so a
@@ -115,9 +109,9 @@ Ubuntu 22.04 and newer ship it. Plus a YubiKey 5 with a FIDO2 PIN set
    dispatched.
 
 5. **Rotation and loss.** Remove the line through a PR and the key stops
-   working on the next run; a replacement device is a new line. Enrolling a
-   second YubiKey as a second line is the backup, since a lost device cannot
-   be recovered.
+   working on the next run; a replacement device is a new line (`--enrol
+   --key ~/.ssh/break_glass_2`). Enrolling a second YubiKey as a second line is
+   the backup, since a lost device cannot be recovered.
 
 ## What each repository provides
 
