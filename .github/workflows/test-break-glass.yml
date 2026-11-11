@@ -11,11 +11,16 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 5
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.9", "3.x"]   # 3.9: macOS's system python3, the oldest supported
+        include:
+          - { python-version: "3.x", os: ubuntu-latest }
+          # 3.9 is macOS's system python3, the oldest supported. It has no build
+          # for the latest Ubuntu runner, so this job stays on 24.04.
+          - { python-version: "3.9", os: ubuntu-24.04 }
     steps:
       - name: Checkout
         uses: actions/checkout@v4
