@@ -123,14 +123,16 @@ is fine), and a YubiKey 5.
    key lives in a YubiKey: an `sk-` key can also be made in software, and
    neither the lint nor the run can tell.
 
-4. **Try it without deploying.** Signing works as soon as the key exists and
-   never dispatches anything:
+4. **Try it without deploying.** [`manual-test.py`](manual-test.py) signs a
+   proof with your key and verifies it the way a run does, including that
+   altered or expired copies are rejected. Nothing is dispatched:
 
    ```bash
-   break-glass-sign.py <owner/repo> -f test=1
+   manual-test.py --key ~/.ssh/break_glass
    ```
 
-   The YubiKey blinks, you touch it, the proof prints. Don't paste it anywhere.
+   Without `--key` it first makes a throwaway key on the YubiKey, which also
+   tests the command of step 1.
 
 5. **Rotation and loss.** Remove the line through a PR and the key stops
    working on the next run; a replacement device is a new line. Enrolling a
