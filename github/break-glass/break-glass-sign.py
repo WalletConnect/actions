@@ -19,6 +19,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 
 RESERVED = ("aud", "iat")
@@ -65,16 +66,23 @@ def main():
     payload = json.dumps({"aud": args.repo, "iat": int(time.time()), **fields}, separators=(",", ":"))
     print(f"signing: {payload}", file=sys.stderr)
     print("touch the YubiKey (and enter its PIN) to sign...", file=sys.stderr)
-    # stderr is left on the terminal for the PIN and touch prompts. Without SSH_AUTH_SOCK:
-    # ssh-keygen would hand the signing to an ssh-agent that holds the key, and an agent
-    # cannot ask for the PIN ("agent refused operation").
+    # The payload goes to ssh-keygen as a file, not on stdin: with stdin taken, ssh-keygen
+    # cannot ask for the PIN on the terminal and falls back to ssh-askpass. And without
+    # SSH_AUTH_SOCK: it would hand the signing to an ssh-agent that holds the key, and an
+    # agent cannot ask for the PIN either ("agent refused operation").
     env = {k: v for k, v in os.environ.items() if k != "SSH_AUTH_SOCK"}
-    res = subprocess.run([ssh_keygen(), "-Y", "sign", "-n", "break-glass", "-f", args.key],
-                         input=payload.encode("utf-8"), stdout=subprocess.PIPE, env=env)
-    if res.returncode != 0:
-        sys.exit("signing failed")
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "payload")
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            f.write(payload)
+        res = subprocess.run([ssh_keygen(), "-Y", "sign", "-n", "break-glass", "-f", args.key, path],
+                             stdout=sys.stderr, env=env)
+        if res.returncode != 0:
+            sys.exit("signing failed")
+        with open(path + ".sig") as f:
+            armored = f.read()
     # The proof: the signed bytes as a JSON string, and the signature's base64 body (armor lines dropped).
-    sig = "".join(res.stdout.decode("ascii").strip().splitlines()[1:-1])
+    sig = "".join(armored.strip().splitlines()[1:-1])
     print(json.dumps({"payload": payload, "sig": sig}, separators=(",", ":")))
     print("paste the line above into the workflow's 'proof' input within 10 minutes", file=sys.stderr)
 
