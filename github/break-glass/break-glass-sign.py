@@ -65,9 +65,12 @@ def main():
     payload = json.dumps({"aud": args.repo, "iat": int(time.time()), **fields}, separators=(",", ":"))
     print(f"signing: {payload}", file=sys.stderr)
     print("touch the YubiKey (and enter its PIN) to sign...", file=sys.stderr)
-    # stderr is left on the terminal for the PIN and touch prompts.
+    # stderr is left on the terminal for the PIN and touch prompts. Without SSH_AUTH_SOCK:
+    # ssh-keygen would hand the signing to an ssh-agent that holds the key, and an agent
+    # cannot ask for the PIN ("agent refused operation").
+    env = {k: v for k, v in os.environ.items() if k != "SSH_AUTH_SOCK"}
     res = subprocess.run([ssh_keygen(), "-Y", "sign", "-n", "break-glass", "-f", args.key],
-                         input=payload.encode("utf-8"), stdout=subprocess.PIPE)
+                         input=payload.encode("utf-8"), stdout=subprocess.PIPE, env=env)
     if res.returncode != 0:
         sys.exit("signing failed")
     # The proof: the signed bytes as a JSON string, and the signature's base64 body (armor lines dropped).

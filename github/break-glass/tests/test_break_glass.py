@@ -11,6 +11,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -207,6 +208,18 @@ class BreakGlassTest(unittest.TestCase):
         self.assertEqual((payload["aud"], payload["ticket"]), ("Acme/App", 'INC-1 "q" $(x)'))
         self.assertLessEqual(abs(payload["iat"] - time.time()), 5)
         self.rejects(res.stdout, "non-FIDO2 key (ssh-ed25519)")  # so the signature itself verified
+
+    def test_helper_does_not_sign_through_an_agent(self):
+        agent = subprocess.run(["ssh-agent", "-s"], check=True, capture_output=True, text=True).stdout
+        env = {**os.environ, **dict(re.findall(r"(SSH_\w+)=([^;]+);", agent)),
+               "SSH_ASKPASS": "false", "SSH_ASKPASS_REQUIRE": "force"}
+        try:
+            # -c: the agent must confirm each signature, and here it cannot, so it refuses.
+            subprocess.run(["ssh-add", "-q", "-c", self.plain], check=True, env=env)
+            with mock.patch.dict(os.environ, env):
+                self.assertEqual(self.helper(REPO, "-f", "a=1").returncode, 0)
+        finally:
+            subprocess.run(["ssh-agent", "-k"], env=env, capture_output=True)
 
     def test_helper_argument_errors(self):
         for args in (["-f", "aud=x"], ["-f", "iat=1"], ["-f", "a=1", "-f", "a=2"], [], ["-f", "novalue"],
