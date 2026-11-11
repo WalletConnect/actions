@@ -1,7 +1,7 @@
 """Tests for break-glass-sign.py, verify-proof/verify.py and lint-signers/lint.py.
 
-CI has no YubiKey, so SoftKey plays the authenticator: an sk-ssh-ed25519 key held in
-a file, signing with the openssl CLI (OpenSSL 3) and setting the FIDO2 flags itself.
+CI has no YubiKey, so SoftKey plays the authenticator: an sk- key held in a file,
+signing with the openssl CLI (OpenSSL 3) and setting the FIDO2 flags itself.
 
     python3 -m unittest discover -s github/break-glass/tests -v
 """
@@ -17,6 +17,8 @@ import sys
 import tempfile
 import time
 import unittest
+import urllib.error
+import urllib.request
 from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
@@ -24,6 +26,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 REPO = "acme/app"
 SK_ED25519 = b"sk-ssh-ed25519@openssh.com"
+SK_ECDSA = b"sk-ecdsa-sha2-nistp256@openssh.com"
 
 
 def load(name, path):
@@ -42,27 +45,43 @@ def string(b):
 
 
 class SoftKey:
-    """A software sk-ssh-ed25519 key: what a FIDO2 authenticator does, without the device."""
+    """A software sk- key: what a FIDO2 authenticator does, without the device."""
 
-    def __init__(self, directory, name):
-        self.pem = str(Path(directory) / f"{name}.pem")
-        subprocess.run(["openssl", "genpkey", "-algorithm", "ed25519", "-out", self.pem], check=True)
+    def __init__(self, directory, name, key_type=SK_ED25519):
+        self.type, self.pem = key_type, str(Path(directory) / f"{name}.pem")
+        algorithm = ["ed25519"] if key_type == SK_ED25519 else ["EC", "-pkeyopt", "ec_paramgen_curve:P-256"]
+        subprocess.run(["openssl", "genpkey", "-algorithm", *algorithm, "-out", self.pem], check=True)
         der = subprocess.run(["openssl", "pkey", "-in", self.pem, "-pubout", "-outform", "DER"],
                              check=True, capture_output=True).stdout
-        self.blob = string(SK_ED25519) + string(der[-32:]) + string(b"ssh:")
-        self.public = f"{SK_ED25519.decode()} {base64.b64encode(self.blob).decode()}"
+        key = string(der[-32:]) if key_type == SK_ED25519 else string(b"nistp256") + string(der[-65:])
+        self.blob = string(key_type) + key + string(b"ssh:")
+        self.public = f"{key_type.decode()} {base64.b64encode(self.blob).decode()}"
 
-    def proof(self, payload, flags=0x01, namespace=b"break-glass", sig_type=SK_ED25519):
+    def sign(self, data):
+        Path(self.pem + ".in").write_bytes(data)  # openssl 3.0 signs raw input only from a file
+        if self.type == SK_ED25519:
+            return subprocess.run(["openssl", "pkeyutl", "-sign", "-rawin", "-inkey", self.pem,
+                                   "-in", self.pem + ".in"], check=True, capture_output=True).stdout
+        der = subprocess.run(["openssl", "dgst", "-sha256", "-sign", self.pem, self.pem + ".in"],
+                             check=True, capture_output=True).stdout
+        # DER: 30 len, 02 len r, 02 len s. DER integers are SSH mpints already.
+        r_end = 4 + der[3]
+        return string(der[4:r_end]) + string(der[r_end + 2:])
+
+    def proof(self, payload, flags=0x01, namespace=b"break-glass", webauthn=False):
         """A proof over the payload string; flags 0x01 = touched, 0x04 = PIN entered."""
         signed = b"SSHSIG" + string(namespace) + string(b"") + string(b"sha512") \
             + string(hashlib.sha512(payload.encode()).digest())
-        counter = (7).to_bytes(4, "big")
-        to_sign = hashlib.sha256(b"ssh:").digest() + bytes([flags]) + counter + hashlib.sha256(signed).digest()
-        Path(self.pem + ".in").write_bytes(to_sign)  # openssl 3.0 signs raw input only from a file
-        sig = subprocess.run(["openssl", "pkeyutl", "-sign", "-rawin", "-inkey", self.pem, "-in", self.pem + ".in"],
-                             check=True, capture_output=True).stdout
+        counter, sig_type, message, extra = (7).to_bytes(4, "big"), self.type, signed, b""
+        if webauthn:  # the form a browser makes with an ECDSA key: the message wrapped in clientData JSON
+            origin = b"https://example.org"
+            message = b'{"type":"webauthn.get","challenge":"' + base64.urlsafe_b64encode(signed).rstrip(b"=") \
+                + b'","origin":"' + origin + b'"}'
+            sig_type, extra = b"webauthn-" + self.type, string(origin) + string(message) + string(b"")
+        sig = self.sign(hashlib.sha256(b"ssh:").digest() + bytes([flags]) + counter
+                        + hashlib.sha256(message).digest())
         blob = b"SSHSIG" + (1).to_bytes(4, "big") + string(self.blob) + string(namespace) + string(b"") \
-            + string(b"sha512") + string(string(sig_type) + string(sig) + bytes([flags]) + counter)
+            + string(b"sha512") + string(string(sig_type) + string(sig) + bytes([flags]) + counter + extra)
         return json.dumps({"payload": payload, "sig": base64.b64encode(blob).decode()})
 
 
@@ -76,10 +95,12 @@ class BreakGlassTest(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory()
         cls.dir = Path(cls.tmp.name)
         cls.key, cls.other = SoftKey(cls.dir, "key"), SoftKey(cls.dir, "other")
+        cls.ecdsa = SoftKey(cls.dir, "ecdsa", SK_ECDSA)
         cls.plain = str(cls.dir / "plain")
         subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", cls.plain], check=True)
         cls.plain_public = Path(cls.plain + ".pub").read_text().strip()
         cls.signers = (f'alice namespaces="break-glass" {cls.key.public}\n'
+                       f'alice namespaces="break-glass" {cls.ecdsa.public}\n'
                        f'alice namespaces="break-glass" {cls.plain_public}\n').encode()
 
     @classmethod
@@ -96,10 +117,12 @@ class BreakGlassTest(unittest.TestCase):
 
     # -- signature ------------------------------------------------------------------
     def test_valid_proof(self):
-        got, key_type = self.verify(self.key.proof(claims(image_tag="v1.80.3", ticket='INC-1 "q" $(x) ü')))
-        self.assertEqual(key_type, "sk-ssh-ed25519@openssh.com")
-        self.assertEqual(got["image_tag"], "v1.80.3")
-        self.assertEqual(got["ticket"], 'INC-1 "q" $(x) ü')
+        for key in (self.key, self.ecdsa):
+            with self.subTest(key=key.type):
+                got, key_type = self.verify(key.proof(claims(image_tag="v1.80.3", ticket='INC-1 "q" $(x) ü')))
+                self.assertEqual(key_type, key.type.decode())
+                self.assertEqual(got["image_tag"], "v1.80.3")
+                self.assertEqual(got["ticket"], 'INC-1 "q" $(x) ü')
 
     def test_any_payload_formatting_verifies(self):
         self.verify(self.key.proof(json.dumps(json.loads(claims(x="ü")), indent=2, ensure_ascii=False)))
@@ -124,14 +147,15 @@ class BreakGlassTest(unittest.TestCase):
         self.rejects(self.key.proof(claims(), namespace=b"other"), "does not verify")
 
     def test_touch_flag(self):
-        self.verify(self.key.proof(claims(), flags=0x05))  # a key that also asks for the PIN
-        for flags in (0x00, 0x04):
-            with self.subTest(flags=flags):
-                self.rejects(self.key.proof(claims(), flags=flags), "without the key being touched")
+        for key in (self.key, self.ecdsa):
+            self.verify(key.proof(claims(), flags=0x05))  # a key that also asks for the PIN
+            for flags in (0x00, 0x04):
+                with self.subTest(key=key.type, flags=flags):
+                    self.rejects(key.proof(claims(), flags=flags), "without the key being touched")
 
-    def test_other_signature_type(self):
-        # Such a signature may carry more than flags and counter after the signature.
-        self.rejects(self.key.proof(claims(), sig_type=b"webauthn-sk-ecdsa-sha2-nistp256@openssh.com"), "does not")
+    def test_webauthn_signature(self):
+        """ssh-keygen accepts a browser's signature form for an ECDSA key; verify-proof does not."""
+        self.rejects(self.ecdsa.proof(claims(), webauthn=True), "signature type (webauthn-sk-ecdsa")
 
     # -- envelope and claims --------------------------------------------------------------
     def test_proof_not_json(self):
@@ -145,7 +169,10 @@ class BreakGlassTest(unittest.TestCase):
     def test_aud(self):
         self.verify(self.key.proof(claims(aud="Acme/App")))
         self.rejects(self.key.proof(claims(aud="acme/other")), "signed for 'acme/other'")
-        self.rejects(self.key.proof(json.dumps({"iat": int(time.time())})), "signed for 'None'")
+        self.rejects(self.key.proof(json.dumps({"iat": int(time.time())})), "signed for None")
+        with self.assertRaises(verifier.ProofError) as cm:  # no line break that could start a workflow command
+            self.verify(self.key.proof(claims(aud="x\n::warning::injected")))
+        self.assertNotIn("\n", str(cm.exception))
 
     def test_iat(self):
         now = int(time.time())
@@ -161,6 +188,9 @@ class BreakGlassTest(unittest.TestCase):
     def test_payload_not_a_json_object(self):
         self.rejects(self.key.proof("[1]"), "not a JSON object")
         self.rejects(self.key.proof("break-glass:acme/app:tag:v1"), "not JSON")
+        for constant in ("NaN", "Infinity", "-Infinity"):  # Python reads these; JSON has none of them
+            with self.subTest(constant=constant):
+                self.rejects(self.key.proof('{"aud":"acme/app","iat":1,"x":%s}' % constant), "not JSON")
 
     # -- main(): the action's own checks ----------------------------------------------------
     def run_main(self, proof=None, signers=None, **env):
@@ -194,6 +224,16 @@ class BreakGlassTest(unittest.TestCase):
         self.main_rejects("is not {", PROOF=" ")
         self.main_rejects("whole seconds", MAX_AGE="10m")
         self.main_rejects("not found on main", signers=b"")
+
+    def test_fetch_signers_errors(self):
+        def http_error(code):
+            return mock.patch("urllib.request.urlopen",
+                              side_effect=urllib.error.HTTPError("https://api", code, "", {}, None))
+        with http_error(404):
+            self.assertEqual(verifier.fetch_signers("https://api", "t", REPO, "signers", "main"), b"")
+        with http_error(403), self.assertRaises(verifier.ProofError) as cm:
+            verifier.fetch_signers("https://api", "t", REPO, "signers", "main")
+        self.assertIn("HTTP 403", str(cm.exception))
 
     # -- the helper --------------------------------------------------------------------------
     def helper(self, *args):

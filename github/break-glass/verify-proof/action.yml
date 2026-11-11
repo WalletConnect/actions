@@ -10,7 +10,9 @@ description: >-
   repository and its `iat` recent; every other field is the calling
   repository's to define and check. The run must be on the default branch,
   and the signers file is read from that branch through the API, not from the
-  checkout, so neither rule depends on the calling workflow.
+  checkout, so neither rule depends on the calling workflow. Use it as the
+  first step of every job that deploys: a job that only `needs` a verifying
+  job can be re-run alone after the proof has expired.
 
 inputs:
   proof:

@@ -1,8 +1,9 @@
 name: Break-Glass Lint Signers
 description: >-
   Checks a break-glass signers file: every non-comment line is a valid
-  allowed_signers entry whose key is an `sk-` (FIDO2) type and parses with
-  ssh-keygen. Run it on pull requests that touch the file.
+  allowed_signers entry whose principals are exact logins, not patterns, and
+  whose key is an `sk-` (FIDO2) type that parses with ssh-keygen. Run it on
+  pull requests that touch the file.
 
 inputs:
   signers-file:

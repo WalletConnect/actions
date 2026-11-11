@@ -39,6 +39,11 @@ def ssh_strings(buf, n):
     return out + [buf]
 
 
+def reject_constant(name):
+    """Python's json also reads NaN and Infinity, which are not JSON and would not survive the output."""
+    raise ValueError(name)
+
+
 def verify(proof, signers, actor, repo, max_age):
     """Verify the proof against the signers file (bytes); returns (payload dict, key type)."""
     try:
@@ -67,25 +72,28 @@ def verify(proof, signers, actor, repo, max_age):
     # key type or at the FIDO2 touch flag, so read them from the SSHSIG blob:
     #   magic(6) version(4) string(publickey) string(namespace) string(reserved) string(hash) string(signature)
     #   publickey = string(type) ...        signature = string(type) string(sig) byte(flags) uint32(counter)
-    publickey, _, _, _, signature, _ = ssh_strings(base64.b64decode(sig)[10:], 5)
+    publickey, _, _, _, signature, _ = ssh_strings(base64.b64decode(sig, validate=True)[10:], 5)
     key_type = ssh_strings(publickey, 1)[0].decode()
     sig_type, _, after_sig = ssh_strings(signature, 2)
-    if key_type not in FIDO2_KEY_TYPES or sig_type.decode() != key_type:
+    if key_type not in FIDO2_KEY_TYPES:
         raise ProofError(f"the proof verified but with a non-FIDO2 key ({key_type}); only sk- keys are accepted")
+    if sig_type.decode() != key_type:  # e.g. a browser's webauthn- form, which ssh-keygen also accepts
+        raise ProofError(f"the proof's signature type ({sig_type.decode()}) is not accepted; "
+                         "sign with break-glass-sign.py")
     if not after_sig[0] & TOUCHED:
         raise ProofError("the proof was signed without the key being touched; "
                          "enrol a key made without -O no-touch-required (see github/break-glass/README.md)")
 
     # The payload is signed, so from here on it is the signer's statement.
     try:
-        claims = json.loads(payload)
+        claims = json.loads(payload, parse_constant=reject_constant)
     except ValueError:
         raise ProofError("the signed payload is not JSON")
     if not isinstance(claims, dict):
         raise ProofError("the signed payload is not a JSON object")
     aud = claims.get("aud")
     if not isinstance(aud, str) or aud.lower() != repo.lower():  # GitHub names are case-insensitive
-        raise ProofError(f"the proof was signed for '{aud}', this run is in '{repo}'")
+        raise ProofError(f"the proof was signed for {aud!r}, this run is in '{repo}'")
     iat, now = claims.get("iat"), int(time.time())
     if type(iat) is not int:
         raise ProofError("the signed payload has no whole-number iat")
@@ -112,7 +120,7 @@ def fetch_signers(api_url, token, repo, path, ref):
     except urllib.error.HTTPError as e:
         if e.code == 404:
             return b""
-        raise
+        raise ProofError(f"reading {path} from {ref} failed with HTTP {e.code}; the token needs contents:read")
 
 
 def main():

@@ -7,7 +7,7 @@ Each -f key=value becomes a string field of the signed payload; which fields a
 repository needs is up to its break-glass workflow. aud (the repository) and iat
 (now) are added here. Touch the key when it blinks, then paste the printed proof
 into the workflow's "proof" input (Actions -> break-glass -> Run workflow). The proof
-expires 10 minutes after signing.
+expires 10 minutes after signing, unless the repository's workflow sets another max-age.
 
     break-glass-sign.py ... | pbcopy     # macOS: straight to the clipboard
 
@@ -84,7 +84,8 @@ def main():
     # The proof: the signed bytes as a JSON string, and the signature's base64 body (armor lines dropped).
     sig = "".join(armored.strip().splitlines()[1:-1])
     print(json.dumps({"payload": payload, "sig": sig}, separators=(",", ":")))
-    print("paste the line above into the workflow's 'proof' input within 10 minutes", file=sys.stderr)
+    print("paste the line above into the workflow's 'proof' input now: it expires (after 10 minutes by default)",
+          file=sys.stderr)
 
 
 if __name__ == "__main__":

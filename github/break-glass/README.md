@@ -14,8 +14,9 @@ What a proof may deploy is each repository's decision, made in its own
 
 ## Flow
 
-1. Sign what you want deployed. The fields are the ones your repository's
-   workflow reads, for example:
+1. Sign what you want deployed, with the helper from a checkout of this
+   repository (a commit you trust: the helper decides what your key signs).
+   The fields are the ones your repository's workflow reads, for example:
 
    ```bash
    break-glass-sign.py WalletConnect/pay-core -f image_tag=3f2a9c1e… -f terraform_ref=main | pbcopy
@@ -25,9 +26,10 @@ What a proof may deploy is each repository's decision, made in its own
    line (piped to the clipboard above).
 2. Open Actions → `break-glass` → Run workflow on `main`, paste the proof into
    the `proof` input, and run it within 10 minutes of signing.
-3. `verify-proof` checks the proof. Nothing is deployed before it passes.
-4. The repository's workflow checks the signed fields against its own rules
-   and deploys.
+3. Every job that deploys starts with `verify-proof`. Nothing is deployed
+   before it passes.
+4. The job checks the signed fields against the repository's own rules and
+   deploys.
 
 ## The proof
 
@@ -37,7 +39,7 @@ What a proof may deploy is each repository's decision, made in its own
 
 - `payload` is a JSON object kept as a string, so the signed bytes survive
   copying unchanged. `sig` is the body of an `ssh-keygen -Y sign -n break-glass`
-  signature over exactly those bytes (`printf '%s'`, no trailing newline).
+  signature over exactly those bytes, with no trailing newline.
 - `aud` is the repository as `GITHUB_REPOSITORY` reports it (rs-relay is
   `reown-com/rs-relay`; letter case does not matter). `iat` is the signing
   time in unix seconds. The helper sets both.
@@ -65,13 +67,16 @@ Then it outputs `payload` (the verified JSON, compact), `signer` and `key-type`.
 ### Replay
 
 A proof only verifies for its signer's GitHub login, in its repository, for
-10 minutes after signing. Within that window the same login can use it again,
-by a new dispatch or a re-run; after it, both fail at `verify` and a new proof
-is needed. A re-run must also be started by the dispatcher.
+10 minutes after signing (`max-age`). Within that window the same login can
+use it again, by a new dispatch or a re-run; after it, `verify-proof` fails
+and a new proof is needed. A re-run must also be started by the dispatcher.
 
-"Re-run failed jobs" does not re-run a `verify` job that passed: the later
-jobs reuse its outputs. A deploy job that failed can therefore be retried
-after the window, by the dispatcher, with the same signed fields.
+This only holds for a job that runs `verify-proof` itself. GitHub lets anyone
+with write access re-run a single job of an old run, for 30 days, and jobs
+that are not re-run keep their outputs: a deploy job that relies on a
+separate `verify` job would deploy again without the proof being looked at.
+So every job that deploys calls `verify-proof` as its first step, and a retry
+is possible for 10 minutes, by the dispatcher.
 
 ### Enrolling a YubiKey
 
@@ -152,14 +157,10 @@ concurrency:
   group: cd              # the regular deploy stage's group
   cancel-in-progress: true
 jobs:
-  verify:
+  deploy-prod:
     runs-on: ubuntu-latest
-    permissions: { contents: read }
-    outputs:
-      image-tag: ${{ fromJSON(steps.proof.outputs.payload).image_tag }}
-      terraform-ref: ${{ fromJSON(steps.proof.outputs.payload).terraform_ref }}
     steps:
-      - id: proof
+      - id: proof                          # first step of every job that deploys
         uses: WalletConnect/actions/github/break-glass/verify-proof@<sha>
         with:
           proof: ${{ inputs.proof }}
@@ -168,10 +169,14 @@ jobs:
           IMAGE_TAG: ${{ fromJSON(steps.proof.outputs.payload).image_tag }}
           TERRAFORM_REF: ${{ fromJSON(steps.proof.outputs.payload).terraform_ref }}
         run: ./scripts/break-glass-check.sh
-  deploy-staging:  # needs: verify
-  deploy-prod:     # needs: verify       (in parallel with staging)
+      # … assume the cloud role and deploy, reading the same two values
+  deploy-staging:  # the same steps, in parallel with prod
   tests:           # needs: deploy-staging; the regular test suite, continue-on-error
 ```
+
+Do not put `verify-proof` in a job of its own that the deploy jobs `need`:
+such a deploy job can be re-run alone, long after the proof expired (see
+[Replay](#replay)). The token needs `contents: read`.
 
 Plus `.github/break-glass-signers` and a `lint-signers` job on PRs that touch it.
 
@@ -186,7 +191,8 @@ to. The repository's workflow decides that, and should at least:
 - pass signed values to scripts through `env:`, never as `${{ }}` inside
   `run:`, since they are free text.
 
-Nothing should run before `verify`: no cloud role, no build, no PR comment.
+Nothing should run before `verify-proof` in a job: no cloud role, no build,
+no PR comment.
 
 The regular release can honour a `skip-deploy` PR label, so a hotfix's image
 is built and published but not deployed by the regular pipeline, with one
@@ -209,7 +215,7 @@ step before its deploy job:
 - The proof protects the break-glass path. Any branch can still run a
   modified workflow with the same repository secrets and the org-wide OIDC
   trust; tightening that trust is a separate change in `infra-aws-org`.
-- Audit: the `verify` step summary (signer, key type, signed payload) and the
+- Audit: the `verify-proof` step summary (signer, key type, signed payload) and the
   deployment records of the existing environments.
 - Tests: [`tests/`](tests/test_break_glass.py) sign and verify proofs with
   a software `sk-` key (CI has no YubiKey; needs the OpenSSL 3 `openssl`
