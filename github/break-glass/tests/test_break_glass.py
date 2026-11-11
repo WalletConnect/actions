@@ -52,7 +52,7 @@ class SoftKey:
         self.blob = string(SK_ED25519) + string(der[-32:]) + string(b"ssh:")
         self.public = f"{SK_ED25519.decode()} {base64.b64encode(self.blob).decode()}"
 
-    def proof(self, payload, flags=0x05, namespace=b"break-glass", sig_type=SK_ED25519):
+    def proof(self, payload, flags=0x01, namespace=b"break-glass", sig_type=SK_ED25519):
         """A proof over the payload string; flags 0x01 = touched, 0x04 = PIN entered."""
         signed = b"SSHSIG" + string(namespace) + string(b"") + string(b"sha512") \
             + string(hashlib.sha512(payload.encode()).digest())
@@ -123,10 +123,11 @@ class BreakGlassTest(unittest.TestCase):
     def test_wrong_namespace(self):
         self.rejects(self.key.proof(claims(), namespace=b"other"), "does not verify")
 
-    def test_signed_without_touch_or_pin(self):
-        for flags in (0x00, 0x01, 0x04):
+    def test_touch_flag(self):
+        self.verify(self.key.proof(claims(), flags=0x05))  # a key that also asks for the PIN
+        for flags in (0x00, 0x04):
             with self.subTest(flags=flags):
-                self.rejects(self.key.proof(claims(), flags=flags), "without a touch and PIN")
+                self.rejects(self.key.proof(claims(), flags=flags), "without the key being touched")
 
     def test_other_signature_type(self):
         # Such a signature may carry more than flags and counter after the signature.

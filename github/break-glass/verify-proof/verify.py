@@ -22,7 +22,7 @@ import urllib.request
 NAMESPACE = "break-glass"
 MAX_SKEW = 120  # seconds an iat may lie in the future, for a signing clock that runs ahead
 FIDO2_KEY_TYPES = ("sk-ssh-ed25519@openssh.com", "sk-ecdsa-sha2-nistp256@openssh.com")
-TOUCHED_WITH_PIN = 0x01 | 0x04  # FIDO2 flags: user present, user verified
+TOUCHED = 0x01  # FIDO2 flag: user present
 
 
 class ProofError(Exception):
@@ -64,7 +64,7 @@ def verify(proof, signers, actor, repo, max_age):
                          f"with principal '{actor}' (case-sensitive) and namespace '{NAMESPACE}'?")
 
     # ssh-keygen accepted the signature, so it is well-formed. It does not look at the
-    # key type or at the FIDO2 flags, so read them from the SSHSIG blob:
+    # key type or at the FIDO2 touch flag, so read them from the SSHSIG blob:
     #   magic(6) version(4) string(publickey) string(namespace) string(reserved) string(hash) string(signature)
     #   publickey = string(type) ...        signature = string(type) string(sig) byte(flags) uint32(counter)
     publickey, _, _, _, signature, _ = ssh_strings(base64.b64decode(sig)[10:], 5)
@@ -72,9 +72,9 @@ def verify(proof, signers, actor, repo, max_age):
     sig_type, _, after_sig = ssh_strings(signature, 2)
     if key_type not in FIDO2_KEY_TYPES or sig_type.decode() != key_type:
         raise ProofError(f"the proof verified but with a non-FIDO2 key ({key_type}); only sk- keys are accepted")
-    if after_sig[0] & TOUCHED_WITH_PIN != TOUCHED_WITH_PIN:
-        raise ProofError("the proof was signed without a touch and PIN; "
-                         "enrol a key made with -O verify-required (see github/break-glass/README.md)")
+    if not after_sig[0] & TOUCHED:
+        raise ProofError("the proof was signed without the key being touched; "
+                         "enrol a key made without -O no-touch-required (see github/break-glass/README.md)")
 
     # The payload is signed, so from here on it is the signer's statement.
     try:
@@ -146,7 +146,7 @@ def main():
         out.write(f"payload={payload}\nsigner={actor}\nkey-type={key_type}\n")
     with open(env["GITHUB_STEP_SUMMARY"], "a") as out:
         out.write("### 🔐 Break-glass proof verified\n"
-                  f"- Signer: @{actor} (`{key_type}`, touched, PIN entered)\n"
+                  f"- Signer: @{actor} (`{key_type}`, touched)\n"
                   f"- Payload:\n```json\n{json.dumps(claims, indent=2)}\n```\n")
 
 

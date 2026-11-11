@@ -65,11 +65,10 @@ def main():
     # The exact bytes to sign: compact JSON, aud and iat first.
     payload = json.dumps({"aud": args.repo, "iat": int(time.time()), **fields}, separators=(",", ":"))
     print(f"signing: {payload}", file=sys.stderr)
-    print("touch the YubiKey (and enter its PIN) to sign...", file=sys.stderr)
-    # The payload goes to ssh-keygen as a file, not on stdin: with stdin taken, ssh-keygen
-    # cannot ask for the PIN on the terminal and falls back to ssh-askpass. And without
-    # SSH_AUTH_SOCK: it would hand the signing to an ssh-agent that holds the key, and an
-    # agent cannot ask for the PIN either ("agent refused operation").
+    print("touch the YubiKey when it blinks...", file=sys.stderr)
+    # The payload goes to ssh-keygen as a file, not on stdin, so a key that asks for a PIN
+    # can prompt on the terminal. And without SSH_AUTH_SOCK: ssh-keygen would hand the
+    # signing to an ssh-agent that holds the key, and the agent may refuse it.
     env = {k: v for k, v in os.environ.items() if k != "SSH_AUTH_SOCK"}
     with tempfile.TemporaryDirectory() as tmp:
         path = os.path.join(tmp, "payload")
@@ -78,8 +77,8 @@ def main():
         res = subprocess.run([ssh_keygen(), "-Y", "sign", "-n", "break-glass", "-f", args.key, path],
                              stdout=sys.stderr, env=env)
         if res.returncode != 0:
-            sys.exit("signing failed. 'invalid format' after the PIN prompt means the YubiKey has no FIDO2 "
-                     "PIN: set one with `ykman fido access change-pin` and sign again")
+            sys.exit("signing failed. 'invalid format' after a PIN prompt means the key was made with "
+                     "-O verify-required on a YubiKey without a PIN: enrol a new key (see README.md)")
         with open(path + ".sig") as f:
             armored = f.read()
     # The proof: the signed bytes as a JSON string, and the signature's base64 body (armor lines dropped).

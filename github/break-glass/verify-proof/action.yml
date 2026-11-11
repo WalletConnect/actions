@@ -6,7 +6,7 @@ description: >-
   and an `ssh-keygen -Y` signature over its exact bytes in the `break-glass`
   namespace. The signer must be the dispatcher (`github.actor`), listed in the
   repository's signers file, with an `sk-` key, and the signature must carry
-  the device's touch and PIN flags. The payload's `aud` must be this
+  the device's touch flag. The payload's `aud` must be this
   repository and its `iat` recent; every other field is the calling
   repository's to define and check. The run must be on the default branch,
   and the signers file is read from that branch through the API, not from the
