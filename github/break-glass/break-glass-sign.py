@@ -78,7 +78,8 @@ def main():
         res = subprocess.run([ssh_keygen(), "-Y", "sign", "-n", "break-glass", "-f", args.key, path],
                              stdout=sys.stderr, env=env)
         if res.returncode != 0:
-            sys.exit("signing failed")
+            sys.exit("signing failed. 'invalid format' after the PIN prompt means the YubiKey has no FIDO2 "
+                     "PIN: set one with `ykman fido access change-pin` and sign again")
         with open(path + ".sig") as f:
             armored = f.read()
     # The proof: the signed bytes as a JSON string, and the signature's base64 body (armor lines dropped).

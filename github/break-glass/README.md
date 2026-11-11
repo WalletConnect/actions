@@ -80,10 +80,20 @@ is `brew install openssh`, used by full path (`/opt/homebrew/bin/ssh-keygen`,
 which `break-glass-sign.py` picks up on its own); Apple's own `ssh-keygen`
 cannot talk to FIDO2 devices and there is no provider library to add to it.
 Ubuntu 22.04 and newer ship it. Plus Python 3.9 or newer (macOS's `python3`
-is fine), and a YubiKey 5 with a
-FIDO2 PIN set (`ykman fido access change-pin`).
+is fine), and a YubiKey 5.
 
-1. **Generate the key on the device.** Plug the YubiKey in and run:
+1. **Set a FIDO2 PIN on the YubiKey** if it has none (`ykman fido info`
+   shows "PIN: Not set"); a new YubiKey has none:
+
+   ```bash
+   ykman fido access change-pin
+   ```
+
+   Every signature asks for this PIN and a touch, and `verify-proof` rejects
+   a signature made without both. Without a PIN the next step still
+   succeeds, but signing then fails with "invalid format".
+
+2. **Generate the key on the device.** Plug the YubiKey in and run:
 
    ```bash
    ssh-keygen -t ed25519-sk -O resident -O verify-required \
@@ -99,9 +109,9 @@ FIDO2 PIN set (`ykman fido access change-pin`).
    `verify-required` makes every signature ask for the PIN and a touch;
    `resident` keeps the credential on the device so another laptop can use it
    after `ssh-keygen -K`. The command fails without a FIDO2 device attached.
-   Keep the `.att` file: it is the device's attestation, see step 3.
+   Keep the `.att` file: it is the device's attestation, see step 4.
 
-2. **Add one line to the repository's signers file**,
+3. **Add one line to the repository's signers file**,
    `.github/break-glass-signers`, through a normal PR. The first field is your
    GitHub login exactly as GitHub shows it (principal matching is
    case-sensitive), then the namespace option, then the public line as printed:
@@ -113,15 +123,15 @@ FIDO2 PIN set (`ykman fido access change-pin`).
    One repository, one file: to run the break-glass path in both `rs-relay`
    and `pay-core`, the same line goes into both repositories.
 
-3. **Review.** [`lint-signers`](lint-signers/action.yml) runs on the PR and
+4. **Review.** [`lint-signers`](lint-signers/action.yml) runs on the PR and
    rejects any key that is not an `sk-` type and any principal that is a
    pattern (`*`) instead of one exact login. CODEOWNERS covers the file, so a
-   codeowner approves it, and first checks that the attestation from step 1
+   codeowner approves it, and first checks that the attestation from step 2
    chains to the Yubico FIDO root CA. That check is the only proof that the
    key lives in a YubiKey: an `sk-` key can also be made in software, and
    neither the lint nor the run can tell.
 
-4. **Try it without deploying.** Signing works as soon as the key exists and
+5. **Try it without deploying.** Signing works as soon as the key exists and
    never dispatches anything:
 
    ```bash
@@ -131,7 +141,7 @@ FIDO2 PIN set (`ykman fido access change-pin`).
    The YubiKey asks for its PIN and blinks, you touch it, the proof prints.
    Don't paste it anywhere.
 
-5. **Rotation and loss.** Remove the line through a PR and the key stops
+6. **Rotation and loss.** Remove the line through a PR and the key stops
    working on the next run; a replacement device is a new line. Enrolling a
    second YubiKey as a second line is the backup, since a lost device cannot
    be recovered.
