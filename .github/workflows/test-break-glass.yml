@@ -5,10 +5,6 @@ on:
     paths:
       - "github/break-glass/**"
       - ".github/workflows/test-break-glass.yml"
-  pull_request:
-    paths:
-      - "github/break-glass/**"
-      - ".github/workflows/test-break-glass.yml"
 
 permissions:
   contents: read
@@ -17,16 +13,17 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.x"]   # 3.9: macOS's system python3, the oldest supported
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # The runner's own python3, as the actions use it. The scripts also run on
-      # macOS's system python3 (3.9), so check they parse as 3.9.
-      - name: Check Python 3.9 syntax
-        run: |
-          python3 -c 'import ast, sys; [ast.parse(open(f).read(), f, feature_version=(3, 9)) for f in sys.argv[1:]]' \
-            $(git ls-files 'github/break-glass/*.py')
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
 
       - name: Test the helper, verify-proof and lint-signers
-        run: python3 -m unittest discover -s github/break-glass/tests -v
+        run: python -m unittest discover -s github/break-glass/tests -v

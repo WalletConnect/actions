@@ -32,15 +32,15 @@ What a proof may deploy is each repository's decision, made in its own
 ## The proof
 
 ```json
-{"payload":"{\"aud\":\"WalletConnect/pay-core\",\"iat\":1762862400,\"nonce\":\"9f3c…\",\"image_tag\":\"3f2a9c1e…\",\"terraform_ref\":\"main\"}","sig":"U1NIU0lHAAAAAQ…"}
+{"payload":"{\"aud\":\"WalletConnect/pay-core\",\"iat\":1762862400,\"image_tag\":\"3f2a9c1e…\",\"terraform_ref\":\"main\"}","sig":"U1NIU0lHAAAAAQ…"}
 ```
 
 - `payload` is a JSON object kept as a string, so the signed bytes survive
   copying unchanged. `sig` is the body of an `ssh-keygen -Y sign -n break-glass`
   signature over exactly those bytes (`printf '%s'`, no trailing newline).
-- `aud` is the repository, exactly as `GITHUB_REPOSITORY` reports it
-  (rs-relay is `reown-com/rs-relay`). `iat` is the signing time in unix
-  seconds. `nonce` makes every proof unique. The helper sets all three.
+- `aud` is the repository as `GITHUB_REPOSITORY` reports it (rs-relay is
+  `reown-com/rs-relay`; letter case does not matter). `iat` is the signing
+  time in unix seconds. The helper sets both.
 - Every other field is the repository's own: the helper signs whatever
   `-f key=value` pairs it is given, as strings, and `verify-proof` returns them
   unchecked. A repository can add fields without a change here.
@@ -52,11 +52,13 @@ What a proof may deploy is each repository's decision, made in its own
 - the signature verifies against the signers file for principal
   `github.actor` in namespace `break-glass`, so the dispatcher and the signer
   are the same login;
-- the signing key is an `sk-` (FIDO2) type, which cannot sign without the
-  device being touched;
+- the signing key is an `sk-` (FIDO2) type, and the signature carries the
+  authenticator's "touched" and "PIN entered" flags. `ssh-keygen` checks
+  neither, so `verify-proof` reads both from the signature itself. A key made
+  without `-O verify-required` is rejected here;
 - `aud` is this repository;
-- `iat` is at most `max-age` (600 s) old and at most `max-skew` (120 s) in
-  the future, measured when `verify-proof` runs.
+- `iat` is at most `max-age` (600 s) old and at most 120 s in the future,
+  measured when `verify-proof` runs.
 
 Then it outputs `payload` (the verified JSON, compact), `signer` and `key-type`.
 
@@ -112,10 +114,12 @@ FIDO2 PIN set (`ykman fido access change-pin`).
    and `pay-core`, the same line goes into both repositories.
 
 3. **Review.** [`lint-signers`](lint-signers/action.yml) runs on the PR and
-   rejects any key that is not an `sk-` type. CODEOWNERS covers the file, so a
-   codeowner approves it. If the device brand matters, the reviewer checks
-   that the attestation from step 1 chains to the Yubico FIDO root CA; the
-   workflow only proves that a FIDO2 authenticator was touched, not which one.
+   rejects any key that is not an `sk-` type and any principal that is a
+   pattern (`*`) instead of one exact login. CODEOWNERS covers the file, so a
+   codeowner approves it, and first checks that the attestation from step 1
+   chains to the Yubico FIDO root CA. That check is the only proof that the
+   key lives in a YubiKey: an `sk-` key can also be made in software, and
+   neither the lint nor the run can tell.
 
 4. **Try it without deploying.** Signing works as soon as the key exists and
    never dispatches anything:
@@ -124,7 +128,8 @@ FIDO2 PIN set (`ykman fido access change-pin`).
    break-glass-sign.py <owner/repo> -f test=1
    ```
 
-   The YubiKey blinks, you touch it, the proof prints. Don't paste it anywhere.
+   The YubiKey asks for its PIN and blinks, you touch it, the proof prints.
+   Don't paste it anywhere.
 
 5. **Rotation and loss.** Remove the line through a PR and the key stops
    working on the next run; a replacement device is a new line. Enrolling a
@@ -204,6 +209,7 @@ step before its deploy job:
 - Audit: the `verify` step summary (signer, key type, signed payload) and the
   deployment records of the existing environments.
 - Tests: [`tests/`](tests/test_break_glass.py) sign and verify proofs with
-  throwaway plain keys (CI has no YubiKey) and lint signers files; run
+  a software `sk-` key (CI has no YubiKey; needs the OpenSSL 3 `openssl`
+  CLI) and lint signers files; run
   `python3 -m unittest discover -s github/break-glass/tests` after changing
   the helper, `verify-proof` or `lint-signers`.

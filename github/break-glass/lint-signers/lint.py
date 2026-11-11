@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Check a break-glass signers file (run by action.yml on PRs that touch it).
 
-Every non-comment line must be an allowed_signers entry whose key is an sk- (FIDO2)
-type and parses with ssh-keygen. An empty file is allowed (a repository before its
-first enrolment); verify-proof then rejects every run with a clear message.
+Every non-comment line must be an allowed_signers entry whose principals are exact
+logins (no patterns) and whose key is an sk- (FIDO2) type that parses with
+ssh-keygen. An empty file is allowed (a repository before its first enrolment);
+verify-proof then rejects every run with a clear message.
 
     lint.py [signers-file]      # default .github/break-glass-signers
 """
@@ -53,7 +54,10 @@ def lint(path):
             except ValueError as e:
                 errors.append((lineno, f"line {lineno}: {e}"))
                 continue
-            if ktype not in FIDO2_KEY_TYPES:
+            if re.search(r"[*?!]", principals):
+                # A pattern would let the key sign for logins other than its owner's.
+                errors.append((lineno, f"'{principals}': principals must be exact GitHub logins, not patterns"))
+            elif ktype not in FIDO2_KEY_TYPES:
                 errors.append((lineno, f"'{principals}': key type '{ktype}' is not a FIDO2 (sk-) key"))
             elif not key_parses(ktype, key):
                 errors.append((lineno, f"'{principals}': key does not parse"))

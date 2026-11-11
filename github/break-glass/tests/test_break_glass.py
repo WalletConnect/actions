@@ -1,17 +1,16 @@
 """Tests for break-glass-sign.py, verify-proof/verify.py and lint-signers/lint.py.
 
-CI has no YubiKey, so proofs are signed with throwaway plain ed25519 keys and the
-sk- check is lifted through verify()'s test-only allow_any_key argument; main()
-never passes it.
+CI has no YubiKey, so SoftKey plays the authenticator: an sk-ssh-ed25519 key held in
+a file, signing with the openssl CLI (OpenSSL 3) and setting the FIDO2 flags itself.
 
     python3 -m unittest discover -s github/break-glass/tests -v
 """
 import base64
+import hashlib
 import importlib.util
 import io
 import json
 import os
-import struct
 import subprocess
 import sys
 import tempfile
@@ -22,6 +21,8 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
+REPO = "acme/app"
+SK_ED25519 = b"sk-ssh-ed25519@openssh.com"
 
 
 def load(name, path):
@@ -31,249 +32,214 @@ def load(name, path):
     return mod
 
 
-signer = load("break_glass_sign", "break-glass-sign.py")
 verifier = load("verify", "verify-proof/verify.py")
 linter = load("lint", "lint-signers/lint.py")
 
-REPO = "acme/app"
+
+def string(b):
+    return len(b).to_bytes(4, "big") + b
 
 
-def keygen(path, comment):
-    subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", comment, "-f", str(path)], check=True)
-    return Path(f"{path}.pub").read_text().strip()
+class SoftKey:
+    """A software sk-ssh-ed25519 key: what a FIDO2 authenticator does, without the device."""
+
+    def __init__(self, directory, name):
+        self.pem = str(Path(directory) / f"{name}.pem")
+        subprocess.run(["openssl", "genpkey", "-algorithm", "ed25519", "-out", self.pem], check=True)
+        der = subprocess.run(["openssl", "pkey", "-in", self.pem, "-pubout", "-outform", "DER"],
+                             check=True, capture_output=True).stdout
+        self.blob = string(SK_ED25519) + string(der[-32:]) + string(b"ssh:")
+        self.public = f"{SK_ED25519.decode()} {base64.b64encode(self.blob).decode()}"
+
+    def proof(self, payload, flags=0x05, namespace=b"break-glass", sig_type=SK_ED25519):
+        """A proof over the payload string; flags 0x01 = touched, 0x04 = PIN entered."""
+        signed = b"SSHSIG" + string(namespace) + string(b"") + string(b"sha512") \
+            + string(hashlib.sha512(payload.encode()).digest())
+        counter = (7).to_bytes(4, "big")
+        to_sign = hashlib.sha256(b"ssh:").digest() + bytes([flags]) + counter + hashlib.sha256(signed).digest()
+        Path(self.pem + ".in").write_bytes(to_sign)  # openssl 3.0 signs raw input only from a file
+        sig = subprocess.run(["openssl", "pkeyutl", "-sign", "-rawin", "-inkey", self.pem, "-in", self.pem + ".in"],
+                             check=True, capture_output=True).stdout
+        blob = b"SSHSIG" + (1).to_bytes(4, "big") + string(self.blob) + string(namespace) + string(b"") \
+            + string(b"sha512") + string(string(sig_type) + string(sig) + bytes([flags]) + counter)
+        return json.dumps({"payload": payload, "sig": base64.b64encode(blob).decode()})
+
+
+def claims(**kw):
+    return json.dumps({"aud": REPO, "iat": int(time.time()), **kw})
 
 
 class BreakGlassTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
-        d = Path(cls.tmp.name)
-        cls.key, cls.other = str(d / "key"), str(d / "other")
-        cls.pub, cls.other_pub = keygen(cls.key, "test"), keygen(cls.other, "other")
-        cls.signers = d / "signers"
-        cls.signers.write_text(f'alice namespaces="break-glass" {cls.pub}\n')
+        cls.dir = Path(cls.tmp.name)
+        cls.key, cls.other = SoftKey(cls.dir, "key"), SoftKey(cls.dir, "other")
+        cls.plain = str(cls.dir / "plain")
+        subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", cls.plain], check=True)
+        cls.plain_public = Path(cls.plain + ".pub").read_text().strip()
+        cls.signers = (f'alice namespaces="break-glass" {cls.key.public}\n'
+                       f'alice namespaces="break-glass" {cls.plain_public}\n').encode()
 
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    # -- helpers ---------------------------------------------------------------
-    def helper(self, *args):
-        return subprocess.run([sys.executable, str(ROOT / "break-glass-sign.py"), *args],
-                              capture_output=True, text=True)
-
-    def proof_for(self, payload, key=None, namespace="break-glass"):
-        """A proof over an arbitrary payload string."""
-        res = subprocess.run(["ssh-keygen", "-Y", "sign", "-n", namespace, "-f", key or self.key],
-                             input=payload.encode(), capture_output=True, check=True)
-        body = "".join(res.stdout.decode().strip().splitlines()[1:-1])
-        return json.dumps({"payload": payload, "sig": body})
-
-    def claims(self, **kw):
-        c = {"aud": REPO, "iat": int(time.time())}
-        c.update(kw)
-        return json.dumps(c)
-
-    def verify(self, proof, actor="alice", **kw):
-        args = dict(signers_file=str(self.signers), actor=actor, repo=REPO, namespace="break-glass",
-                    max_age=600, max_skew=120, allow_any_key=True)
-        args.update(kw)
-        return verifier.verify(proof, **args)
+    def verify(self, proof, actor="alice", max_age=600):
+        return verifier.verify(proof, self.signers, actor, REPO, max_age)
 
     def rejects(self, proof, message, **kw):
         with self.assertRaises(verifier.ProofError) as cm:
             self.verify(proof, **kw)
         self.assertIn(message, str(cm.exception))
 
-    # -- helper + verify round trip -------------------------------------------------
-    def test_helper_proof_verifies(self):
-        res = self.helper(REPO, "-f", "image_tag=v1.80.3", "-f", "terraform_ref=main",
-                          "-f", 'ticket=INC-1 "quoted" $(x)', "--key", self.key)
-        self.assertEqual(res.returncode, 0, res.stderr)
-        proof = res.stdout.strip()
-        claims, kt = self.verify(proof)
-        self.assertEqual(kt, "ssh-ed25519")
-        self.assertEqual(claims["image_tag"], "v1.80.3")
-        self.assertEqual(claims["terraform_ref"], "main")
-        self.assertEqual(claims["ticket"], 'INC-1 "quoted" $(x)')
-        self.assertEqual(claims["aud"], REPO)
-        self.assertRegex(claims["nonce"], r"^[0-9a-f]{32}$")
-        self.assertLessEqual(abs(claims["iat"] - time.time()), 5)
-        self.assertEqual(json.loads(json.loads(proof)["payload"]), claims)
+    # -- signature ------------------------------------------------------------------
+    def test_valid_proof(self):
+        got, key_type = self.verify(self.key.proof(claims(image_tag="v1.80.3", ticket='INC-1 "q" $(x) ü')))
+        self.assertEqual(key_type, "sk-ssh-ed25519@openssh.com")
+        self.assertEqual(got["image_tag"], "v1.80.3")
+        self.assertEqual(got["ticket"], 'INC-1 "q" $(x) ü')
 
     def test_any_payload_formatting_verifies(self):
-        self.verify(self.proof_for(json.dumps(json.loads(self.claims(x="ü")), indent=2, ensure_ascii=False)))
+        self.verify(self.key.proof(json.dumps(json.loads(claims(x="ü")), indent=2, ensure_ascii=False)))
 
     def test_sig_with_line_breaks_verifies(self):
-        doc = json.loads(self.proof_for(self.claims()))
+        doc = json.loads(self.key.proof(claims()))
         doc["sig"] = "\n".join(doc["sig"][i:i + 70] for i in range(0, len(doc["sig"]), 70))
         self.verify(json.dumps(doc))
 
-    # -- signature ------------------------------------------------------------------
     def test_changed_payload_byte(self):
-        doc = json.loads(self.proof_for(self.claims(image_tag="v1.80.3")))
+        doc = json.loads(self.key.proof(claims(image_tag="v1.80.3")))
         doc["payload"] = doc["payload"].replace("v1.80.3", "v1.80.4")
         self.rejects(json.dumps(doc), "does not verify")
 
     def test_dispatcher_is_not_the_signer(self):
-        self.rejects(self.proof_for(self.claims()), "does not verify", actor="bob")
+        self.rejects(self.key.proof(claims()), "does not verify", actor="bob")
 
     def test_key_not_in_signers_file(self):
-        self.rejects(self.proof_for(self.claims(), key=self.other), "does not verify")
+        self.rejects(self.other.proof(claims()), "does not verify")
 
     def test_wrong_namespace(self):
-        self.rejects(self.proof_for(self.claims(), namespace="other"), "does not verify")
+        self.rejects(self.key.proof(claims(), namespace=b"other"), "does not verify")
 
-    def test_non_sk_key_rejected_outside_tests(self):
-        self.rejects(self.proof_for(self.claims()), "non-FIDO2 key (ssh-ed25519)", allow_any_key=False)
+    def test_signed_without_touch_or_pin(self):
+        for flags in (0x00, 0x01, 0x04):
+            with self.subTest(flags=flags):
+                self.rejects(self.key.proof(claims(), flags=flags), "without a touch and PIN")
 
-    def test_sk_key_types_accepted(self):
-        self.assertEqual(set(verifier.FIDO2_KEY_TYPES),
-                         {"sk-ssh-ed25519@openssh.com", "sk-ecdsa-sha2-nistp256@openssh.com"})
+    def test_other_signature_type(self):
+        # Such a signature may carry more than flags and counter after the signature.
+        self.rejects(self.key.proof(claims(), sig_type=b"webauthn-sk-ecdsa-sha2-nistp256@openssh.com"), "does not")
 
     # -- envelope and claims --------------------------------------------------------------
     def test_proof_not_json(self):
-        self.rejects("garbage", "is not {")
-
-    def test_proof_missing_sig(self):
-        self.rejects('{"payload":"{}"}', "is not {")
+        for proof in ("garbage", "", '{"payload":"{}"}', '["payload","sig"]'):
+            with self.subTest(proof=proof):
+                self.rejects(proof, "is not {")
 
     def test_sig_not_ssh_signature(self):
-        self.rejects(json.dumps({"payload": self.claims(), "sig": "bm90IGEgc2ln"}), "does not verify")
+        self.rejects(json.dumps({"payload": claims(), "sig": "bm90IGEgc2ln"}), "does not verify")
 
-    def test_wrong_aud(self):
-        self.rejects(self.proof_for(self.claims(aud="acme/other")), "signed for 'acme/other'")
+    def test_aud(self):
+        self.verify(self.key.proof(claims(aud="Acme/App")))
+        self.rejects(self.key.proof(claims(aud="acme/other")), "signed for 'acme/other'")
+        self.rejects(self.key.proof(json.dumps({"iat": int(time.time())})), "signed for 'None'")
 
-    def test_missing_aud(self):
-        self.rejects(self.proof_for(json.dumps({"iat": int(time.time())})), "signed for '<no aud>'")
-
-    def test_iat_too_old(self):
-        self.rejects(self.proof_for(self.claims(iat=int(time.time()) - 601)), "more than the 600s")
-
-    def test_iat_inside_max_age(self):
-        self.verify(self.proof_for(self.claims(iat=int(time.time()) - 590)))
-
-    def test_iat_too_far_ahead(self):
-        self.rejects(self.proof_for(self.claims(iat=int(time.time()) + 300)), "in the future")
-
-    def test_iat_inside_max_skew(self):
-        self.verify(self.proof_for(self.claims(iat=int(time.time()) + 100)))
-
-    def test_iat_not_a_whole_number(self):
-        for iat in (str(int(time.time())), time.time(), True, None):
+    def test_iat(self):
+        now = int(time.time())
+        self.verify(self.key.proof(claims(iat=now - 590)))
+        self.verify(self.key.proof(claims(iat=now + 100)))
+        self.rejects(self.key.proof(claims(iat=now - 601)), "more than the 600s")
+        self.rejects(self.key.proof(claims(iat=now - 61)), "more than the 60s", max_age=60)
+        self.rejects(self.key.proof(claims(iat=now + 300)), "in the future")
+        for iat in (str(now), float(now), True, None):
             with self.subTest(iat=iat):
-                self.rejects(self.proof_for(self.claims(iat=iat)), "no whole-number iat")
+                self.rejects(self.key.proof(claims(iat=iat)), "no whole-number iat")
 
-    def test_payload_not_an_object(self):
-        self.rejects(self.proof_for("[1]"), "not a JSON object")
-
-    def test_payload_not_json(self):
-        self.rejects(self.proof_for("break-glass:acme/app:tag:v1"), "not JSON")
+    def test_payload_not_a_json_object(self):
+        self.rejects(self.key.proof("[1]"), "not a JSON object")
+        self.rejects(self.key.proof("break-glass:acme/app:tag:v1"), "not JSON")
 
     # -- main(): the action's own checks ----------------------------------------------------
-    def run_main(self, proof, **env):
-        out = Path(self.tmp.name) / "out"
+    def run_main(self, proof=None, signers=None, **env):
+        out, summary = self.dir / "out", self.dir / "summary"
         out.write_text("")
-        base = dict(REPO=REPO, REF="refs/heads/main", DEFAULT_BRANCH="main", ACTOR="alice",
-                    TRIGGERING_ACTOR="alice", RUN_ATTEMPT="1", PROOF=proof, SIGNERS_PATH=".github/break-glass-signers",
-                    NAMESPACE="break-glass", MAX_AGE="600", MAX_SKEW="120", GH_TOKEN="t", GITHUB_OUTPUT=str(out))
-        base.update(env)
-        real_verify = verifier.verify
-        with mock.patch.dict(os.environ, base, clear=True), \
-                mock.patch.object(verifier, "fetch_signers", return_value=self.signers.read_bytes()) as fetch, \
-                mock.patch.object(verifier, "verify", lambda *a, **k: real_verify(*a, allow_any_key=True, **k)), \
-                redirect_stdout(io.StringIO()):
+        env = {"REPO": REPO, "REF": "refs/heads/main", "DEFAULT_BRANCH": "main", "ACTOR": "alice",
+               "TRIGGERING_ACTOR": "alice", "PROOF": proof or self.key.proof(claims(image_tag="v1")),
+               "SIGNERS_PATH": ".github/break-glass-signers", "MAX_AGE": "600", "GH_TOKEN": "t",
+               "GITHUB_API_URL": "https://api", "GITHUB_OUTPUT": str(out), "GITHUB_STEP_SUMMARY": str(summary),
+               **env}
+        with mock.patch.dict(os.environ, env, clear=True), redirect_stdout(io.StringIO()), \
+                mock.patch.object(verifier, "fetch_signers",
+                                  return_value=self.signers if signers is None else signers) as fetch:
             verifier.main()
-        fetch.assert_called_once_with("https://api.github.com", "t", REPO, ".github/break-glass-signers", "main")
+        fetch.assert_called_once_with("https://api", "t", REPO, ".github/break-glass-signers", "main")
         return dict(line.split("=", 1) for line in out.read_text().splitlines())
 
-    def main_rejects(self, message, proof=None, **env):
+    def main_rejects(self, message, **kw):
         with self.assertRaises(verifier.ProofError) as cm:
-            self.run_main(proof or self.proof_for(self.claims()), **env)
+            self.run_main(**kw)
         self.assertIn(message, str(cm.exception))
 
     def test_main_outputs(self):
-        out = self.run_main(self.proof_for(self.claims(image_tag="v1")))
+        out = self.run_main()
         self.assertEqual(json.loads(out["payload"])["image_tag"], "v1")
-        self.assertEqual(out["signer"], "alice")
-        self.assertEqual(out["key-type"], "ssh-ed25519")
+        self.assertEqual((out["signer"], out["key-type"]), ("alice", "sk-ssh-ed25519@openssh.com"))
 
-    def test_main_rerun_by_dispatcher(self):
-        self.run_main(self.proof_for(self.claims()), RUN_ATTEMPT="2")
-
-    def test_main_rerun_by_someone_else(self):
-        self.main_rejects("can only be re-run by its dispatcher", TRIGGERING_ACTOR="bob", RUN_ATTEMPT="2")
-
-    def test_main_other_branch(self):
+    def test_main_rejections(self):
+        self.main_rejects("can only be re-run by its dispatcher", TRIGGERING_ACTOR="bob")
         self.main_rejects("runs only on main", REF="refs/heads/feature")
-
-    def test_main_empty_proof(self):
-        self.main_rejects("no proof", proof=" ")
-
-    def test_main_bad_max_age(self):
+        self.main_rejects("is not {", PROOF=" ")
         self.main_rejects("whole seconds", MAX_AGE="10m")
+        self.main_rejects("not found on main", signers=b"")
 
-    def test_main_never_allows_any_key(self):
-        base = dict(REPO=REPO, REF="refs/heads/main", DEFAULT_BRANCH="main", ACTOR="alice", TRIGGERING_ACTOR="alice",
-                    PROOF=self.proof_for(self.claims()), SIGNERS_PATH="s", NAMESPACE="break-glass",
-                    MAX_AGE="600", MAX_SKEW="120", GH_TOKEN="t")
-        with mock.patch.dict(os.environ, base, clear=True), \
-                mock.patch.object(verifier, "fetch_signers", return_value=self.signers.read_bytes()), \
-                self.assertRaises(verifier.ProofError) as cm:
-            verifier.main()
-        self.assertIn("non-FIDO2", str(cm.exception))
+    # -- the helper --------------------------------------------------------------------------
+    def helper(self, *args):
+        return subprocess.run([sys.executable, str(ROOT / "break-glass-sign.py"), *args, "--key", self.plain],
+                              capture_output=True, text=True)
 
-    def test_main_missing_signers_file(self):
-        with mock.patch.object(verifier, "fetch_signers", return_value=b""):
-            base = dict(REPO=REPO, REF="refs/heads/main", DEFAULT_BRANCH="main", ACTOR="alice",
-                        TRIGGERING_ACTOR="alice", PROOF="x", SIGNERS_PATH="s", NAMESPACE="break-glass",
-                        MAX_AGE="600", MAX_SKEW="120", GH_TOKEN="t")
-            with mock.patch.dict(os.environ, base, clear=True), self.assertRaises(verifier.ProofError) as cm:
-                verifier.main()
-        self.assertIn("not found on main", str(cm.exception))
+    def test_helper_proof(self):
+        """The helper signs with ssh-keygen, so with a plain key here: right up to the sk- check."""
+        res = self.helper("Acme/App", "-f", "image_tag=v1.80.3", "-f", 'ticket=INC-1 "q" $(x)')
+        self.assertEqual(res.returncode, 0, res.stderr)
+        payload = json.loads(json.loads(res.stdout)["payload"])
+        self.assertEqual(list(payload), ["aud", "iat", "image_tag", "ticket"])
+        self.assertEqual((payload["aud"], payload["ticket"]), ("Acme/App", 'INC-1 "q" $(x)'))
+        self.assertLessEqual(abs(payload["iat"] - time.time()), 5)
+        self.rejects(res.stdout, "non-FIDO2 key (ssh-ed25519)")  # so the signature itself verified
 
-    # -- helper arguments -----------------------------------------------------------------
     def test_helper_argument_errors(self):
-        for args in (["-f", "aud=x"], ["-f", "nonce=x"], ["-f", "a=1", "-f", "a=2"], [], ["-f", "novalue"],
+        for args in (["-f", "aud=x"], ["-f", "iat=1"], ["-f", "a=1", "-f", "a=2"], [], ["-f", "novalue"],
                      ["-f", "=x"]):
             with self.subTest(args=args):
-                res = self.helper(REPO, *args, "--key", self.key)
+                res = self.helper(REPO, *args)
                 self.assertNotEqual(res.returncode, 0)
                 self.assertEqual(res.stdout, "")
-        self.assertNotEqual(self.helper("app", "-f", "a=1", "--key", self.key).returncode, 0)
-        self.assertNotEqual(self.helper(REPO, "-f", "a=1", "--key", "/nonexistent").returncode, 0)
-
-    def test_helper_payload_order(self):
-        payload = signer.build_payload(REPO, {"image_tag": "v1"}, now=1, nonce="n")
-        self.assertEqual(payload, '{"aud":"acme/app","iat":1,"nonce":"n","image_tag":"v1"}')
+        self.assertNotEqual(self.helper("app", "-f", "a=1").returncode, 0)
 
     # -- lint-signers ------------------------------------------------------------------------
-    def lint(self, text):
-        path = Path(self.tmp.name) / "lint-signers"
-        path.write_text(text)
-        with redirect_stdout(io.StringIO()):
-            return linter.lint(str(path))
-
     def test_lint(self):
-        # A well-formed sk-ssh-ed25519 public key (no device needed to parse one).
-        def string(b):
-            return struct.pack(">I", len(b)) + b
-        blob = string(b"sk-ssh-ed25519@openssh.com") + string(os.urandom(32)) + string(b"ssh:")
-        sk = f"sk-ssh-ed25519@openssh.com {base64.b64encode(blob).decode()} yubikey"
+        sk = self.key.public
         cases = {
             "": (0, 0),
             "# comment\n\n": (0, 0),
-            f'alice namespaces="break-glass" {sk}\n': (0, 1),
+            f'alice namespaces="break-glass" {sk} yubikey\n': (0, 1),
             f'alice namespaces="break-glass,other x" {sk}\n': (0, 1),
             f"alice {sk}\n": (0, 1),
-            f'alice namespaces="break-glass" {self.pub}\n': (1, 1),
+            f'alice namespaces="break-glass" {self.plain_public}\n': (1, 1),
             'alice namespaces="break-glass" sk-ssh-ed25519@openssh.com AAAAnotakey\n': (1, 1),
+            f'* namespaces="break-glass" {sk}\n': (1, 1),
+            f'!bob,* namespaces="break-glass" {sk}\n': (1, 1),
+            f'al?ce namespaces="break-glass" {sk}\n': (1, 1),
             "alice\n": (1, 1),
         }
-        for text, (errors, keys) in cases.items():
+        path = self.dir / "lint-signers"
+        for text, expected in cases.items():
             with self.subTest(text=text):
-                errs, n = self.lint(text)
-                self.assertEqual((len(errs), n), (errors, keys), errs)
+                path.write_text(text)
+                with redirect_stdout(io.StringIO()):
+                    errors, keys = linter.lint(str(path))
+                self.assertEqual((len(errors), keys), expected, errors)
 
 
 if __name__ == "__main__":

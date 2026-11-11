@@ -5,12 +5,12 @@ description: >-
   made by break-glass-sign.py, is JSON: a payload (a JSON object, as a string)
   and an `ssh-keygen -Y` signature over its exact bytes in the `break-glass`
   namespace. The signer must be the dispatcher (`github.actor`), listed in the
-  repository's signers file, with an `sk-` key, which cannot sign without the
-  device being touched. The payload's `aud` must be this repository and its
-  `iat` recent; every other field is the calling repository's to define and
-  check. The run must be on the default branch, and the signers file is read
-  from that branch through the API, not from the checkout, so neither rule
-  depends on the calling workflow.
+  repository's signers file, with an `sk-` key, and the signature must carry
+  the device's touch and PIN flags. The payload's `aud` must be this
+  repository and its `iat` recent; every other field is the calling
+  repository's to define and check. The run must be on the default branch,
+  and the signers file is read from that branch through the API, not from the
+  checkout, so neither rule depends on the calling workflow.
 
 inputs:
   proof:
@@ -24,23 +24,15 @@ inputs:
     description: Token with contents:read, to read the signers file from the default branch
     required: false
     default: ${{ github.token }}
-  namespace:
-    description: Signature namespace
-    required: false
-    default: break-glass
   max-age:
     description: Seconds a proof stays valid after its iat
     required: false
     default: '600'
-  max-skew:
-    description: Seconds an iat may lie in the future, for a signing machine whose clock runs ahead
-    required: false
-    default: '120'
 
 outputs:
   payload:
     description: >-
-      The verified payload as compact JSON, e.g. {"aud":…,"iat":…,"nonce":…,"image_tag":…}.
+      The verified payload as compact JSON, e.g. {"aud":…,"iat":…,"image_tag":…}.
       Read fields with fromJSON(steps.<id>.outputs.payload).<field>, and hand them to
       scripts through env:, not ${{ }} inside run:.
     value: ${{ steps.verify.outputs.payload }}
@@ -63,10 +55,7 @@ runs:
         DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         ACTOR: ${{ github.actor }}
         TRIGGERING_ACTOR: ${{ github.triggering_actor }}
-        RUN_ATTEMPT: ${{ github.run_attempt }}
         PROOF: ${{ inputs.proof }}
         SIGNERS_PATH: ${{ inputs.signers-file }}
-        NAMESPACE: ${{ inputs.namespace }}
         MAX_AGE: ${{ inputs.max-age }}
-        MAX_SKEW: ${{ inputs.max-skew }}
       run: python3 "$GITHUB_ACTION_PATH/verify.py"

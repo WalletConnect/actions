@@ -3,16 +3,14 @@
 
 The proof is JSON: {"payload": "<JSON object, as a string>", "sig": "<SSHSIG body>"}.
 The signature covers the exact UTF-8 bytes of the payload string. The payload must
-carry aud (= the repository) and iat (unix seconds, at most max-age old and at most
-max-skew in the future). Every other field belongs to the calling repository and is
-passed through unchecked.
+carry aud (= the repository) and iat (unix seconds, at most max-age old). Every other
+field belongs to the calling repository and is passed through unchecked.
 
 Python 3.9+, standard library only, plus ssh-keygen (OpenSSH 8.2+).
 """
 import base64
 import json
 import os
-import struct
 import subprocess
 import sys
 import tempfile
@@ -21,15 +19,28 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+NAMESPACE = "break-glass"
+MAX_SKEW = 120  # seconds an iat may lie in the future, for a signing clock that runs ahead
 FIDO2_KEY_TYPES = ("sk-ssh-ed25519@openssh.com", "sk-ecdsa-sha2-nistp256@openssh.com")
+TOUCHED_WITH_PIN = 0x01 | 0x04  # FIDO2 flags: user present, user verified
 
 
 class ProofError(Exception):
     pass
 
 
-def parse_proof(proof):
-    """Return (payload bytes, armored signature) from the proof text."""
+def ssh_strings(buf, n):
+    """The first n length-prefixed strings of an SSH wire buffer, then what follows them."""
+    out = []
+    for _ in range(n):
+        size = int.from_bytes(buf[:4], "big")
+        out.append(buf[4:4 + size])
+        buf = buf[4 + size:]
+    return out + [buf]
+
+
+def verify(proof, signers, actor, repo, max_age):
+    """Verify the proof against the signers file (bytes); returns (payload dict, key type)."""
     try:
         doc = json.loads(proof)
     except ValueError:
@@ -37,75 +48,54 @@ def parse_proof(proof):
     if not (isinstance(doc, dict) and isinstance(doc.get("payload"), str) and isinstance(doc.get("sig"), str)):
         raise ProofError('the proof is not {"payload": "...", "sig": "..."}: '
                          "produce it with break-glass-sign.py and paste it whole")
-    body = "".join(doc["sig"].split())
-    lines = [body[i:i + 70] for i in range(0, len(body), 70)]
-    armored = "-----BEGIN SSH SIGNATURE-----\n" + "\n".join(lines) + "\n-----END SSH SIGNATURE-----\n"
-    return doc["payload"].encode("utf-8"), armored
+    payload, sig = doc["payload"], "".join(doc["sig"].split())
 
-
-def key_type(armored):
-    """Key type of the public key embedded in an SSHSIG signature."""
-    try:
-        blob = base64.b64decode("".join(armored.split("-----")[2].split()), validate=True)
-        if blob[:6] != b"SSHSIG":
-            raise ValueError
-        off = 10  # magic(6) + version(4)
-        (klen,) = struct.unpack(">I", blob[off:off + 4])
-        key = blob[off + 4:off + 4 + klen]
-        (tlen,) = struct.unpack(">I", key[:4])
-        return key[4:4 + tlen].decode("ascii")
-    except (ValueError, IndexError, struct.error, UnicodeDecodeError):
-        raise ProofError("the proof's signature is not an SSH signature")
-
-
-def check_signature(signers_file, principal, namespace, payload, armored):
     with tempfile.TemporaryDirectory() as tmp:
-        sig_path = os.path.join(tmp, "sig")
+        signers_path, sig_path = os.path.join(tmp, "signers"), os.path.join(tmp, "sig")
+        with open(signers_path, "wb") as f:
+            f.write(signers)
         with open(sig_path, "w") as f:
-            f.write(armored)
+            f.write(f"-----BEGIN SSH SIGNATURE-----\n{sig}\n-----END SSH SIGNATURE-----\n")
         res = subprocess.run(
-            ["ssh-keygen", "-Y", "verify", "-f", signers_file, "-I", principal, "-n", namespace, "-s", sig_path],
-            input=payload, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
+            ["ssh-keygen", "-Y", "verify", "-f", signers_path, "-I", actor, "-n", NAMESPACE, "-s", sig_path],
+            input=payload.encode("utf-8"), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if res.returncode != 0:
-        raise ProofError(
-            f"the proof does not verify for @{principal}; is @{principal}'s sk- key in the signers file "
-            f"with principal '{principal}' (case-sensitive) and namespace '{namespace}'?")
+        raise ProofError(f"the proof does not verify for @{actor}; is @{actor}'s sk- key in the signers file "
+                         f"with principal '{actor}' (case-sensitive) and namespace '{NAMESPACE}'?")
 
+    # ssh-keygen accepted the signature, so it is well-formed. It does not look at the
+    # key type or at the FIDO2 flags, so read them from the SSHSIG blob:
+    #   magic(6) version(4) string(publickey) string(namespace) string(reserved) string(hash) string(signature)
+    #   publickey = string(type) ...        signature = string(type) string(sig) byte(flags) uint32(counter)
+    publickey, _, _, _, signature, _ = ssh_strings(base64.b64decode(sig)[10:], 5)
+    key_type = ssh_strings(publickey, 1)[0].decode()
+    sig_type, _, after_sig = ssh_strings(signature, 2)
+    if key_type not in FIDO2_KEY_TYPES or sig_type.decode() != key_type:
+        raise ProofError(f"the proof verified but with a non-FIDO2 key ({key_type}); only sk- keys are accepted")
+    if after_sig[0] & TOUCHED_WITH_PIN != TOUCHED_WITH_PIN:
+        raise ProofError("the proof was signed without a touch and PIN; "
+                         "enrol a key made with -O verify-required (see github/break-glass/README.md)")
 
-def check_claims(payload, repo, now, max_age, max_skew):
-    """Parse the signed payload and check aud and iat; returns the payload as a dict."""
+    # The payload is signed, so from here on it is the signer's statement.
     try:
-        claims = json.loads(payload.decode("utf-8"))
+        claims = json.loads(payload)
     except ValueError:
         raise ProofError("the signed payload is not JSON")
     if not isinstance(claims, dict):
         raise ProofError("the signed payload is not a JSON object")
     aud = claims.get("aud")
-    if aud != repo:
-        raise ProofError(f"the proof was signed for '{aud if isinstance(aud, str) else '<no aud>'}', "
-                         f"this run is in '{repo}'")
-    iat = claims.get("iat")
-    if not isinstance(iat, int) or isinstance(iat, bool):
+    if not isinstance(aud, str) or aud.lower() != repo.lower():  # GitHub names are case-insensitive
+        raise ProofError(f"the proof was signed for '{aud}', this run is in '{repo}'")
+    iat, now = claims.get("iat"), int(time.time())
+    if type(iat) is not int:
         raise ProofError("the signed payload has no whole-number iat")
     if iat < now - max_age:
         raise ProofError(f"the proof was signed {now - iat}s ago, more than the {max_age}s allowed: "
                          "sign a new one and dispatch again")
-    if iat > now + max_skew:
-        raise ProofError(f"the proof is dated {iat - now}s in the future (more than {max_skew}s): "
+    if iat > now + MAX_SKEW:
+        raise ProofError(f"the proof is dated {iat - now}s in the future (more than {MAX_SKEW}s): "
                          "check the signing machine's clock")
-    return claims
-
-
-def verify(proof, signers_file, actor, repo, namespace, max_age, max_skew, now=None, allow_any_key=False):
-    """Verify the proof; returns (claims, key type). allow_any_key is for tests only."""
-    payload, armored = parse_proof(proof)
-    check_signature(signers_file, actor, namespace, payload, armored)
-    kt = key_type(armored)
-    if kt not in FIDO2_KEY_TYPES and not allow_any_key:
-        raise ProofError(f"the proof verified but with a non-FIDO2 key ({kt}); only sk- keys are accepted")
-    claims = check_claims(payload, repo, int(time.time()) if now is None else now, max_age, max_skew)
-    return claims, kt
+    return claims, key_type
 
 
 def fetch_signers(api_url, token, repo, path, ref):
@@ -125,22 +115,13 @@ def fetch_signers(api_url, token, repo, path, ref):
         raise
 
 
-def compact(obj):
-    # ASCII-only and single-line, so it is safe in the name=value form of GITHUB_OUTPUT.
-    return json.dumps(obj, separators=(",", ":"))
-
-
 def main():
     env = os.environ
     repo, actor, branch = env["REPO"], env["ACTOR"], env["DEFAULT_BRANCH"]
-    namespace = env["NAMESPACE"]
     try:
-        max_age, max_skew = int(env["MAX_AGE"]), int(env["MAX_SKEW"])
-        if max_age < 0 or max_skew < 0:
-            raise ValueError
+        max_age = int(env["MAX_AGE"])
     except ValueError:
-        raise ProofError("max-age and max-skew must be whole seconds")
-
+        raise ProofError("max-age must be whole seconds")
     # Default branch only: a workflow copy on another branch must not be able to
     # deploy, whatever its own gates say.
     if env["REF"] != f"refs/heads/{branch}":
@@ -148,35 +129,25 @@ def main():
     # On a re-run, github.actor stays the original dispatcher and the proof input is
     # kept: only the dispatcher may re-run their own run (within the proof's max-age).
     if env["TRIGGERING_ACTOR"] != actor:
-        raise ProofError(
-            f"run attempt {env.get('RUN_ATTEMPT', '?')} was started by @{env['TRIGGERING_ACTOR']} but the proof "
-            f"belongs to @{actor}; a break-glass run can only be re-run by its dispatcher. "
-            "Dispatch a new run with your own proof.")
-    proof = env.get("PROOF", "")
-    if not proof.strip():
-        raise ProofError("no proof: sign with break-glass-sign.py and paste its output into the 'proof' input")
-
-    signers = fetch_signers(env.get("GITHUB_API_URL", "https://api.github.com"), env["GH_TOKEN"],
-                            repo, env["SIGNERS_PATH"], branch)
+        raise ProofError(f"this attempt was started by @{env['TRIGGERING_ACTOR']} but the proof belongs to "
+                         f"@{actor}; a break-glass run can only be re-run by its dispatcher. "
+                         "Dispatch a new run with your own proof.")
+    signers = fetch_signers(env["GITHUB_API_URL"], env["GH_TOKEN"], repo, env["SIGNERS_PATH"], branch)
     if not signers.strip():
         raise ProofError(f"signers file {env['SIGNERS_PATH']} not found on {branch}; "
                          "enrol keys first (see github/break-glass/README.md)")
-    with tempfile.NamedTemporaryFile("wb", suffix=".signers") as f:
-        f.write(signers)
-        f.flush()
-        now = int(time.time())
-        claims, kt = verify(proof, f.name, actor, repo, namespace, max_age, max_skew, now=now)
 
-    payload = compact(claims)
-    print(f"proof verified: @{actor} signed {payload} with a {kt} key")
-    if env.get("GITHUB_OUTPUT"):
-        with open(env["GITHUB_OUTPUT"], "a") as out:
-            out.write(f"payload={payload}\nsigner={actor}\nkey-type={kt}\n")
-    if env.get("GITHUB_STEP_SUMMARY"):
-        with open(env["GITHUB_STEP_SUMMARY"], "a") as out:
-            out.write("### 🔐 Break-glass proof verified\n"
-                      f"- Signer: @{actor} (`{kt}`), signed {now - claims['iat']}s before verification\n"
-                      f"- Payload:\n```json\n{json.dumps(claims, indent=2)}\n```\n")
+    claims, key_type = verify(env["PROOF"], signers, actor, repo, max_age)
+
+    # json.dumps output is ASCII on a single line, so it is safe as name=value in GITHUB_OUTPUT.
+    payload = json.dumps(claims, separators=(",", ":"))
+    print(f"proof verified: @{actor} signed {payload} with a {key_type} key")
+    with open(env["GITHUB_OUTPUT"], "a") as out:
+        out.write(f"payload={payload}\nsigner={actor}\nkey-type={key_type}\n")
+    with open(env["GITHUB_STEP_SUMMARY"], "a") as out:
+        out.write("### 🔐 Break-glass proof verified\n"
+                  f"- Signer: @{actor} (`{key_type}`, touched, PIN entered)\n"
+                  f"- Payload:\n```json\n{json.dumps(claims, indent=2)}\n```\n")
 
 
 if __name__ == "__main__":
