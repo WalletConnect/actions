@@ -1,49 +1,43 @@
 #!/usr/bin/env bash
-# Sign a break-glass challenge with your enrolled YubiKey and dispatch the run.
+# Sign a break-glass proof with your enrolled YubiKey and print it.
 #
-#   break-glass-sign.sh <owner/repo> --pr <number>          # merged hotfix PR
-#   break-glass-sign.sh <owner/repo> --tag <image tag>      # redeploy / roll back an existing image
-#   options: --key ~/.ssh/break_glass  --workflow <file, auto-detected>  --ref main  --dry-run
+#   break-glass-sign.sh <owner/repo> -f image_tag=v1.80.3 -f terraform_ref=main [--key ~/.ssh/break_glass]
 #
-# The challenge is bound to the PR's merge commit (or the tag), so the signature
-# authorises exactly that deploy and nothing else. Touch the key when it blinks.
+# Each -f key=value becomes a string field of the signed payload; which fields a
+# repository needs is up to its break-glass workflow. aud (the repository), iat
+# (now) and nonce are added here. Touch the key when it blinks, then paste the
+# printed proof into the workflow's "proof" input (Actions → break-glass → Run
+# workflow). The proof expires 10 minutes after signing.
+#
+#   break-glass-sign.sh … | pbcopy     # macOS: straight to the clipboard
 set -euo pipefail
-REPO=${1:?usage: break-glass-sign.sh <owner/repo> --pr N | --tag T}; shift
+usage() { echo "usage: break-glass-sign.sh <owner/repo> -f key=value [-f key=value …] [--key ~/.ssh/break_glass]" >&2; exit 2; }
+REPO=${1:-}; [ -n "$REPO" ] && [ "${REPO#-}" = "$REPO" ] || usage; shift
+[[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "repository must be owner/name, exactly as GitHub shows it (got '$REPO')" >&2; exit 2; }
 # macOS: Apple's ssh-keygen has no FIDO2 support; prefer Homebrew's when present.
 SSH_KEYGEN=${SSH_KEYGEN:-$( [ -x /opt/homebrew/bin/ssh-keygen ] && echo /opt/homebrew/bin/ssh-keygen || echo ssh-keygen )}
-KEY=~/.ssh/break_glass; WORKFLOW=""; REF=main; PR=""; TAG=""; DRY=""
+KEY=~/.ssh/break_glass
+fields='{}'
 while [ $# -gt 0 ]; do
   case "$1" in
-    --pr) PR=$2; shift 2 ;; --tag) TAG=$2; shift 2 ;; --key) KEY=$2; shift 2 ;;
-    --workflow) WORKFLOW=$2; shift 2 ;; --ref) REF=$2; shift 2 ;; --dry-run) DRY=1; shift ;;
-    *) echo "unknown option $1" >&2; exit 2 ;;
+    -f|--field)
+      [ $# -ge 2 ] && [[ "$2" == ?*=* ]] || { echo "-f takes key=value" >&2; exit 2; }
+      k=${2%%=*}; v=${2#*=}
+      case "$k" in aud|iat|nonce) echo "$k is set by the helper" >&2; exit 2 ;; esac
+      jq -e --arg k "$k" 'has($k)' <<< "$fields" >/dev/null && { echo "field $k given twice" >&2; exit 2; }
+      fields=$(jq -c --arg k "$k" --arg v "$v" '. + {($k): $v}' <<< "$fields"); shift 2 ;;
+    --key) [ $# -ge 2 ] || usage; KEY=$2; shift 2 ;;
+    *) echo "unknown option $1" >&2; usage ;;
   esac
 done
-{ [ -n "$PR" ] && [ -z "$TAG" ]; } || { [ -z "$PR" ] && [ -n "$TAG" ]; } || { echo "give exactly one of --pr or --tag" >&2; exit 2; }
+[ "$fields" != '{}' ] || { echo "no fields: pass what the workflow expects, e.g. -f image_tag=… -f terraform_ref=…" >&2; exit 2; }
 [ -f "$KEY" ] || { echo "key $KEY not found; enrol with: ssh-keygen -t ed25519-sk -O resident -O verify-required -f $KEY" >&2; exit 2; }
-# The challenge names the repository as GITHUB_REPOSITORY does, so use the
-# canonical owner/name even when the caller passed an old (redirected) one.
-REPO=$(gh api "repos/$REPO" --jq .full_name)
-# The workflow file is break-glass.yml or break-glass.yaml depending on the repo.
-if [ -z "$WORKFLOW" ]; then
-  WORKFLOW=$(gh workflow list -R "$REPO" --all --json path --jq '.[] | .path | select(test("/break-glass\\.ya?ml$"))' | head -1 | xargs -r basename)
-  [ -n "$WORKFLOW" ] || { echo "no break-glass.yml/.yaml workflow in $REPO; pass --workflow" >&2; exit 2; }
-fi
 
-if [ -n "$PR" ]; then
-  pr=$(gh api "repos/$REPO/pulls/$PR")
-  [ "$(jq -r .merged <<< "$pr")" = true ] || { echo "PR #$PR is not merged" >&2; exit 1; }
-  sha=$(jq -r .merge_commit_sha <<< "$pr")
-  msg="break-glass:$REPO:pr:$PR:$sha"
-  inputs=(-f "pr=$PR")
-else
-  msg="break-glass:$REPO:tag:$TAG"
-  inputs=(-f "image-tag=$TAG")
-fi
-echo "challenge: $msg"
-echo "touch the YubiKey (and enter its PIN) to sign..."
-sig=$(printf '%s' "$msg" | "$SSH_KEYGEN" -Y sign -n break-glass -f "$KEY")
-proof=$(printf '%s' "$sig" | base64 | tr -d '\n')
-if [ -n "$DRY" ]; then echo "$sig"; exit 0; fi
-gh workflow run "$WORKFLOW" -R "$REPO" --ref "$REF" "${inputs[@]}" -f "proof=$proof"
-echo "dispatched $WORKFLOW on $REF; run: https://github.com/$REPO/actions/workflows/$WORKFLOW"
+payload=$(jq -c --arg aud "$REPO" --argjson iat "$(date +%s)" --arg nonce "$(openssl rand -hex 16)" \
+  '{aud: $aud, iat: $iat, nonce: $nonce} + .' <<< "$fields")
+echo "signing: $payload" >&2
+echo "touch the YubiKey (and enter its PIN) to sign..." >&2
+sig=$(printf '%s' "$payload" | "$SSH_KEYGEN" -Y sign -n break-glass -f "$KEY")
+# The proof: the exact signed bytes as a JSON string, and the signature's base64 body.
+jq -cn --arg p "$payload" --arg s "$(printf '%s\n' "$sig" | sed '1d;$d' | tr -d '\n')" '{payload: $p, sig: $s}'
+echo "paste the line above into the workflow's 'proof' input within 10 minutes" >&2
