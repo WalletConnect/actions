@@ -6,7 +6,7 @@ the repository's usual test suite afterwards without blocking. It is
 authorised by the person who dispatches it proving possession of an enrolled
 YubiKey. Used by `rs-relay` and `pay-core`.
 
-This repository provides the proof: [`break-glass-sign.sh`](break-glass-sign.sh)
+This repository provides the proof: [`break-glass-sign.py`](break-glass-sign.py)
 signs it, [`verify-proof`](verify-proof/action.yml) checks it and returns what
 was signed, [`lint-signers`](lint-signers/action.yml) checks the signers file.
 What a proof may deploy is each repository's decision, made in its own
@@ -18,7 +18,7 @@ What a proof may deploy is each repository's decision, made in its own
    workflow reads, for example:
 
    ```bash
-   break-glass-sign.sh WalletConnect/pay-core -f image_tag=3f2a9c1e… -f terraform_ref=main | pbcopy
+   break-glass-sign.py WalletConnect/pay-core -f image_tag=3f2a9c1e… -f terraform_ref=main | pbcopy
    ```
 
    The YubiKey blinks; enter its PIN and touch it. The proof is printed as one
@@ -75,9 +75,10 @@ after the window, by the dispatcher, with the same signed fields.
 
 Prerequisites: OpenSSH 8.2 or newer built with FIDO2 support. On macOS that
 is `brew install openssh`, used by full path (`/opt/homebrew/bin/ssh-keygen`,
-which `break-glass-sign.sh` picks up on its own); Apple's own `ssh-keygen`
+which `break-glass-sign.py` picks up on its own); Apple's own `ssh-keygen`
 cannot talk to FIDO2 devices and there is no provider library to add to it.
-Ubuntu 22.04 and newer ship it. Plus `jq`, `openssl`, and a YubiKey 5 with a
+Ubuntu 22.04 and newer ship it. Plus Python 3.9 or newer (macOS's `python3`
+is fine), and a YubiKey 5 with a
 FIDO2 PIN set (`ykman fido access change-pin`).
 
 1. **Generate the key on the device.** Plug the YubiKey in and run:
@@ -120,7 +121,7 @@ FIDO2 PIN set (`ykman fido access change-pin`).
    never dispatches anything:
 
    ```bash
-   break-glass-sign.sh <owner/repo> -f test=1
+   break-glass-sign.py <owner/repo> -f test=1
    ```
 
    The YubiKey blinks, you touch it, the proof prints. Don't paste it anywhere.
@@ -138,7 +139,7 @@ FIDO2 PIN set (`ykman fido access change-pin`).
 on:
   workflow_dispatch:
     inputs:
-      proof: { description: Output of break-glass-sign.sh, required: true }
+      proof: { description: Output of break-glass-sign.py, required: true }
 concurrency:
   group: cd              # the regular deploy stage's group
   cancel-in-progress: true
@@ -202,6 +203,7 @@ step before its deploy job:
   trust; tightening that trust is a separate change in `infra-aws-org`.
 - Audit: the `verify` step summary (signer, key type, signed payload) and the
   deployment records of the existing environments.
-- Tests: [`test.sh`](test.sh) signs and verifies proofs with a throwaway
-  plain key (CI has no YubiKey); run it after changing the helper or
-  `verify-proof`.
+- Tests: [`tests/`](tests/test_break_glass.py) sign and verify proofs with
+  throwaway plain keys (CI has no YubiKey) and lint signers files; run
+  `python3 -m unittest discover -s github/break-glass/tests` after changing
+  the helper, `verify-proof` or `lint-signers`.

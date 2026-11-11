@@ -2,7 +2,7 @@ name: Break-Glass Verify Proof
 description: >-
   Verifies that the person who dispatched the run holds an enrolled FIDO2
   (YubiKey) SSH key, and returns what they signed. The `proof` dispatch input,
-  made by break-glass-sign.sh, is JSON: a payload (a JSON object, as a string)
+  made by break-glass-sign.py, is JSON: a payload (a JSON object, as a string)
   and an `ssh-keygen -Y` signature over its exact bytes in the `break-glass`
   namespace. The signer must be the dispatcher (`github.actor`), listed in the
   repository's signers file, with an `sk-` key, which cannot sign without the
@@ -14,7 +14,7 @@ description: >-
 
 inputs:
   proof:
-    description: The proof from break-glass-sign.sh, as passed in the dispatch input
+    description: The proof from break-glass-sign.py, as passed in the dispatch input
     required: true
   signers-file:
     description: Path of the allowed_signers file in the repository (read from the default branch); principal = GitHub login, keys must be sk- types
@@ -69,28 +69,4 @@ runs:
         NAMESPACE: ${{ inputs.namespace }}
         MAX_AGE: ${{ inputs.max-age }}
         MAX_SKEW: ${{ inputs.max-skew }}
-        # Test-only switch of verify.sh; blanked here so a caller's env cannot set it.
-        BREAK_GLASS_TEST_ALLOW_ANY_KEY: ''
-      run: |
-        set -euo pipefail
-        # Default branch only: a workflow copy on another branch must not be able to
-        # deploy, whatever its own gates say.
-        if [ "$REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
-          echo "::error::break-glass runs only on $DEFAULT_BRANCH (this run is on $REF)"; exit 1
-        fi
-        # On a re-run, github.actor stays the original dispatcher and the proof input is
-        # kept: only the dispatcher may re-run their own run (within the proof's max-age).
-        if [ "$TRIGGERING_ACTOR" != "$ACTOR" ]; then
-          echo "::error::run attempt $RUN_ATTEMPT was started by @$TRIGGERING_ACTOR but the proof belongs to @$ACTOR; a break-glass run can only be re-run by its dispatcher. Dispatch a new run with your own proof."; exit 1
-        fi
-        if [ -z "$PROOF" ]; then
-          echo "::error::no proof: sign with break-glass-sign.sh and paste its output into the 'proof' input"; exit 1
-        fi
-        # The signers file comes from the default branch through the API, never from
-        # the checkout, so a branch cannot supply its own key list.
-        SIGNERS=$(mktemp)
-        if ! gh api "repos/$REPO/contents/$SIGNERS_PATH?ref=$DEFAULT_BRANCH" --jq .content | base64 -d > "$SIGNERS" 2>/dev/null || [ ! -s "$SIGNERS" ]; then
-          echo "::error::signers file $SIGNERS_PATH not found on $DEFAULT_BRANCH; enrol keys first (see github/break-glass/README.md)"; exit 1
-        fi
-        export SIGNERS
-        "$GITHUB_ACTION_PATH/verify.sh"
+      run: python3 "$GITHUB_ACTION_PATH/verify.py"

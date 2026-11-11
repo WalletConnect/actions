@@ -21,5 +21,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Sign and verify proofs
-        run: github/break-glass/test.sh
+      # The runner's own python3, as the actions use it. The scripts also run on
+      # macOS's system python3 (3.9), so check they parse as 3.9.
+      - name: Check Python 3.9 syntax
+        run: |
+          python3 -c 'import ast, sys; [ast.parse(open(f).read(), f, feature_version=(3, 9)) for f in sys.argv[1:]]' \
+            $(git ls-files 'github/break-glass/*.py')
+
+      - name: Test the helper, verify-proof and lint-signers
+        run: python3 -m unittest discover -s github/break-glass/tests -v
