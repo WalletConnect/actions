@@ -39,7 +39,27 @@ runs:
       id: get-task
       shell: bash
       run: |
-        TASK_ARN=$(aws ecs describe-task-definition --task-definition ${{ inputs.task-definition-name }} --query taskDefinition | jq -r '.containerDefinitions[] | select(.name == "${{ inputs.container-name }}") | .image')
+        FAMILY='${{ inputs.task-definition-name }}'
+        # The revision the service runs, not the family's newest ACTIVE one:
+        # an apply that deregistered the running revision and failed before
+        # registering its replacement leaves an old revision newest, and
+        # reading the family would hand that old image back as "deployed".
+        # The primary deployment of the service running this family; the
+        # family's newest revision only if no service runs it.
+        TASK_DEFINITION=$(
+          for CLUSTER in $(aws ecs list-clusters --query 'clusterArns[]' --output text); do
+            SERVICES=$(aws ecs list-services --cluster "$CLUSTER" --query 'serviceArns[]' --output text)
+            [ -n "$SERVICES" ] || continue
+            printf '%s\n' $SERVICES | xargs -n 10 aws ecs describe-services --cluster "$CLUSTER" \
+              --query 'services[].deployments[?status==`PRIMARY`].taskDefinition[]' --output text --services
+          done | tr '\t' '\n' | grep -E ":task-definition/${FAMILY}:[0-9]+$" | head -1
+        )
+        if [ -z "$TASK_DEFINITION" ]; then
+          echo "No service runs family $FAMILY; reading the family's newest revision"
+          TASK_DEFINITION=$FAMILY
+        fi
+        echo "Task definition: $TASK_DEFINITION"
+        TASK_ARN=$(aws ecs describe-task-definition --task-definition "$TASK_DEFINITION" --query taskDefinition | jq -r '.containerDefinitions[] | select(.name == "${{ inputs.container-name }}") | .image')
         ARN_PARTS=($(echo $TASK_ARN | tr '\/' "\n"))
         REGISTRY_NAME=${ARN_PARTS[0]}
         IMAGE_VERSION=${ARN_PARTS[1]}
