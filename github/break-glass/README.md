@@ -206,6 +206,27 @@ step before its deploy job:
       # then: if: steps.merged.outputs.has-label != 'true' on the deploy job
 ```
 
+## Paging
+
+A repository can page its on-call with a **P1** on every deploy with a proof,
+through [`incident-io/alert`](../../incident-io/alert/action.yml). Fire it in
+a step of every job that deploys, right after `verify-proof`, with
+`if: always() && inputs.proof` and `continue-on-error: true`: it pages whether
+or not the proof verified and never blocks the deploy. Do not fire it from a
+job of its own: **Re-run failed jobs** skips a job that succeeded, so the
+re-run would deploy without a page. A last `if: always()` job that `needs` the
+deploy jobs resolves the alert; it re-runs with them. Put
+`github.run_attempt` in the `deduplication-key` of both, so each attempt is
+its own alert. Values read from the proof before it verified are the
+dispatcher's claims: strip them before use.
+
+The alert source and the routes (`metadata.service` `relay` → Relay path,
+`pay-core` → Pay Core path) are defined in `infra-monitoring-grafana`,
+`terraform/break_glass.tf`. The repository needs the variable
+`BREAK_GLASS_INCIDENT_IO_URL` and the secret `BREAK_GLASS_INCIDENT_IO_TOKEN`
+(both from that Terraform's outputs); without them the paging job warns and
+the deploy proceeds.
+
 ## Notes
 
 - A Terraform Cloud apply that is already running is not cancelled with the
