@@ -1,77 +1,96 @@
 # Break-glass deploy
 
-Ships a merged hotfix to production in minutes. The run skips every test,
-deploys staging and production in parallel, and runs the repository's usual
-test suite afterwards without blocking. It is authorised by the person who
-dispatches it proving possession of an enrolled YubiKey. Used by `rs-relay`
-and `pay-core`.
+Ships a hotfix to production in minutes. The run skips the regular release's
+post-merge validation, deploys staging and production in parallel, and runs
+the repository's usual test suite afterwards without blocking. It is
+authorised by the person who dispatches it proving possession of an enrolled
+YubiKey. Used by `rs-relay` and `pay-core`.
 
-The hotfix PR is reviewed and merged as usual, so it has passed PR CI. What
-the break-glass path skips is the post-merge staging validation and
-end-to-end stage of the regular release.
+This repository provides the proof: [`break-glass-sign.py`](break-glass-sign.py)
+signs it, [`verify-proof`](verify-proof/action.yml) checks it and returns what
+was signed, [`lint-signers`](lint-signers/action.yml) checks the signers file.
+What a proof may deploy is each repository's decision, made in its own
+`break-glass.yaml`.
 
 ## Flow
 
-1. Review and merge the hotfix PR. Title it `hotfix: …` or `hotfix(scope): …`
-   and add the `skip-deploy` label **before merging**: the regular release
-   then builds the image on the large runner (`vars.BREAK_GLASS_RUNNER`, from
-   the title prefix) and publishes it, but does not deploy (from the label).
-2. Dispatch `break-glass.yaml` on `main` with the helper, which signs the
-   challenge on your YubiKey and dispatches in one go:
+1. Sign what you want deployed, with the helper from a checkout of this
+   repository (a commit you trust: the helper decides what your key signs).
+   The fields are the ones your repository's workflow reads, for example:
 
    ```bash
-   break-glass-sign.sh WalletConnect/pay-core --pr 2090      # merged hotfix
-   break-glass-sign.sh reown-com/rs-relay --tag v1.80.3     # redeploy or roll back an existing image
+   break-glass-sign.py WalletConnect/pay-core -f image_tag=3f2a9c1e… -f terraform_ref=main | pbcopy
    ```
 
-   This command is the only way to run it: a dispatch from the Actions page
-   carries no proof and fails at the `verify` job. For a rollback, pass the
-   tag you want: a `v*` release tag in rs-relay, the commit SHA of the release
-   in pay-core (both visible in the release run that deployed it, or on the
-   running ECS task definition).
-3. The run resolves the target ([`resolve-pr`](resolve-pr/action.yml) for a
-   PR, the ECR lookup for a tag) and comments on the PR. It takes the `cd`
-   concurrency group with `cancel-in-progress: true`, which cancels the
-   regular pipeline's deploy stage in both repos while its image build keeps
-   going.
-4. [`verify-proof`](verify-proof/action.yml) checks the `proof` input: by the
-   dispatcher, listed in `.github/break-glass-signers`, `sk-` key, over the
-   challenge the run computed itself. Nothing is built or deployed before this
-   passes.
-5. The image is built on the large runner, or the build is skipped when
-   [`aws/ecr/image-exists`](../../aws/ecr/image-exists/action.yml) finds the
-   regular pipeline already published that commit.
-6. Staging and production are deployed in parallel, each followed by its
-   health check.
-7. The repository's current test suite runs against staging, non-blocking.
-   Failures notify; nothing is rolled back automatically.
+   The YubiKey blinks; touch it. The proof is printed as one
+   line (piped to the clipboard above).
+2. Open Actions → `break-glass` → Run workflow on `main`, paste the proof into
+   the `proof` input, and run it within 10 minutes of signing.
+3. Every job that deploys starts with `verify-proof`. Nothing is deployed
+   before it passes.
+4. The job checks the signed fields against the repository's own rules and
+   deploys.
 
 ## The proof
 
-The challenge is bound to what is deployed:
+```json
+{"payload":"{\"aud\":\"WalletConnect/pay-core\",\"iat\":1762862400,\"image_tag\":\"3f2a9c1e…\",\"terraform_ref\":\"main\"}","sig":"U1NIU0lHAAAAAQ…"}
+```
 
-- PR mode: `break-glass:<owner/repo>:pr:<number>:<merge commit sha>`
-- Tag mode: `break-glass:<owner/repo>:tag:<image tag>`
+- `payload` is a JSON object kept as a string, so the signed bytes survive
+  copying unchanged. `sig` is the body of an `ssh-keygen -Y sign -n break-glass`
+  signature over exactly those bytes, with no trailing newline.
+- `aud` is the repository as `GITHUB_REPOSITORY` reports it (rs-relay is
+  `reown-com/rs-relay`; letter case does not matter). `iat` is the signing
+  time in unix seconds. The helper sets both.
+- Every other field is the repository's own: the helper signs whatever
+  `-f key=value` pairs it is given, as strings, and `verify-proof` returns them
+  unchecked. A repository can add fields without a change here.
 
-`<owner/repo>` is the canonical name, as `GITHUB_REPOSITORY` reports it
-(rs-relay is `reown-com/rs-relay`); the helper resolves it for you.
-A captured signature can only redeploy that same commit or tag, which is
-harmless; a compromised laptop cannot sign for any other commit without the
-device being touched. The dispatcher and the signer must be the same login.
+`verify-proof` accepts the proof when:
+
+- the run is on the default branch, and the signers file is read from that
+  branch through the API, not from the checkout;
+- the signature verifies against the signers file for principal
+  `github.actor` in namespace `break-glass`, so the dispatcher and the signer
+  are the same login;
+- the signing key is an `sk-` (FIDO2) type, and the signature carries the
+  authenticator's "touched" flag. `ssh-keygen` checks neither, so
+  `verify-proof` reads both from the signature itself. A key made with
+  `-O no-touch-required` is rejected here;
+- `aud` is this repository;
+- `iat` is at most `max-age` (600 s) old and at most 120 s in the future,
+  measured when `verify-proof` runs.
+
+Then it outputs `payload` (the verified JSON, compact), `signer` and `key-type`.
+
+### Replay
+
+A proof only verifies for its signer's GitHub login, in its repository, for
+10 minutes after signing (`max-age`). Within that window the same login can
+use it again, by a new dispatch or a re-run; after it, `verify-proof` fails
+and a new proof is needed. A re-run must also be started by the dispatcher.
+
+This only holds for a job that runs `verify-proof` itself. GitHub lets anyone
+with write access re-run a single job of an old run, for 30 days, and jobs
+that are not re-run keep their outputs: a deploy job that relies on a
+separate `verify` job would deploy again without the proof being looked at.
+So every job that deploys calls `verify-proof` as its first step, and a retry
+is possible for 10 minutes, by the dispatcher.
 
 ### Enrolling a YubiKey
 
 Prerequisites: OpenSSH 8.2 or newer built with FIDO2 support. On macOS that
 is `brew install openssh`, used by full path (`/opt/homebrew/bin/ssh-keygen`,
-which `break-glass-sign.sh` picks up on its own); Apple's own `ssh-keygen`
+which `break-glass-sign.py` picks up on its own); Apple's own `ssh-keygen`
 cannot talk to FIDO2 devices and there is no provider library to add to it.
-Ubuntu 22.04 and newer ship it. Plus a YubiKey 5 with a FIDO2 PIN set
-(`ykman fido access change-pin`), and `gh` logged in.
+Ubuntu 22.04 and newer ship it. Plus Python 3.9 or newer (macOS's `python3`
+is fine), and a YubiKey 5.
 
 1. **Generate the key on the device.** Plug the YubiKey in and run:
 
    ```bash
-   ssh-keygen -t ed25519-sk -O resident -O verify-required \
+   ssh-keygen -t ed25519-sk \
      -O write-attestation="$HOME/.ssh/break_glass.att" -f ~/.ssh/break_glass
    cat ~/.ssh/break_glass.pub
    ```
@@ -80,11 +99,14 @@ Ubuntu 22.04 and newer ship it. Plus a YubiKey 5 with a FIDO2 PIN set
    is not set in your shell.)
 
    `-sk` means the key pair is created inside the authenticator and the
-   private key never leaves it; `~/.ssh/break_glass` is only a handle to it.
-   `verify-required` makes every signature ask for the PIN and a touch;
-   `resident` keeps the credential on the device so another laptop can use it
-   after `ssh-keygen -K`. The command fails without a FIDO2 device attached.
-   Keep the `.att` file: it is the device's attestation, see step 3.
+   private key never leaves it. Every signature needs a touch, and
+   `verify-proof` rejects one made without. No PIN is involved.
+   `~/.ssh/break_glass` is a handle the device needs to sign: the YubiKey
+   alone, without that file, cannot produce a proof, and neither can the file
+   without the YubiKey. A passphrase on the file is optional (the helper
+   asks for it when signing). Losing the file means enrolling a new key. The command
+   fails without a FIDO2 device attached. Keep the `.att` file: it is the
+   device's attestation, see step 3.
 
 2. **Add one line to the repository's signers file**,
    `.github/break-glass-signers`, through a normal PR. The first field is your
@@ -99,20 +121,23 @@ Ubuntu 22.04 and newer ship it. Plus a YubiKey 5 with a FIDO2 PIN set
    and `pay-core`, the same line goes into both repositories.
 
 3. **Review.** [`lint-signers`](lint-signers/action.yml) runs on the PR and
-   rejects any key that is not an `sk-` type. CODEOWNERS covers the file, so a
-   codeowner approves it. If the device brand matters, the reviewer checks
-   that the attestation from step 1 chains to the Yubico FIDO root CA; the
-   workflow only proves that a FIDO2 authenticator was touched, not which one.
+   rejects any key that is not an `sk-` type and any principal that is a
+   pattern (`*`) instead of one exact login. CODEOWNERS covers the file, so a
+   codeowner approves it, and first checks that the attestation from step 1
+   chains to the Yubico FIDO root CA. That check is the only proof that the
+   key lives in a YubiKey: an `sk-` key can also be made in software, and
+   neither the lint nor the run can tell.
 
-4. **Try it without deploying.** Signing works as soon as the key exists;
-   the signers file is only consulted by the run:
+4. **Try it without deploying.** [`manual-test.py`](manual-test.py) signs a
+   proof with your key and verifies it the way a run does, including that
+   altered or expired copies are rejected. Nothing is dispatched:
 
    ```bash
-   break-glass-sign.sh <owner/repo> --tag <any existing image tag> --dry-run
+   manual-test.py --key ~/.ssh/break_glass
    ```
 
-   The YubiKey blinks, you touch it, the signature prints, nothing is
-   dispatched.
+   Without `--key` it first makes a throwaway key on the YubiKey, which also
+   tests the command of step 1.
 
 5. **Rotation and loss.** Remove the line through a PR and the key stops
    working on the next run; a replacement device is a new line. Enrolling a
@@ -121,61 +146,79 @@ Ubuntu 22.04 and newer ship it. Plus a YubiKey 5 with a FIDO2 PIN set
 
 ## What each repository provides
 
-`break-glass.yaml`:
+`break-glass.yaml`, for example:
 
 ```yaml
 on:
   workflow_dispatch:
     inputs:
-      pr:        { description: Merged hotfix PR number, required: false }
-      image-tag: { description: Existing image tag to deploy, required: false }
-      proof:     { description: YubiKey signature from break-glass-sign.sh, required: true }
+      proof: { description: Output of break-glass-sign.py, required: true }
 concurrency:
-  group: cd              # the regular deploy stage's group in both repos
+  group: cd              # the regular deploy stage's group
   cancel-in-progress: true
 jobs:
-  resolve:         # exactly one of pr / image-tag; resolve-pr → sha, or ECR lookup → tag; computes the challenge
-  verify:          # needs: resolve; verify-proof on the proof input
-  build:           # needs: verify; large runner; skipped when aws/ecr/image-exists is true or in tag mode
-  deploy-staging:  # needs: build
-  deploy-prod:     # needs: build        (in parallel with staging)
+  deploy-prod:
+    runs-on: ubuntu-latest
+    steps:
+      - id: proof                          # first step of every job that deploys
+        uses: WalletConnect/actions/github/break-glass/verify-proof@<sha>
+        with:
+          proof: ${{ inputs.proof }}
+      - name: Check the signed fields      # the repository's own rules, see below
+        env:
+          IMAGE_TAG: ${{ fromJSON(steps.proof.outputs.payload).image_tag }}
+          TERRAFORM_REF: ${{ fromJSON(steps.proof.outputs.payload).terraform_ref }}
+        run: ./scripts/break-glass-check.sh
+      # … assume the cloud role and deploy, reading the same two values
+  deploy-staging:  # the same steps, in parallel with prod
   tests:           # needs: deploy-staging; the regular test suite, continue-on-error
 ```
 
-`.github/break-glass-signers` and a lint job on PRs that touch it.
+Do not put `verify-proof` in a job of its own that the deploy jobs `need`:
+such a deploy job can be re-run alone, long after the proof expired (see
+[Replay](#replay)). The token needs `contents: read`.
 
-The regular release honours `skip-deploy` with one step before its deploy job:
+Plus `.github/break-glass-signers` and a `lint-signers` job on PRs that touch it.
+
+`verify-proof` vouches for who signed and when, not for what the fields point
+to. The repository's workflow decides that, and should at least:
+
+- deploy Terraform only from reviewed code: a `terraform_ref` that is the
+  default branch or a commit reachable from it;
+- deploy only images built from the default branch;
+- keep image tags immutable in ECR (`imageTagMutability = IMMUTABLE`):
+  a signature over a tag name only pins an image if the tag cannot move;
+- pass signed values to scripts through `env:`, never as `${{ }}` inside
+  `run:`, since they are free text.
+
+Nothing should run before `verify-proof` in a job: no cloud role, no build,
+no PR comment.
+
+The regular release can honour a `skip-deploy` PR label, so a hotfix's image
+is built and published but not deployed by the regular pipeline, with one
+step before its deploy job:
 
 ```yaml
-      - uses: WalletConnect/actions/github/merged-pr-labels/@2.5.7
+      - uses: WalletConnect/actions/github/merged-pr-labels/@<sha>
         id: merged
         with:
           label: skip-deploy
       # then: if: steps.merged.outputs.has-label != 'true' on the deploy job
 ```
 
-## Rules the run enforces
-
-- Dispatched on the default branch only, and the signers file is read from
-  that branch through the API: `verify-proof` enforces both itself, so a
-  workflow copy on another branch cannot relax them.
-- Nothing runs before `verify`: no cloud role, no build, no PR comment.
-- A re-run must be by the dispatcher; the proof is bound to them.
-- `terraform/` must not differ between the target commit and main HEAD: the
-  deploy applies main's Terraform with the target image. Deploy main HEAD
-  instead, or an image whose Terraform matches.
-- After `verify`, in-flight regular releases of older commits are cancelled,
-  so none of them can redeploy a version without the hotfix afterwards.
-
 ## Notes
 
 - A Terraform Cloud apply that is already running is not cancelled with the
   GitHub job; the break-glass apply queues behind it on the workspace lock.
 - A regular deploy that had not started when it was cancelled runs after the
-  break-glass run and redeploys the same commit, a no-op in pay-core and a
-  same-binary restart in rs-relay. The `skip-deploy` label avoids it.
+  break-glass run. The `skip-deploy` label avoids it.
 - The proof protects the break-glass path. Any branch can still run a
   modified workflow with the same repository secrets and the org-wide OIDC
   trust; tightening that trust is a separate change in `infra-aws-org`.
-- Audit: the PR comment (who, which commit, proof verified), the run summary,
-  and the deployment records of the existing environments.
+- Audit: the `verify-proof` step summary (signer, key type, signed payload) and the
+  deployment records of the existing environments.
+- Tests: [`tests/`](tests/test_break_glass.py) sign and verify proofs with
+  a software `sk-` key (CI has no YubiKey; needs the OpenSSL 3 `openssl`
+  CLI) and lint signers files; run
+  `python3 -m unittest discover -s github/break-glass/tests` after changing
+  the helper, `verify-proof` or `lint-signers`.

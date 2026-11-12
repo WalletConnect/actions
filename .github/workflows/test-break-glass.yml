@@ -1,0 +1,34 @@
+name: Test Break-Glass
+
+on:
+  push:
+    paths:
+      - "github/break-glass/**"
+      - ".github/workflows/test-break-glass.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { python-version: "3.x", os: ubuntu-latest }
+          # 3.9 is macOS's system python3, the oldest supported. It has no build
+          # for the latest Ubuntu runner, so this job stays on 24.04.
+          - { python-version: "3.9", os: ubuntu-24.04 }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Test the helper, verify-proof and lint-signers
+        run: python -m unittest discover -s github/break-glass/tests -v

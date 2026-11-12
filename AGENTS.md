@@ -30,7 +30,7 @@ pre-commit run --all-files # Run all checks
 - **actions/** - High-level composite actions (deploy-terraform, deploy-ecs, plan-terraform)
 - **terraform/** - Terraform primitives (init, plan, apply, validate, select-workspace, check-fmt)
 - **aws/** - AWS-specific actions (ECS deploy/task-image, Grafana key management, ECR image lookup)
-- **github/** - GitHub utilities (paths-filter, branch-name, release versioning, CTA assistant, merged-pr-labels, break-glass resolve-pr/verify-proof/lint-signers — see `github/break-glass/README.md`)
+- **github/** - GitHub utilities (paths-filter, branch-name, release versioning, CTA assistant, merged-pr-labels, break-glass verify-proof/lint-signers — see `github/break-glass/README.md`)
 - **claude/** - AI review actions
   - **auto-review/** - PR code review with inline findings comments
   - **terraform-plan-review/** - Terraform plan analysis
@@ -59,6 +59,7 @@ Specialized review tasks run as conditional subagents to keep the main review co
 - `.github/workflows/claude.yml` - General AI agent invocation (@claude mentions, excluding @claude review)
 - `.github/workflows/claude-review.yml` - Auto-review on PR open or @claude review comment
 - `.github/workflows/test-claude-auto-review.yml` - CI for auto-review scripts
+- `.github/workflows/test-break-glass.yml` - CI for the break-glass scripts (`github/break-glass/tests`)
 
 ## Key Conventions
 
@@ -90,8 +91,8 @@ Specialized review tasks run as conditional subagents to keep the main review co
 - Internal action refs use `@master` for this repo
 
 ### Break-glass (`github/break-glass/`)
-- Runbook and the contract each consumer repo implements: `github/break-glass/README.md`. Read it before changing any of these actions; `rs-relay` and `pay-core` depend on the exact challenge format (`break-glass:<owner/repo>:pr:<n>:<sha>` / `…:tag:<tag>`, signed with `printf '%s'`, no trailing newline) and on `verify-proof` rejecting every key type that is not `sk-` (FIDO2). Keep both invariants.
-- `break-glass-sign.sh` must stay in step with `verify-proof`: same challenge, same namespace (`break-glass`), canonical repo name from `gh api repos/<repo>`.
+- Runbook and the contract each consumer repo implements: `github/break-glass/README.md`. Read it before changing any of these actions; `rs-relay` and `pay-core` depend on the proof format (`{"payload":"<JSON object as a string>","sig":"<SSHSIG body>"}`, signed over the exact payload bytes, no trailing newline, namespace `break-glass`), on `verify-proof` checking only `aud` (= `github.repository`, case-insensitive) and `iat` (at most `max-age` old) and passing every other payload field through unchecked, and on `verify-proof` rejecting every key type that is not `sk-` (FIDO2) and every signature without the FIDO2 touch flag (`ssh-keygen -Y verify` checks neither). Keep these invariants; what the other fields mean is each consumer's decision. Consumers call `verify-proof` as the first step of every job that deploys, never in a separate job: a single job of an old run can be re-run without its `needs`.
+- `break-glass-sign.py` must stay in step with `verify-proof`: same proof format, same namespace, `aud`/`iat` set by the helper. It makes no GitHub calls. Both, and `lint-signers`, are Python 3.9+ with the standard library only, in separate files (no Python inline in YAML); run `python3 -m unittest discover -s github/break-glass/tests` after changing them.
 - The signers file lives in each consumer repo (`.github/break-glass-signers`, `allowed_signers` format, GitHub login as principal), never here.
 - `aws/ecr/image-exists` uses `BatchGetImage` on purpose: push credentials have it, `DescribeImages` is a separate permission.
 
