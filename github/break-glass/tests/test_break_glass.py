@@ -28,7 +28,6 @@ REPO = "acme/app"
 SK_ED25519 = b"sk-ssh-ed25519@openssh.com"
 SK_ECDSA = b"sk-ecdsa-sha2-nistp256@openssh.com"
 
-
 def load(name, path):
     spec = importlib.util.spec_from_file_location(name, ROOT / path)
     mod = importlib.util.module_from_spec(spec)
@@ -270,6 +269,15 @@ class BreakGlassTest(unittest.TestCase):
                 self.assertNotEqual(res.returncode, 0)
                 self.assertEqual(res.stdout, "")
         self.assertNotEqual(self.helper("app", "-f", "a=1").returncode, 0)
+
+    # -- action.yml ----------------------------------------------------------------------
+    def test_action_files_have_no_stray_expressions(self):
+        """The runner evaluates `${{ }}` anywhere in an action.yml, prose included, and
+        refuses to load the action over an empty one: an expression must be a key's whole value."""
+        for path in sorted(ROOT.glob("*/action.yml")):
+            for line in path.read_text().splitlines():
+                if "${{" in line:
+                    self.assertRegex(line, r"^\s*(?!description:)[\w-]+: \$\{\{ \S.* \}\}$", str(path))
 
     # -- lint-signers ------------------------------------------------------------------------
     def test_lint(self):

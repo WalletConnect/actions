@@ -36,7 +36,7 @@ outputs:
     description: >-
       The verified payload as compact JSON, e.g. {"aud":…,"iat":…,"image_tag":…}.
       Read fields with fromJSON(steps.<id>.outputs.payload).<field>, and hand them to
-      scripts through env:, not ${{ }} inside run:.
+      scripts through env:, not through an expression inside run:.
     value: ${{ steps.verify.outputs.payload }}
   signer:
     description: Login whose key verified the proof (always the dispatcher)
