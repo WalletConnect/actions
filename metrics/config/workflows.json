@@ -1,5 +1,5 @@
 {
-  "_comment": "Workflows tracked by metrics/scripts/kpi_*.sh. Schema: each entry must have repo (owner/name), workflow_path (.github/workflows/file.yml — stable), label (human-readable, used in Slack), platform (groups multiple workflows under one platform row when needed). Optional branch overrides the default ('main') — SDK repos use 'develop'. Optional job_pattern is a Bash regex; when set, the conclusion is taken from the matching JOB inside each workflow run rather than the run itself — used when one job of many is in scope, including jobs nested inside called reusable workflows (e.g. pay-core's Maestro CD job lives inside sub-validate.yml which is called by sub-cd.yml which is called by event_release.yml, but the nested job is visible in event_release.yml's run-jobs endpoint).",
+  "_comment": "Workflows tracked by metrics/scripts/kpi_*.sh. Schema: each entry must have repo (owner/name), workflow_path (.github/workflows/file.yml — stable), label (human-readable, unique — it keys the Slack row and the alert state; keep it ≤12 chars to fit the table column), platform (groups workflows for the bug-catches aggregate; give each suite its own value, e.g. 'kotlin' for Pay vs 'kotlin-connect' for WalletKit connect, so suites never merge). Optional branch filters pass/flake/bug-catch runs to that branch (e.g. 'main', or 'develop' for SDK repos); omit it to count runs on every branch. Optional job_pattern is a Bash regex; when set, the conclusion is taken from the matching JOB inside each workflow run rather than the run itself — used when one job of many is in scope, including jobs nested inside called reusable workflows (e.g. pay-core's Maestro CD job lives inside sub-validate.yml which is called by sub-cd.yml which is called by event_release.yml, but the nested job is visible in event_release.yml's run-jobs endpoint).",
   "workflows": [
     {
       "platform": "kotlin",
@@ -43,6 +43,33 @@
       "workflow_path": ".github/workflows/event_release.yml",
       "branch": "main",
       "job_pattern": "^CD / Validate Staging \\(Advisory\\) / WX Pay E2E Maestro - android - staging$"
+    },
+    {
+      "platform": "kotlin-connect",
+      "label": "kotlin conn",
+      "repo": "reown-com/reown-kotlin",
+      "workflow_path": ".github/workflows/ci_e2e_tests.yml",
+      "branch": "develop",
+      "job_pattern": "^E2E Connect - Android$",
+      "_note": "WX SLO 2 (WalletKit connect). Nightly 03:00 UTC on develop + PRs + dispatch; branch filter keeps pass/flake to develop. Draft-PR and off-develop dispatch runs carry '(skip-metrics)' in run-name and are dropped by lib.sh::fetch_runs."
+    },
+    {
+      "platform": "rn-connect-android",
+      "label": "rn conn and",
+      "repo": "reown-com/react-native-examples",
+      "workflow_path": ".github/workflows/ci_e2e_walletkit_connect.yaml",
+      "branch": "main",
+      "job_pattern": "^E2E Connect - Android$",
+      "_note": "WX SLO 2 (WalletKit connect), Android job. Same run as 'rn conn ios' — split by job so each platform has its own pass rate. P95 is whole-run duration, so both rows show the same value."
+    },
+    {
+      "platform": "rn-connect-ios",
+      "label": "rn conn ios",
+      "repo": "reown-com/react-native-examples",
+      "workflow_path": ".github/workflows/ci_e2e_walletkit_connect.yaml",
+      "branch": "main",
+      "job_pattern": "^E2E Connect - iOS$",
+      "_note": "WX SLO 2 (WalletKit connect), iOS job. See 'rn conn and'."
     }
   ]
 }

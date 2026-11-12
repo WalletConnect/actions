@@ -30,8 +30,8 @@ Edit `config/workflows.json`. Each entry needs:
 |---|---|---|
 | `repo` | yes | `owner/name` |
 | `workflow_path` | yes | `.github/workflows/foo.yml` — stable across renames |
-| `label` | yes | Shown in the Slack table column |
-| `platform` | yes | Used to aggregate bug-catches |
+| `label` | yes | Shown in the Slack table column. Must be unique: it keys the row across pass/flake/P95 and the alert state. Keep it ≤12 chars to fit the column. |
+| `platform` | yes | Used to aggregate bug-catches. Give each suite its own value (e.g. `kotlin` for Pay, `kotlin-connect` for WalletKit connect) so suites never merge. |
 | `branch` | no | When set (e.g. `"main"`), pass/flake/bug-catch filter to that branch. Omit for workflows that don't fire on push (SDK repos are PR-trigger only). |
 | `job_pattern` | no | Bash regex; when set, the conclusion is read from the matching **job** inside each workflow run rather than the run's overall status. Used when one job of many is in scope, including jobs nested inside called reusable workflows (e.g. pay-core's Maestro CD job lives inside `sub-validate.yml`, surfaced via the `event_release.yml` parent run). |
 
