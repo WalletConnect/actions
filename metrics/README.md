@@ -1,6 +1,6 @@
 # Maestro E2E KPIs
 
-Daily Slack post (09:00 UTC, `#wx-e2e-kpis`) tracking four KPIs across the Maestro E2E suites (WalletConnect Pay, and WalletKit connect for WX SLO 2), one table per suite. Design doc: [WalletConnect Pay Maestro E2E KPIs — measurement plan](https://walletconnect.notion.site/WalletConnect-Pay-Maestro-E2E-KPIs-measurement-plan-35d3a661771e81f1a78cec0019f8afbd).
+Daily Slack post (09:00 UTC, `#wx-e2e-kpis`) tracking four KPIs across the Maestro E2E suites, one table per suite: WalletConnect Pay and WalletKit connect flow. Design doc: [WalletConnect Pay Maestro E2E KPIs — measurement plan](https://walletconnect.notion.site/WalletConnect-Pay-Maestro-E2E-KPIs-measurement-plan-35d3a661771e81f1a78cec0019f8afbd).
 
 ## Layout
 
@@ -24,15 +24,15 @@ metrics/
 
 ## Adding or removing a workflow
 
-Edit `config/workflows.json`. The top-level `suites` map (`id → title`) sets which tables the Slack post has, their order, and their titles. Each entry needs:
+Edit `config/workflows.json`. The top-level `suites` map (`id → title`) defines the Slack tables and their order. Each entry needs:
 
 | Field | Required | Notes |
 |---|---|---|
-| `suite` | yes | Key of the `suites` map; picks the Slack table. Entries (and old artifacts) without it count as `pay`. |
+| `suite` | yes | Key of the `suites` map (the Slack table). Defaults to `pay`. |
 | `repo` | yes | `owner/name` |
 | `workflow_path` | yes | `.github/workflows/foo.yml` — stable across renames |
-| `label` | yes | Row name in the suite's table. Unique within its suite: suite + label key the row across pass/flake/P95 and the alert state. Keep it ≤16 chars to fit the column. |
-| `platform` | yes | Used to aggregate bug-catches. Keep it distinct across suites (e.g. `kotlin` for Pay, `kotlin-connect` for WalletKit connect) so suites never merge. |
+| `label` | yes | Row name. Unique within its suite, ≤16 chars. |
+| `platform` | yes | Used to aggregate bug-catches. Keep it distinct across suites (e.g. `kotlin` vs `kotlin-connect`). |
 | `branch` | no | When set (e.g. `"main"`), pass/flake/bug-catch filter to that branch. Omit for workflows that don't fire on push (SDK repos are PR-trigger only). |
 | `job_pattern` | no | Bash regex; when set, the conclusion is read from the matching **job** inside each workflow run rather than the run's overall status. Used when one job of many is in scope, including jobs nested inside called reusable workflows (e.g. pay-core's Maestro CD job lives inside `sub-validate.yml`, surfaced via the `event_release.yml` parent run). |
 
@@ -87,7 +87,7 @@ core (CD)         🔴 68.42% (13/19)       🔴 25.00% (2/8)         — (no PR
 
 ⚠️ Attention: swift pass 87.50%; rn pass 94.59%, flake 33.33%; …```
 
-*🔗 WalletKit connect*
+*🔗 WalletKit connect flow*
 ```                  Pass rate               Flake rate              P95 PR feedback
                   (success/total)         (recovered/failures)    (n = sample size)
 ──────────────────────────────────────────────────────────────────────────────────

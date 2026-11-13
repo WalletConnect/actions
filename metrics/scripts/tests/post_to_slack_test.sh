@@ -149,9 +149,9 @@ EOF
 suites_state="$TEST_TMP_DIR/suites-state.jsonl"
 output=$(run_report 2026-08-21 "$recovered_state" "$suites_state")
 assert_contains "$output" '*💳 WalletConnect Pay*'
-assert_contains "$output" '*🔗 WalletKit connect*'
-pay_section="${output%%🔗 WalletKit connect*}"
-connect_section="${output#*🔗 WalletKit connect}"
+assert_contains "$output" '*🔗 WalletKit connect flow*'
+pay_section="${output%%🔗 WalletKit connect flow*}"
+connect_section="${output#*🔗 WalletKit connect flow}"
 assert_contains "$pay_section" '✅ 100.00% (10/10)'
 assert_not_contains "$pay_section" 'Attention'
 assert_contains "$connect_section" '(8/10)'

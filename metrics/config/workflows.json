@@ -1,8 +1,8 @@
 {
-  "_comment": "Workflows tracked by metrics/scripts/kpi_*.sh. Schema: each entry must have repo (owner/name), workflow_path (.github/workflows/file.yml — stable), suite (a key of the top-level 'suites' map; each suite is its own Slack table, in map order, titled by the map value; entries without suite count as 'pay'), label (human-readable row name, unique within its suite — suite + label key the row and the alert state; keep it ≤16 chars to fit the table column), platform (groups workflows for the bug-catches aggregate; keep it distinct across suites, e.g. 'kotlin' for Pay vs 'kotlin-connect', so suites never merge). Optional branch filters pass/flake/bug-catch runs to that branch (e.g. 'main', or 'develop' for SDK repos); omit it to count runs on every branch. Optional job_pattern is a Bash regex; when set, the conclusion is taken from the matching JOB inside each workflow run rather than the run itself — used when one job of many is in scope, including jobs nested inside called reusable workflows (e.g. pay-core's Maestro CD job lives inside sub-validate.yml which is called by sub-cd.yml which is called by event_release.yml, but the nested job is visible in event_release.yml's run-jobs endpoint).",
+  "_comment": "Workflows tracked by metrics/scripts/kpi_*.sh. Each entry has: suite (key of 'suites'; one Slack table per suite, in map order; defaults to 'pay'), label (row name, unique within its suite, ≤16 chars), platform (groups bug-catches; keep it distinct across suites), repo (owner/name), workflow_path (.github/workflows/file.yml). Optional branch: only count runs on that branch (omit to count all branches). Optional job_pattern: Bash regex; the conclusion comes from the matching job instead of the whole run. Works for jobs nested in called reusable workflows (e.g. pay-core's CD job, visible in event_release.yml's jobs).",
   "suites": {
     "pay": "💳 WalletConnect Pay",
-    "connect": "🔗 WalletKit connect"
+    "connect": "🔗 WalletKit connect flow"
   },
   "workflows": [
     {
@@ -61,8 +61,7 @@
       "repo": "reown-com/reown-kotlin",
       "workflow_path": ".github/workflows/ci_e2e_tests.yml",
       "branch": "develop",
-      "job_pattern": "^E2E Connect - Android$",
-      "_note": "WX SLO 2 (WalletKit connect). Nightly 03:00 UTC on develop + PRs + dispatch; branch filter keeps pass/flake to develop. Draft-PR and off-develop dispatch runs carry '(skip-metrics)' in run-name and are dropped by lib.sh::fetch_runs."
+      "job_pattern": "^E2E Connect - Android$"
     },
     {
       "suite": "connect",
@@ -71,8 +70,7 @@
       "repo": "reown-com/reown-swift",
       "workflow_path": ".github/workflows/ci_e2e_connect_tests.yml",
       "branch": "develop",
-      "job_pattern": "^E2E Connect - iOS$",
-      "_note": "WX SLO 2 (WalletKit connect), iOS. Nightly 03:00 UTC on develop + PRs to develop/main; branch filter keeps pass/flake to develop. Draft-PR and off-develop dispatch runs carry '(skip-metrics)' in run-name and are dropped by lib.sh::fetch_runs."
+      "job_pattern": "^E2E Connect - iOS$"
     },
     {
       "suite": "connect",
@@ -82,7 +80,7 @@
       "workflow_path": ".github/workflows/ci_e2e_connect_tests.yml",
       "branch": "develop",
       "job_pattern": "^E2E Connect - Android$",
-      "_note": "WX SLO 2 (WalletKit connect), Android job. Nightly 03:00 UTC on develop + PRs + dispatch; branch filter keeps pass/flake to develop. Draft-PR and off-develop dispatch runs carry '(skip-metrics)' in run-name and are dropped by lib.sh::fetch_runs. Same run as 'flutter ios' — split by job so each platform has its own pass rate; P95 is whole-run duration."
+      "_note": "Same run as 'flutter ios', split by job"
     },
     {
       "suite": "connect",
@@ -92,7 +90,7 @@
       "workflow_path": ".github/workflows/ci_e2e_connect_tests.yml",
       "branch": "develop",
       "job_pattern": "^E2E Connect - iOS$",
-      "_note": "WX SLO 2 (WalletKit connect), iOS job, nightly and dispatch only. It doesn't run on PRs, so its P95 (whole-run duration of PR runs) reflects the Android job. See 'flutter android'."
+      "_note": "Nightly only (no PR runs), so P95 reflects the Android job"
     },
     {
       "suite": "connect",
@@ -102,7 +100,7 @@
       "workflow_path": ".github/workflows/ci_e2e_walletkit_connect.yaml",
       "branch": "main",
       "job_pattern": "^E2E Connect - Android$",
-      "_note": "WX SLO 2 (WalletKit connect), Android job. Same run as 'rn ios' — split by job so each platform has its own pass rate. P95 is whole-run duration, so both rows show the same value."
+      "_note": "Same run as 'rn ios', split by job"
     },
     {
       "suite": "connect",
@@ -112,7 +110,7 @@
       "workflow_path": ".github/workflows/ci_e2e_walletkit_connect.yaml",
       "branch": "main",
       "job_pattern": "^E2E Connect - iOS$",
-      "_note": "WX SLO 2 (WalletKit connect), iOS job. See 'rn android'."
+      "_note": "Same run as 'rn android', split by job"
     }
   ]
 }
