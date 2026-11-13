@@ -66,6 +66,16 @@
     },
     {
       "suite": "connect",
+      "platform": "swift-connect",
+      "label": "swift",
+      "repo": "reown-com/reown-swift",
+      "workflow_path": ".github/workflows/ci_e2e_connect_tests.yml",
+      "branch": "develop",
+      "job_pattern": "^E2E Connect - iOS$",
+      "_note": "WX SLO 2 (WalletKit connect), iOS. Nightly 03:00 UTC on develop + PRs to develop/main; branch filter keeps pass/flake to develop. Draft-PR and off-develop dispatch runs carry '(skip-metrics)' in run-name and are dropped by lib.sh::fetch_runs."
+    },
+    {
+      "suite": "connect",
       "platform": "rn-connect-android",
       "label": "rn android",
       "repo": "reown-com/react-native-examples",
