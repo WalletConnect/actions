@@ -118,7 +118,7 @@ build_row() {
   fi
 
   # Wider columns to fit the counts.
-  printf '%-12s  %-22s  %-22s  %s\n' "$label" "$pass_cell" "$flake_cell" "$p95_cell"
+  printf '%-16s  %-22s  %-22s  %s\n' "$label" "$pass_cell" "$flake_cell" "$p95_cell"
 }
 
 # Attention line for one suite: list workflows where any metric is in the
@@ -271,12 +271,12 @@ build_alerts() {
 build_section() {
   local suite="$1" table attention
   table=$(cat <<EOF
-$(printf '%-12s  %-22s  %-22s  %s\n' "" "Pass rate" "Flake rate" "P95 PR feedback")
-$(printf '%-12s  %-22s  %-22s  %s\n' "" "(success/total)" "(recovered/failures)" "(n = sample size)")
-$(printf -- '-%.0s' {1..78})
+$(printf '%-16s  %-22s  %-22s  %s\n' "" "Pass rate" "Flake rate" "P95 PR feedback")
+$(printf '%-16s  %-22s  %-22s  %s\n' "" "(success/total)" "(recovered/failures)" "(n = sample size)")
+$(printf -- '-%.0s' {1..82})
 $(while IFS= read -r entry; do build_row "$entry"; done < <(suite_entries "$suite"))
-$(printf -- '-%.0s' {1..78})
-🎯 targets    ≥${PASS_TARGET}%                  <${FLAKE_TARGET}%                   <${P95_TARGET_MIN}m
+$(printf -- '-%.0s' {1..82})
+🎯 targets        ≥${PASS_TARGET}%                  <${FLAKE_TARGET}%                   <${P95_TARGET_MIN}m
 EOF
 )
   attention=$(build_attention_line "$suite" || true)

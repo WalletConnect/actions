@@ -31,7 +31,7 @@ Edit `config/workflows.json`. The top-level `suites` map (`id → title`) sets w
 | `suite` | yes | Key of the `suites` map; picks the Slack table. Entries (and old artifacts) without it count as `pay`. |
 | `repo` | yes | `owner/name` |
 | `workflow_path` | yes | `.github/workflows/foo.yml` — stable across renames |
-| `label` | yes | Row name in the suite's table. Unique within its suite: suite + label key the row across pass/flake/P95 and the alert state. Keep it ≤12 chars to fit the column. |
+| `label` | yes | Row name in the suite's table. Unique within its suite: suite + label key the row across pass/flake/P95 and the alert state. Keep it ≤16 chars to fit the column. |
 | `platform` | yes | Used to aggregate bug-catches. Keep it distinct across suites (e.g. `kotlin` for Pay, `kotlin-connect` for WalletKit connect) so suites never merge. |
 | `branch` | no | When set (e.g. `"main"`), pass/flake/bug-catch filter to that branch. Omit for workflows that don't fire on push (SDK repos are PR-trigger only). |
 | `job_pattern` | no | Bash regex; when set, the conclusion is read from the matching **job** inside each workflow run rather than the run's overall status. Used when one job of many is in scope, including jobs nested inside called reusable workflows (e.g. pay-core's Maestro CD job lives inside `sub-validate.yml`, surfaced via the `event_release.yml` parent run). |
@@ -75,27 +75,30 @@ Daily 09:00 UTC post to `#wx-e2e-kpis`, one table per suite, each with its own A
 📊 Maestro E2E KPIs — 7d window: 2026-11-06 → 2026-11-13
 
 *💳 WalletConnect Pay*
-```              Pass rate               Flake rate              P95 PR feedback
-              (success/total)         (recovered/failures)    (n = sample size)
-──────────────────────────────────────────────────────────────────────────────
-kotlin        ✅ 100.00% (11/11)      — (no failures)         ✅ 14m (n=4)
-swift         🟡 87.50% (7/8)         ✅ 0.00% (0/1)          — (no PR runs)
-rn            🟡 94.59% (35/37)       🔴 33.33% (1/3)         ✅ 27m (n=5)
-core (CD)     🔴 68.42% (13/19)       🔴 25.00% (2/8)         — (no PR runs)
-──────────────────────────────────────────────────────────────────────────────
-🎯 targets    ≥95%                    <5%                     <30m
+```                  Pass rate               Flake rate              P95 PR feedback
+                  (success/total)         (recovered/failures)    (n = sample size)
+──────────────────────────────────────────────────────────────────────────────────
+kotlin            ✅ 100.00% (11/11)      — (no failures)         ✅ 14m (n=4)
+swift             🟡 87.50% (7/8)         ✅ 0.00% (0/1)          — (no PR runs)
+rn                🟡 94.59% (35/37)       🔴 33.33% (1/3)         ✅ 27m (n=5)
+core (CD)         🔴 68.42% (13/19)       🔴 25.00% (2/8)         — (no PR runs)
+──────────────────────────────────────────────────────────────────────────────────
+🎯 targets        ≥95%                    <5%                     <30m
 
 ⚠️ Attention: swift pass 87.50%; rn pass 94.59%, flake 33.33%; …```
 
 *🔗 WalletKit connect*
-```              Pass rate               Flake rate              P95 PR feedback
-              (success/total)         (recovered/failures)    (n = sample size)
-──────────────────────────────────────────────────────────────────────────────
-kotlin        ✅ 100.00% (7/7)        — (no failures)         ✅ 12m (n=4)
-rn android    ✅ 100.00% (7/7)        — (no failures)         🟡 34m (n=3)
-rn ios        🟡 85.71% (6/7)         — (no failures)         🟡 34m (n=3)
-──────────────────────────────────────────────────────────────────────────────
-🎯 targets    ≥95%                    <5%                     <30m
+```                  Pass rate               Flake rate              P95 PR feedback
+                  (success/total)         (recovered/failures)    (n = sample size)
+──────────────────────────────────────────────────────────────────────────────────
+kotlin            ✅ 100.00% (7/7)        — (no failures)         ✅ 12m (n=4)
+swift             ✅ 100.00% (7/7)        — (no failures)         ✅ 9m (n=1)
+flutter android   ✅ 100.00% (7/7)        — (no failures)         ✅ 21m (n=4)
+flutter ios       ✅ 100.00% (7/7)        — (no failures)         ✅ 21m (n=4)
+rn android        ✅ 100.00% (7/7)        — (no failures)         🟡 34m (n=3)
+rn ios            🟡 85.71% (6/7)         — (no failures)         🟡 34m (n=3)
+──────────────────────────────────────────────────────────────────────────────────
+🎯 targets        ≥95%                    <5%                     <30m
 
 ⚠️ Attention: rn ios pass 85.71%, P95 34m; rn android P95 34m```
 ````
