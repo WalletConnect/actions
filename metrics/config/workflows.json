@@ -1,7 +1,12 @@
 {
-  "_comment": "Workflows tracked by metrics/scripts/kpi_*.sh. Schema: each entry must have repo (owner/name), workflow_path (.github/workflows/file.yml — stable), label (human-readable, used in Slack), platform (groups multiple workflows under one platform row when needed). Optional branch overrides the default ('main') — SDK repos use 'develop'. Optional job_pattern is a Bash regex; when set, the conclusion is taken from the matching JOB inside each workflow run rather than the run itself — used when one job of many is in scope, including jobs nested inside called reusable workflows (e.g. pay-core's Maestro CD job lives inside sub-validate.yml which is called by sub-cd.yml which is called by event_release.yml, but the nested job is visible in event_release.yml's run-jobs endpoint).",
+  "_comment": "Workflows tracked by metrics/scripts/kpi_*.sh. Each entry has: suite (key of 'suites'; one Slack table per suite, in map order; defaults to 'pay'), label (row name, unique within its suite, ≤16 chars), platform (groups bug-catches; keep it distinct across suites), repo (owner/name), workflow_path (.github/workflows/file.yml). Optional branch: only count runs on that branch (omit to count all branches). Optional job_pattern: Bash regex; the conclusion comes from the matching job instead of the whole run. Works for jobs nested in called reusable workflows (e.g. pay-core's CD job, visible in event_release.yml's jobs).",
+  "suites": {
+    "pay": "💳 WalletConnect Pay",
+    "connect": "🔗 WalletKit connect flow"
+  },
   "workflows": [
     {
+      "suite": "pay",
       "platform": "kotlin",
       "label": "kotlin",
       "repo": "reown-com/reown-kotlin",
@@ -9,6 +14,7 @@
       "_note": "PR-trigger only — no branch filter, pass-rate covers all CI runs"
     },
     {
+      "suite": "pay",
       "platform": "swift",
       "label": "swift",
       "repo": "reown-com/reown-swift",
@@ -16,6 +22,7 @@
       "_note": "PR-trigger only — no branch filter, pass-rate covers all CI runs"
     },
     {
+      "suite": "pay",
       "platform": "flutter",
       "label": "flutter",
       "repo": "reown-com/reown_flutter",
@@ -23,6 +30,7 @@
       "_note": "PR-trigger only — no branch filter, pass-rate covers all CI runs"
     },
     {
+      "suite": "pay",
       "platform": "rn",
       "label": "rn",
       "repo": "reown-com/react-native-examples",
@@ -30,6 +38,7 @@
       "branch": "main"
     },
     {
+      "suite": "pay",
       "platform": "core",
       "label": "core (PR)",
       "repo": "WalletConnect/pay-core",
@@ -37,12 +46,71 @@
       "branch": "main"
     },
     {
+      "suite": "pay",
       "platform": "core",
       "label": "core (CD)",
       "repo": "WalletConnect/pay-core",
       "workflow_path": ".github/workflows/event_release.yml",
       "branch": "main",
       "job_pattern": "^CD / Validate Staging \\(Advisory\\) / WX Pay E2E Maestro - android - staging$"
+    },
+    {
+      "suite": "connect",
+      "platform": "kotlin-connect",
+      "label": "kotlin",
+      "repo": "reown-com/reown-kotlin",
+      "workflow_path": ".github/workflows/ci_e2e_tests.yml",
+      "branch": "develop",
+      "job_pattern": "^E2E Connect - Android$"
+    },
+    {
+      "suite": "connect",
+      "platform": "swift-connect",
+      "label": "swift",
+      "repo": "reown-com/reown-swift",
+      "workflow_path": ".github/workflows/ci_e2e_connect_tests.yml",
+      "branch": "develop",
+      "job_pattern": "^E2E Connect - iOS$"
+    },
+    {
+      "suite": "connect",
+      "platform": "flutter-connect-android",
+      "label": "flutter android",
+      "repo": "reown-com/reown_flutter",
+      "workflow_path": ".github/workflows/ci_e2e_connect_tests.yml",
+      "branch": "develop",
+      "job_pattern": "^E2E Connect - Android$",
+      "_note": "Same run as 'flutter ios', split by job"
+    },
+    {
+      "suite": "connect",
+      "platform": "flutter-connect-ios",
+      "label": "flutter ios",
+      "repo": "reown-com/reown_flutter",
+      "workflow_path": ".github/workflows/ci_e2e_connect_tests.yml",
+      "branch": "develop",
+      "job_pattern": "^E2E Connect - iOS$",
+      "_note": "Nightly only (no PR runs), so P95 reflects the Android job"
+    },
+    {
+      "suite": "connect",
+      "platform": "rn-connect-android",
+      "label": "rn android",
+      "repo": "reown-com/react-native-examples",
+      "workflow_path": ".github/workflows/ci_e2e_walletkit_connect.yaml",
+      "branch": "main",
+      "job_pattern": "^E2E Connect - Android$",
+      "_note": "Same run as 'rn ios', split by job"
+    },
+    {
+      "suite": "connect",
+      "platform": "rn-connect-ios",
+      "label": "rn ios",
+      "repo": "reown-com/react-native-examples",
+      "workflow_path": ".github/workflows/ci_e2e_walletkit_connect.yaml",
+      "branch": "main",
+      "job_pattern": "^E2E Connect - iOS$",
+      "_note": "Same run as 'rn android', split by job"
     }
   ]
 }

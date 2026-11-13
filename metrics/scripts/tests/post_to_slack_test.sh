@@ -87,7 +87,7 @@ jq -e 'select(.label == "swift") | .flake == false' "$recovered_state" >/dev/nul
 write_metrics 100.00 10 10 50.00 1 2 16 1
 rebreach_state="$TEST_TMP_DIR/rebreach-state.jsonl"
 output=$(run_report 2026-08-14 "$recovered_state" "$rebreach_state")
-assert_contains "$output" '🚨 2026-08-14 — `swift` flake rate 50.00% exceeds 10%'
+assert_contains "$output" '🚨 2026-08-14 — `pay/swift` flake rate 50.00% exceeds 10%'
 
 repeat_rebreach_state="$TEST_TMP_DIR/repeat-rebreach-state.jsonl"
 output=$(run_report 2026-08-15 "$rebreach_state" "$repeat_rebreach_state")
@@ -99,7 +99,7 @@ write_metrics 80.00 8 10 0.00 0 0 16 1
 write_yesterday_pass 85.00 8 10
 pass_state="$TEST_TMP_DIR/pass-state.jsonl"
 output=$(run_report 2026-08-16 "$recovered_state" "$pass_state")
-assert_contains "$output" '🚨 2026-08-16 — `swift` pass rate <90% for 2 consecutive days'
+assert_contains "$output" '🚨 2026-08-16 — `pay/swift` pass rate <90% for 2 consecutive days'
 
 repeat_pass_state="$TEST_TMP_DIR/repeat-pass-state.jsonl"
 output=$(run_report 2026-08-17 "$pass_state" "$repeat_pass_state")
@@ -128,5 +128,37 @@ output=$(run_report 2026-08-20 "$malformed_state" "$TEST_TMP_DIR/ignored-state.j
 assert_contains "$output" '::warning::build_alerts failed; skipping threshold alerts'
 assert_contains "$output" '--- daily summary ---'
 assert_not_contains "$output" '--- threshold alerts ---'
+
+# Suites render as separate tables, and the same label in two suites keeps
+# its own metrics and alert state (rows are keyed by suite + label). The
+# fixtures above have no `suite` field, which exercises the 'pay' default
+# used for artifacts written before suites existed.
+cat > "$PASS_FILE" <<'EOF'
+{"suite":"pay","platform":"kotlin","label":"kotlin","success":10,"failure":0,"total":10,"rate":100.00}
+{"suite":"connect","platform":"kotlin-connect","label":"kotlin","success":8,"failure":2,"total":10,"rate":80.00}
+EOF
+cat > "$FLAKE_FILE" <<'EOF'
+{"suite":"pay","platform":"kotlin","label":"kotlin","recovered":0,"failed":0,"total_failures":0,"rate":0.00}
+{"suite":"connect","platform":"kotlin-connect","label":"kotlin","recovered":1,"failed":1,"total_failures":2,"rate":50.00}
+EOF
+cat > "$P95_FILE" <<'EOF'
+{"suite":"pay","platform":"kotlin","label":"kotlin","p95_seconds":600,"p95_minutes":10,"count":3}
+{"suite":"connect","platform":"kotlin-connect","label":"kotlin","p95_seconds":720,"p95_minutes":12,"count":3}
+EOF
+: > "$YESTERDAY_PASS"
+suites_state="$TEST_TMP_DIR/suites-state.jsonl"
+output=$(run_report 2026-08-21 "$recovered_state" "$suites_state")
+assert_contains "$output" '*💳 WalletConnect Pay*'
+assert_contains "$output" '*🔗 WalletKit connect flow*'
+pay_section="${output%%🔗 WalletKit connect flow*}"
+connect_section="${output#*🔗 WalletKit connect flow}"
+assert_contains "$pay_section" '✅ 100.00% (10/10)'
+assert_not_contains "$pay_section" 'Attention'
+assert_contains "$connect_section" '(8/10)'
+assert_contains "$connect_section" '⚠️ Attention: kotlin pass 80.00%, flake 50.00%'
+assert_contains "$output" '🚨 2026-08-21 — `connect/kotlin` flake rate 50.00% exceeds 10%'
+assert_not_contains "$output" '`pay/kotlin`'
+jq -e 'select(.suite == "connect" and .label == "kotlin") | .flake == true' "$suites_state" >/dev/null
+jq -e 'select(.suite == "pay" and .label == "kotlin") | .flake == false' "$suites_state" >/dev/null
 
 echo "post_to_slack tests passed"

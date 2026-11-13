@@ -21,7 +21,7 @@
 # calls per digest, well within the 5000/hour primary rate limit.
 #
 # Output: one JSON object per workflow on stdout, e.g.
-#   {"platform":"kotlin","label":"kotlin","p95_seconds":1320,"p95_minutes":22,"count":18}
+#   {"suite":"pay","platform":"kotlin","label":"kotlin","p95_seconds":1320,"p95_minutes":22,"count":18}
 
 set -euo pipefail
 
@@ -36,6 +36,7 @@ while IFS= read -r entry; do
   workflow_path=$(jq -r '.workflow_path' <<<"$entry")
   label=$(jq -r '.label' <<<"$entry")
   platform=$(jq -r '.platform' <<<"$entry")
+  suite=$(jq -r '.suite // "pay"' <<<"$entry")
 
   # Restrict to runs that actually completed with a real outcome. `cancelled`
   # / `skipped` / `startup_failure` etc. don't represent a feedback event.
@@ -74,8 +75,8 @@ while IFS= read -r entry; do
   durations="${durations%$'\n'}"
 
   if [[ -z "$durations" ]]; then
-    jq -nc --arg p "$platform" --arg l "$label" \
-      '{platform:$p, label:$l, p95_seconds:0, p95_minutes:0, count:0}'
+    jq -nc --arg s "$suite" --arg p "$platform" --arg l "$label" \
+      '{suite:$s, platform:$p, label:$l, p95_seconds:0, p95_minutes:0, count:0}'
     continue
   fi
 
@@ -84,10 +85,11 @@ while IFS= read -r entry; do
   p95_minutes=$(awk -v s="$p95_seconds" 'BEGIN { printf "%d", s / 60 }')
 
   jq -nc \
+    --arg suite "$suite" \
     --arg platform "$platform" \
     --arg label "$label" \
     --argjson p95_seconds "$p95_seconds" \
     --argjson p95_minutes "$p95_minutes" \
     --argjson count "$count" \
-    '{platform: $platform, label: $label, p95_seconds: $p95_seconds, p95_minutes: $p95_minutes, count: $count}'
+    '{suite: $suite, platform: $platform, label: $label, p95_seconds: $p95_seconds, p95_minutes: $p95_minutes, count: $count}'
 done < <(read_workflows)
