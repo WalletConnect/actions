@@ -12,6 +12,8 @@ runs:
   steps:
     - name: Install Maestro CLI
       shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
       run: |
         set -euo pipefail
         if command -v maestro &>/dev/null; then
@@ -19,9 +21,21 @@ runs:
           exit 0
         fi
 
-        if [ -n "${{ inputs.version }}" ]; then
-          export MAESTRO_VERSION="${{ inputs.version }}"
+        if [ -n "$VERSION" ]; then
+          export MAESTRO_VERSION="$VERSION"
         fi
 
         curl -fsSL "https://get.maestro.mobile.dev" | bash
+
+        # The installer can exit 0 without installing (e.g. a corrupt download).
+        installed="$("$HOME/.maestro/bin/maestro" --version 2>/dev/null | tail -n 1 | tr -d '[:space:]' || true)"
+        if [ -z "$installed" ]; then
+          echo "::error::Maestro${VERSION:+ $VERSION} was not installed"
+          exit 1
+        fi
+        if [ -n "$VERSION" ] && [ "$installed" != "$VERSION" ]; then
+          echo "::error::Installed Maestro $installed, expected $VERSION"
+          exit 1
+        fi
+        echo "Maestro installed: $installed"
         echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
