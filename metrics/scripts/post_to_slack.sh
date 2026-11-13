@@ -3,6 +3,10 @@
 # to the webhook. Emits attention-line + threshold-breach alerts when the
 # numbers warrant.
 #
+# One table per suite (config `suites` map: order + title). Rows are keyed by
+# suite + label; rows without `suite` (artifacts written before suites
+# existed) count as 'pay'.
+#
 # Inputs (file paths, one JSON object per line, format from kpi_*.sh):
 #   PASS_FILE       — pass rate per workflow
 #   FLAKE_FILE      — flake rate per workflow
@@ -48,21 +52,48 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
 source "$SCRIPT_DIR/lib.sh"
 
-# Build a row for one workflow. Looks up flake + p95 by label.
+# Print field $4 of the row for (suite $2, label $3) in JSONL file $1.
+metric() {
+  jq -r --arg s "$2" --arg l "$3" --arg f "$4" \
+    'select((.suite // "pay") == $s and .label == $l) | .[$f]' "$1" | head -1
+}
+
+# Pass entries of one suite, in config order.
+suite_entries() {
+  jq -c --arg s "$1" 'select((.suite // "pay") == $s)' "$PASS_FILE"
+}
+
+# Suites in display order: the config's `suites` map first, then any suite
+# that only appears in the data.
+suite_order() {
+  {
+    jq -r '(.suites // {}) | keys_unsorted[]' "$CONFIG_PATH" 2>/dev/null || true
+    jq -r '.suite // "pay"' "$PASS_FILE"
+  } | awk 'NF && !seen[$0]++'
+}
+
+suite_title() {
+  local title
+  title=$(jq -r --arg s "$1" '.suites[$s] // empty' "$CONFIG_PATH" 2>/dev/null || true)
+  echo "${title:-$1}"
+}
+
+# Build a row for one workflow. Looks up flake + p95 by suite + label.
 build_row() {
   local pass_entry="$1"
-  local label rate success total
+  local suite label rate success total
+  suite=$(jq -r '.suite // "pay"' <<<"$pass_entry")
   label=$(jq -r '.label' <<<"$pass_entry")
   rate=$(jq -r '.rate' <<<"$pass_entry")
   success=$(jq -r '.success' <<<"$pass_entry")
   total=$(jq -r '.total' <<<"$pass_entry")
 
   local flake_rate flake_recovered flake_total p95_min p95_count
-  flake_rate=$(jq -r --arg l "$label" 'select(.label == $l) | .rate' "$FLAKE_FILE" | head -1)
-  flake_recovered=$(jq -r --arg l "$label" 'select(.label == $l) | .recovered' "$FLAKE_FILE" | head -1)
-  flake_total=$(jq -r --arg l "$label" 'select(.label == $l) | .total_failures' "$FLAKE_FILE" | head -1)
-  p95_min=$(jq -r --arg l "$label" 'select(.label == $l) | .p95_minutes' "$P95_FILE" | head -1)
-  p95_count=$(jq -r --arg l "$label" 'select(.label == $l) | .count' "$P95_FILE" | head -1)
+  flake_rate=$(metric "$FLAKE_FILE" "$suite" "$label" rate)
+  flake_recovered=$(metric "$FLAKE_FILE" "$suite" "$label" recovered)
+  flake_total=$(metric "$FLAKE_FILE" "$suite" "$label" total_failures)
+  p95_min=$(metric "$P95_FILE" "$suite" "$label" p95_minutes)
+  p95_count=$(metric "$P95_FILE" "$suite" "$label" count)
   flake_rate="${flake_rate:-0}"
   flake_recovered="${flake_recovered:-0}"
   flake_total="${flake_total:-0}"
@@ -90,8 +121,10 @@ build_row() {
   printf '%-12s  %-22s  %-22s  %s\n' "$label" "$pass_cell" "$flake_cell" "$p95_cell"
 }
 
-# Attention line: list workflows where any metric is in red/yellow zone.
+# Attention line for one suite: list workflows where any metric is in the
+# red/yellow zone.
 build_attention_line() {
+  local suite="$1"
   local notes=()
   while IFS= read -r pass_entry; do
     local label rate total
@@ -99,10 +132,10 @@ build_attention_line() {
     rate=$(jq -r '.rate' <<<"$pass_entry")
     total=$(jq -r '.total' <<<"$pass_entry")
     local flake_rate flake_total p95_min p95_count
-    flake_rate=$(jq -r --arg l "$label" 'select(.label == $l) | .rate' "$FLAKE_FILE" | head -1)
-    flake_total=$(jq -r --arg l "$label" 'select(.label == $l) | .total_failures' "$FLAKE_FILE" | head -1)
-    p95_min=$(jq -r --arg l "$label" 'select(.label == $l) | .p95_minutes' "$P95_FILE" | head -1)
-    p95_count=$(jq -r --arg l "$label" 'select(.label == $l) | .count' "$P95_FILE" | head -1)
+    flake_rate=$(metric "$FLAKE_FILE" "$suite" "$label" rate)
+    flake_total=$(metric "$FLAKE_FILE" "$suite" "$label" total_failures)
+    p95_min=$(metric "$P95_FILE" "$suite" "$label" p95_minutes)
+    p95_count=$(metric "$P95_FILE" "$suite" "$label" count)
     flake_rate="${flake_rate:-0}"
     p95_min="${p95_min:-0}"
 
@@ -122,7 +155,7 @@ build_attention_line() {
       joined=$(printf ', %s' "${issues[@]}")
       notes+=("$label ${joined:2}")
     fi
-  done < "$PASS_FILE"
+  done < <(suite_entries "$suite")
 
   if (( ${#notes[@]} > 0 )); then
     local joined
@@ -134,10 +167,10 @@ build_attention_line() {
 # Return success when a metric was already in breach in the previous
 # successful report. The state is JSONL with one object per workflow.
 previous_alert_active() {
-  local label="$1" metric="$2"
+  local suite="$1" label="$2" metric="$3"
   [[ -s "$PREVIOUS_ALERT_STATE" ]] || return 1
-  jq -e --arg l "$label" --arg m "$metric" \
-    'select(.label == $l) | .[$m] == true' \
+  jq -e --arg s "$suite" --arg l "$label" --arg m "$metric" \
+    'select((.suite // "pay") == $s and .label == $l) | .[$m] == true' \
     "$PREVIOUS_ALERT_STATE" >/dev/null
 }
 
@@ -161,15 +194,17 @@ build_alerts() {
   : > "$ALERT_STATE_FILE" || return 1
 
   while IFS= read -r pass_entry; do
-    local label rate total
+    local suite label name rate total
+    suite=$(jq -r '.suite // "pay"' <<<"$pass_entry") || return 1
     label=$(jq -r '.label' <<<"$pass_entry") || return 1
+    name="$suite/$label"
     rate=$(jq -r '.rate' <<<"$pass_entry") || return 1
     total=$(jq -r '.total' <<<"$pass_entry") || return 1
     local flake_rate flake_total p95_min p95_count
-    flake_rate=$(jq -r --arg l "$label" 'select(.label == $l) | .rate' "$FLAKE_FILE" | head -1) || return 1
-    flake_total=$(jq -r --arg l "$label" 'select(.label == $l) | .total_failures' "$FLAKE_FILE" | head -1) || return 1
-    p95_min=$(jq -r --arg l "$label" 'select(.label == $l) | .p95_minutes' "$P95_FILE" | head -1) || return 1
-    p95_count=$(jq -r --arg l "$label" 'select(.label == $l) | .count' "$P95_FILE" | head -1) || return 1
+    flake_rate=$(metric "$FLAKE_FILE" "$suite" "$label" rate) || return 1
+    flake_total=$(metric "$FLAKE_FILE" "$suite" "$label" total_failures) || return 1
+    p95_min=$(metric "$P95_FILE" "$suite" "$label" p95_minutes) || return 1
+    p95_count=$(metric "$P95_FILE" "$suite" "$label" count) || return 1
     flake_rate="${flake_rate:-0.00}"
     flake_total="${flake_total:-0}"
     p95_min="${p95_min:-0}"
@@ -183,8 +218,8 @@ build_alerts() {
     # be interpreted as a 0% pass rate.
     if [[ "${total:-0}" != "0" ]] && awk -v v="$rate" -v t="$PASS_ALERT" 'BEGIN { exit (v < t) ? 0 : 1 }'; then
       if [[ -s "$YESTERDAY_PASS" ]]; then
-        yesterday_rate=$(jq -r --arg l "$label" 'select(.label == $l) | .rate' "$YESTERDAY_PASS" | head -1) || return 1
-        yesterday_total=$(jq -r --arg l "$label" 'select(.label == $l) | .total' "$YESTERDAY_PASS" | head -1) || return 1
+        yesterday_rate=$(metric "$YESTERDAY_PASS" "$suite" "$label" rate) || return 1
+        yesterday_total=$(metric "$YESTERDAY_PASS" "$suite" "$label" total) || return 1
       fi
       if [[ -n "$yesterday_rate" && "${yesterday_total:-0}" != "0" ]] \
         && awk -v v="$yesterday_rate" -v t="$PASS_ALERT" 'BEGIN { exit (v < t) ? 0 : 1 }'; then
@@ -203,25 +238,26 @@ build_alerts() {
     fi
 
     jq -nc \
+      --arg suite "$suite" \
       --arg label "$label" \
       --arg date "$WINDOW_END" \
       --argjson pass "$pass_active" \
       --argjson flake "$flake_active" \
       --argjson p95 "$p95_active" \
-      '{label:$label, date:$date, pass:$pass, flake:$flake, p95:$p95}' \
+      '{suite:$suite, label:$label, date:$date, pass:$pass, flake:$flake, p95:$p95}' \
       >> "$ALERT_STATE_FILE" || return 1
 
     if [[ "$alert_state_initialized" == "true" && "$pass_active" == "true" ]] \
-      && ! previous_alert_active "$label" pass; then
-      alerts+=("🚨 $WINDOW_END — \`$label\` pass rate <$PASS_ALERT% for 2 consecutive days (today $rate%, previous report $yesterday_rate%)")
+      && ! previous_alert_active "$suite" "$label" pass; then
+      alerts+=("🚨 $WINDOW_END — \`$name\` pass rate <$PASS_ALERT% for 2 consecutive days (today $rate%, previous report $yesterday_rate%)")
     fi
     if [[ "$alert_state_initialized" == "true" && "$flake_active" == "true" ]] \
-      && ! previous_alert_active "$label" flake; then
-      alerts+=("🚨 $WINDOW_END — \`$label\` flake rate $flake_rate% exceeds $FLAKE_ALERT%")
+      && ! previous_alert_active "$suite" "$label" flake; then
+      alerts+=("🚨 $WINDOW_END — \`$name\` flake rate $flake_rate% exceeds $FLAKE_ALERT%")
     fi
     if [[ "$alert_state_initialized" == "true" && "$p95_active" == "true" ]] \
-      && ! previous_alert_active "$label" p95; then
-      alerts+=("🚨 $WINDOW_END — \`$label\` P95 feedback ${p95_min}m exceeds ${P95_ALERT_MIN}m")
+      && ! previous_alert_active "$suite" "$label" p95; then
+      alerts+=("🚨 $WINDOW_END — \`$name\` P95 feedback ${p95_min}m exceeds ${P95_ALERT_MIN}m")
     fi
   done < "$PASS_FILE"
 
@@ -230,27 +266,37 @@ build_alerts() {
   fi
 }
 
-# Assemble the message body.
-body=$(cat <<EOF
-📊 Maestro E2E KPIs — 7d window: $WINDOW_START → $WINDOW_END
-
+# One titled code block per suite: table, targets, then that suite's
+# Attention line.
+build_section() {
+  local suite="$1" table attention
+  table=$(cat <<EOF
 $(printf '%-12s  %-22s  %-22s  %s\n' "" "Pass rate" "Flake rate" "P95 PR feedback")
 $(printf '%-12s  %-22s  %-22s  %s\n' "" "(success/total)" "(recovered/failures)" "(n = sample size)")
 $(printf -- '-%.0s' {1..78})
-$(while IFS= read -r entry; do build_row "$entry"; done < "$PASS_FILE")
+$(while IFS= read -r entry; do build_row "$entry"; done < <(suite_entries "$suite"))
 $(printf -- '-%.0s' {1..78})
 🎯 targets    ≥${PASS_TARGET}%                  <${FLAKE_TARGET}%                   <${P95_TARGET_MIN}m
 EOF
 )
-
-attention=$(build_attention_line || true)
-if [[ -n "$attention" ]]; then
-  body="$body
+  attention=$(build_attention_line "$suite" || true)
+  if [[ -n "$attention" ]]; then
+    table="$table
 
 $attention"
-fi
+  fi
+  printf '*%s*\n```%s```' "$(suite_title "$suite")" "$table"
+}
 
-daily="\`\`\`$body\`\`\`"
+# Assemble the message body.
+daily="📊 Maestro E2E KPIs — 7d window: $WINDOW_START → $WINDOW_END"
+while IFS= read -r suite; do
+  [[ -n "$(suite_entries "$suite")" ]] || continue
+  daily="$daily
+
+$(build_section "$suite")"
+done < <(suite_order)
+
 alerts=$(build_alerts) || {
   echo "::warning::build_alerts failed; skipping threshold alerts" >&2
   alerts=""
