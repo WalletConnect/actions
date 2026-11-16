@@ -6,7 +6,7 @@
 # startup_failure, etc.) are excluded — they aren't signals about test health.
 #
 # Output: one JSON object per workflow on stdout, e.g.
-#   {"platform":"kotlin","label":"kotlin","success":26,"failure":1,"total":27,"rate":96.30}
+#   {"suite":"pay","platform":"kotlin","label":"kotlin","success":26,"failure":1,"total":27,"rate":96.30}
 
 set -euo pipefail
 
@@ -23,6 +23,7 @@ while IFS= read -r entry; do
   branch=$(jq -r '.branch // ""' <<<"$entry")
   label=$(jq -r '.label' <<<"$entry")
   platform=$(jq -r '.platform' <<<"$entry")
+  suite=$(jq -r '.suite // "pay"' <<<"$entry")
 
   query="created=>=$SINCE"
   [[ -n "$branch" ]] && query="branch=$branch&$query"
@@ -42,11 +43,12 @@ while IFS= read -r entry; do
   fi
 
   jq -nc \
+    --arg suite "$suite" \
     --arg platform "$platform" \
     --arg label "$label" \
     --argjson success "$success" \
     --argjson failure "$failure" \
     --argjson total "$total" \
     --argjson rate "$rate" \
-    '{platform: $platform, label: $label, success: $success, failure: $failure, total: $total, rate: $rate}'
+    '{suite: $suite, platform: $platform, label: $label, success: $success, failure: $failure, total: $total, rate: $rate}'
 done < <(read_workflows)

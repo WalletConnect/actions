@@ -11,7 +11,7 @@
 # invisible at this level, so they aren't counted as flakes.
 #
 # Output: one JSON object per workflow on stdout, e.g.
-#   {"platform":"kotlin","label":"kotlin","recovered":1,"failed":2,"total_failures":3,"rate":33.33}
+#   {"suite":"pay","platform":"kotlin","label":"kotlin","recovered":1,"failed":2,"total_failures":3,"rate":33.33}
 
 set -euo pipefail
 
@@ -28,6 +28,7 @@ while IFS= read -r entry; do
   branch=$(jq -r '.branch // ""' <<<"$entry")
   label=$(jq -r '.label' <<<"$entry")
   platform=$(jq -r '.platform' <<<"$entry")
+  suite=$(jq -r '.suite // "pay"' <<<"$entry")
 
   query="created=>=$SINCE"
   [[ -n "$branch" ]] && query="branch=$branch&$query"
@@ -37,7 +38,7 @@ while IFS= read -r entry; do
   # losing the attempt count, so we re-pair.
   runs_json=$(fetch_runs "$repo" "$workflow_path" "$query")
   if [[ -z "$runs_json" ]]; then
-    jq -nc --arg p "$platform" --arg l "$label" '{platform:$p, label:$l, recovered:0, failed:0, total_failures:0, rate:0.0}'
+    jq -nc --arg s "$suite" --arg p "$platform" --arg l "$label" '{suite:$s, platform:$p, label:$l, recovered:0, failed:0, total_failures:0, rate:0.0}'
     continue
   fi
 
@@ -67,11 +68,12 @@ while IFS= read -r entry; do
   fi
 
   jq -nc \
+    --arg suite "$suite" \
     --arg platform "$platform" \
     --arg label "$label" \
     --argjson recovered "$recovered" \
     --argjson failed "$failed" \
     --argjson total "$total" \
     --argjson rate "$rate" \
-    '{platform: $platform, label: $label, recovered: $recovered, failed: $failed, total_failures: $total, rate: $rate}'
+    '{suite: $suite, platform: $platform, label: $label, recovered: $recovered, failed: $failed, total_failures: $total, rate: $rate}'
 done < <(read_workflows)
