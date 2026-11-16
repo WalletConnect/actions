@@ -1,5 +1,5 @@
 {
-  "_comment": "Workflows tracked by metrics/scripts/kpi_*.sh. Each entry has: suite (key of 'suites'; one Slack table per suite, in map order; defaults to 'pay'), label (row name, unique within its suite, ≤16 chars), platform (groups bug-catches; keep it distinct across suites), repo (owner/name), workflow_path (.github/workflows/file.yml). Optional branch: only count runs on that branch (omit to count all branches). Optional job_pattern: Bash regex; the conclusion comes from the matching job instead of the whole run. Works for jobs nested in called reusable workflows (e.g. pay-core's CD job, visible in event_release.yml's jobs).",
+  "_comment": "Workflows tracked by metrics/scripts/kpi_*.sh. Each entry has: suite (key of 'suites'; one Slack table per suite, in map order; defaults to 'pay'), label (row name, unique within its suite, ≤16 chars), platform (groups bug-catches; keep it distinct across suites), repo (owner/name), workflow_path (.github/workflows/file.yml). Optional branch: only count runs on that branch (omit to count all branches). Optional job_pattern: Bash regex; the conclusion and P95 come from the matching job instead of the whole run. Works for jobs nested in called reusable workflows (e.g. pay-core's CD job, visible in event_release.yml's jobs).",
   "suites": {
     "pay": "💳 WalletConnect Pay",
     "connect": "🔗 WalletKit connect flow"
@@ -90,7 +90,7 @@
       "workflow_path": ".github/workflows/ci_e2e_connect_tests.yml",
       "branch": "develop",
       "job_pattern": "^E2E Connect - iOS$",
-      "_note": "Nightly only (no PR runs), so P95 reflects the Android job"
+      "_note": "Same run as 'flutter android', split by job. Nightly only (no PR runs), so no P95"
     },
     {
       "suite": "connect",
@@ -110,7 +110,7 @@
       "workflow_path": ".github/workflows/ci_e2e_walletkit_connect.yaml",
       "branch": "main",
       "job_pattern": "^E2E Connect - iOS$",
-      "_note": "Same run as 'rn android', split by job"
+      "_note": "Same run as 'rn android', split by job. Nightly only (no PR runs), so no P95"
     }
   ]
 }

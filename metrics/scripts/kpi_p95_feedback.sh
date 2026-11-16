@@ -11,6 +11,11 @@
 # wait, which inflated rn's P95 to 1055m on 2026-06-17 when GH's
 # macOS pool kept runs queued for 20+ minutes before any job ran.
 #
+# With job_pattern set, only the matching jobs count, and the job itself
+# must have ended in success/failure. A per-platform row (e.g. iOS) then
+# shows that platform's time, and a job that doesn't run on PRs gives
+# "no PR runs" instead of the other platform's time.
+#
 # Trade-off: this is "CI compute wall-clock" rather than "developer
 # feedback wall-clock". Queue-wait pain is a separate problem and
 # deserves its own metric — measuring it here would conflate two
@@ -37,6 +42,7 @@ while IFS= read -r entry; do
   label=$(jq -r '.label' <<<"$entry")
   platform=$(jq -r '.platform' <<<"$entry")
   suite=$(jq -r '.suite // "pay"' <<<"$entry")
+  job_pattern=$(jq -r '.job_pattern // ""' <<<"$entry")
 
   # Restrict to runs that actually completed with a real outcome. `cancelled`
   # / `skipped` / `startup_failure` etc. don't represent a feedback event.
@@ -62,11 +68,15 @@ while IFS= read -r entry; do
   while IFS=$'\t' read -r run_id run_started_at; do
     [[ -z "$run_id" ]] && continue
     d=$(gh api "repos/$repo/actions/runs/$run_id/jobs?per_page=100" --paginate 2>/dev/null \
-      | jq -s --arg t "$run_started_at" '
+      | jq -s --arg t "$run_started_at" --arg pat "$job_pattern" '
           [.[].jobs[]]
           | map(select(.status == "completed" and (.conclusion // "") != "skipped"
                        and .started_at != null and .completed_at != null
                        and .started_at >= $t))
+          | if $pat == "" then . else
+              map(select((.name | test($pat))
+                         and (.conclusion == "success" or .conclusion == "failure")))
+            end
           | if length > 0 then
               (map(.completed_at | fromdateiso8601) | max) - (map(.started_at | fromdateiso8601) | min)
             else empty end' 2>/dev/null) || continue

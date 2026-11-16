@@ -13,7 +13,7 @@ metrics/
     ├── lib.sh                  ← shared helpers (gh, jq, date math, percentile, kpi_cell)
     ├── kpi_pass_rate.sh        ← pass / (pass + fail), main, 7d
     ├── kpi_flake_rate.sh       ← recovered / total failures, 7d
-    ├── kpi_p95_feedback.sh     ← P95(updated_at - created_at), PR runs, 7d
+    ├── kpi_p95_feedback.sh     ← P95(last job end - first job start), PR runs, 7d
     ├── kpi_bug_catches.sh      ← PR-time + main red→green pairs, 30d
     ├── post_to_slack.sh        ← assemble message + POST to webhook
     └── tests/
@@ -34,7 +34,7 @@ Edit `config/workflows.json`. The top-level `suites` map (`id → title`) define
 | `label` | yes | Row name. Unique within its suite, ≤16 chars. |
 | `platform` | yes | Used to aggregate bug-catches. Keep it distinct across suites (e.g. `kotlin` vs `kotlin-connect`). |
 | `branch` | no | When set (e.g. `"main"`), pass/flake/bug-catch filter to that branch. Omit for workflows that don't fire on push (SDK repos are PR-trigger only). |
-| `job_pattern` | no | Bash regex; when set, the conclusion is read from the matching **job** inside each workflow run rather than the run's overall status. Used when one job of many is in scope, including jobs nested inside called reusable workflows (e.g. pay-core's Maestro CD job lives inside `sub-validate.yml`, surfaced via the `event_release.yml` parent run). |
+| `job_pattern` | no | Bash regex; when set, the conclusion and the P95 duration are read from the matching **job** inside each workflow run rather than the whole run. Used when one job of many is in scope, including jobs nested inside called reusable workflows (e.g. pay-core's Maestro CD job lives inside `sub-validate.yml`, surfaced via the `event_release.yml` parent run). |
 
 Re-running the workflow (`gh workflow run maestro-kpi-aggregate.yml --repo WalletConnect/actions`) picks up the config without redeploy.
 
@@ -94,13 +94,13 @@ core (CD)         🔴 68.42% (13/19)       🔴 25.00% (2/8)         — (no PR
 kotlin            ✅ 100.00% (7/7)        — (no failures)         ✅ 12m (n=4)
 swift             ✅ 100.00% (7/7)        — (no failures)         ✅ 9m (n=1)
 flutter android   ✅ 100.00% (7/7)        — (no failures)         ✅ 21m (n=4)
-flutter ios       ✅ 100.00% (7/7)        — (no failures)         ✅ 21m (n=4)
+flutter ios       ✅ 100.00% (7/7)        — (no failures)         — (no PR runs)
 rn android        ✅ 100.00% (7/7)        — (no failures)         🟡 34m (n=3)
-rn ios            🟡 85.71% (6/7)         — (no failures)         🟡 34m (n=3)
+rn ios            🟡 85.71% (6/7)         — (no failures)         — (no PR runs)
 ──────────────────────────────────────────────────────────────────────────────────
 🎯 targets        ≥95%                    <5%                     <30m
 
-⚠️ Attention: rn ios pass 85.71%, P95 34m; rn android P95 34m```
+⚠️ Attention: rn android P95 34m; rn ios pass 85.71%```
 ````
 
 > Bug-catches KPI (kpi_bug_catches.sh) is kept in-tree for a future
