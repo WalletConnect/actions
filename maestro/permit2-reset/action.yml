@@ -15,7 +15,7 @@ inputs:
     description: |
       RPC URL to use. Recommended over the WalletConnect Blockchain API for chains
       where it gates methods (e.g. Arbitrum eth_blockNumber). For Polygon, avoid
-      polygon-rpc.com (gated, HTTP 401 in CI) — e.g. https://polygon-bor-rpc.publicnode.com.
+      polygon-rpc.com (gated, HTTP 401 in CI) — e.g. https://polygon.drpc.org.
     required: true
   private-key:
     description: |

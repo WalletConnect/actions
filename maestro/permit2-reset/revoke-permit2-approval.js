@@ -20,8 +20,9 @@ const MIN_PRIORITY_FEE_GWEI_BY_CHAIN = {
   'eip155:137': '25',
 };
 
-// tx.wait() is unbounded in ethers v5; cap it so a stuck tx can't hang CI.
+// Cap the receipt wait so a stuck tx can't hang CI.
 const TX_WAIT_TIMEOUT_MS = 120_000;
+const RECEIPT_POLL_INTERVAL_MS = 3_000;
 
 function printUsage() {
   const supportedChains = Object.keys(USDT_BY_CHAIN).join(', ');
@@ -32,7 +33,7 @@ Private key:
   Prefer the PERMIT2_REVOKE_PRIVATE_KEY env var (keeps the key out of the process list); --privateKey is a fallback.
 
 Example:
-  PERMIT2_REVOKE_PRIVATE_KEY=0xYourKey node revoke-permit2-approval.js --chainId eip155:137 --rpcUrl https://polygon-bor-rpc.publicnode.com
+  PERMIT2_REVOKE_PRIVATE_KEY=0xYourKey node revoke-permit2-approval.js --chainId eip155:137 --rpcUrl https://polygon.drpc.org
   node revoke-permit2-approval.js --chainId eip155:137 --privateKey 0xYourKey --projectId yourProjectId
 
 Defaults:
@@ -320,27 +321,37 @@ async function main() {
 
   console.log(`tx hash: ${tx.hash}`);
 
-  // tx.wait() has no built-in timeout; a dropped/underpriced tx would hang the
-  // CI job until its wall-clock limit. Race it against a deadline instead.
-  // clearTimeout in finally: when tx.wait() wins the race, the timeout's timer
-  // is still pending and (being a normal ref'd timer) keeps Node's event loop
-  // alive for the full timeout (~2 min) after a successful revoke before the
-  // process can exit. Clearing it lets the process exit promptly.
-  let waitTimer;
-  const receipt = await Promise.race([
-    tx.wait(),
-    new Promise((_, reject) => {
-      waitTimer = setTimeout(
-        () => reject(new Error(`tx.wait() timed out after ${TX_WAIT_TIMEOUT_MS / 1000}s`)),
-        TX_WAIT_TIMEOUT_MS,
-      );
-    }),
-  ]).finally(() => clearTimeout(waitTimer));
+  const receipt = await waitForReceipt(provider, tx.hash);
   if (receipt.status !== 1) {
     throw new Error('Transaction reverted.');
   }
 
   console.log(`Revoke successful in block ${receipt.blockNumber}.`);
+}
+
+// Polls instead of tx.wait(), which gives up on the first RPC error. Some RPCs
+// (e.g. publicnode on Polygon) return an error, not null, for a pending tx.
+async function waitForReceipt(provider, txHash) {
+  const deadline = Date.now() + TX_WAIT_TIMEOUT_MS;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      const receipt = await provider.getTransactionReceipt(txHash);
+      if (receipt) {
+        return receipt;
+      }
+    } catch (error) {
+      if (!lastError) {
+        console.log('Receipt lookup failed; retrying until the timeout.');
+      }
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+    await new Promise(resolve => setTimeout(resolve, RECEIPT_POLL_INTERVAL_MS));
+  }
+  throw new Error(
+    `No receipt after ${TX_WAIT_TIMEOUT_MS / 1000}s` +
+      (lastError ? ` (last RPC error: ${lastError.slice(0, 200)})` : ''),
+  );
 }
 
 main().catch(error => {

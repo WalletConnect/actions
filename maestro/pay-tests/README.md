@@ -158,7 +158,7 @@ command line / process list:
   uses: WalletConnect/actions/maestro/permit2-reset@<sha>
   with:
     chain-id: eip155:137
-    rpc-url: https://polygon-bor-rpc.publicnode.com   # polygon-rpc.com is gated (HTTP 401) in CI
+    rpc-url: https://polygon.drpc.org   # polygon-rpc.com is gated (HTTP 401) in CI
     private-key: ${{ secrets.TEST_WALLET_PRIVATE_KEY }}
     # token-address optional — defaults to the chain's known USDT address
 ```
