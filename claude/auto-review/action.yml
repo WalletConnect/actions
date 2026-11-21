@@ -56,8 +56,13 @@ runs:
         RESULT=$(node "$SCRIPT_PATH")
         SPAWN=$(echo "$RESULT" | jq -r '.spawn')
         REASON=$(echo "$RESULT" | jq -r '.reason')
-        echo "SPAWN_BREAKING_CHANGES=$SPAWN" >> $GITHUB_ENV
-        echo "BREAKING_CHANGES_REASON=$REASON" >> $GITHUB_ENV
+        echo "SPAWN_BREAKING_CHANGES=$SPAWN" >> "$GITHUB_ENV"
+        delimiter="BREAKING_REASON_${RANDOM}_${RANDOM}_$(date +%s%N)"
+        {
+          echo "BREAKING_CHANGES_REASON<<${delimiter}"
+          printf '%s\n' "$REASON"
+          echo "${delimiter}"
+        } >> "$GITHUB_ENV"
         echo "Breaking changes agent: spawn=$SPAWN reason=\"$REASON\""
 
     - name: Determine if license compliance agent should spawn
@@ -73,8 +78,13 @@ runs:
         RESULT=$(node "$SCRIPT_PATH")
         SPAWN=$(echo "$RESULT" | jq -r '.spawn')
         REASON=$(echo "$RESULT" | jq -r '.reason')
-        echo "SPAWN_LICENSE_COMPLIANCE=$SPAWN" >> $GITHUB_ENV
-        echo "LICENSE_COMPLIANCE_REASON=$REASON" >> $GITHUB_ENV
+        echo "SPAWN_LICENSE_COMPLIANCE=$SPAWN" >> "$GITHUB_ENV"
+        delimiter="LICENSE_REASON_${RANDOM}_${RANDOM}_$(date +%s%N)"
+        {
+          echo "LICENSE_COMPLIANCE_REASON<<${delimiter}"
+          printf '%s\n' "$REASON"
+          echo "${delimiter}"
+        } >> "$GITHUB_ENV"
         echo "License compliance agent: spawn=$SPAWN reason=\"$REASON\""
 
     - name: Determine if data classification agent should spawn
@@ -90,12 +100,20 @@ runs:
         RESULT=$(node "$SCRIPT_PATH")
         SPAWN=$(echo "$RESULT" | jq -r '.spawn')
         REASON=$(echo "$RESULT" | jq -r '.reason')
-        echo "SPAWN_DATA_CLASSIFICATION=$SPAWN" >> $GITHUB_ENV
-        echo "DATA_CLASSIFICATION_REASON=$REASON" >> $GITHUB_ENV
+        echo "SPAWN_DATA_CLASSIFICATION=$SPAWN" >> "$GITHUB_ENV"
+        delimiter="DATA_REASON_${RANDOM}_${RANDOM}_$(date +%s%N)"
+        {
+          echo "DATA_CLASSIFICATION_REASON<<${delimiter}"
+          printf '%s\n' "$REASON"
+          echo "${delimiter}"
+        } >> "$GITHUB_ENV"
         echo "Data classification agent: spawn=$SPAWN reason=\"$REASON\""
 
     - name: Set up review prompt
       shell: bash
+      env:
+        CUSTOM_PROMPT: ${{ inputs.custom_prompt }}
+        PROJECT_CONTEXT: ${{ inputs.project_context }}
       run: |
         # Create prompt header with context
         PROMPT_HEADER="REPO: ${{ github.repository }}
@@ -103,9 +121,9 @@ runs:
 
         "
 
-        if [[ -n "${{ inputs.custom_prompt }}" ]]; then
+        if [[ -n "${CUSTOM_PROMPT}" ]]; then
           # Use custom prompt directly with header
-          PROMPT="${PROMPT_HEADER}${{ inputs.custom_prompt }}"
+          PROMPT="${PROMPT_HEADER}${CUSTOM_PROMPT}"
         else
           # Build dynamic prompt based on inputs
           PROMPT="${PROMPT_HEADER}## CRITICAL CONSTRAINTS
@@ -255,11 +273,11 @@ runs:
           fi
 
           # Add project context
-          if [[ -n "${{ inputs.project_context }}" ]]; then
+          if [[ -n "${PROJECT_CONTEXT}" ]]; then
             PROMPT="$PROMPT
 
         **Project-specific context:**
-        ${{ inputs.project_context }}"
+        ${PROJECT_CONTEXT}"
           fi
 
           # Add response format guidelines
@@ -326,19 +344,34 @@ runs:
         fi
 
         # Set environment variable for the next step
-        echo "REVIEW_PROMPT<<EOF" >> $GITHUB_ENV
-        echo "$PROMPT" >> $GITHUB_ENV
-        echo "EOF" >> $GITHUB_ENV
+        delimiter="REVIEW_PROMPT_${RANDOM}_${RANDOM}_$(date +%s%N)"
+        {
+          echo "REVIEW_PROMPT<<${delimiter}"
+          printf '%s\n' "$PROMPT"
+          echo "${delimiter}"
+        } >> "$GITHUB_ENV"
 
     - name: Check timeout_minutes deprecation
       shell: bash
+      env:
+        TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
       run: |
-        if [[ -n "${{ inputs.timeout_minutes }}" ]]; then
+        if [[ -n "${TIMEOUT_MINUTES}" ]]; then
           echo "::warning::The 'timeout_minutes' input is deprecated and has no effect in claude-code-action@v1. Please use job-level 'timeout-minutes' instead. See: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idtimeout-minutes"
         fi
 
+    - name: Validate Claude model
+      shell: bash
+      env:
+        MODEL: ${{ inputs.model }}
+      run: |
+        if [[ ! "${MODEL}" =~ ^claude-[a-z0-9-]+$ ]]; then
+          echo "::error::model must match ^claude-[a-z0-9-]+$"
+          exit 1
+        fi
+
     - name: Automatic PR Review
-      uses: anthropics/claude-code-action@v1
+      uses: anthropics/claude-code-action@cfc3eb22bfed5c26ef66e3223c982af27e4524de
       with:
         anthropic_api_key: ${{ inputs.anthropic_api_key }}
         prompt: ${{ env.REVIEW_PROMPT }}
