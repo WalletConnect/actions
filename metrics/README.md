@@ -52,7 +52,7 @@ Both set as **repository** secrets on `WalletConnect/actions` (the only consumer
 
 | Secret | What |
 |---|---|
-| `KPI_GITHUB_PAT` | Token with `actions:read` + `metadata:read` on the 5 tracked repos (kotlin/swift/flutter under `reown-com`, `reown-com/react-native-examples`, `WalletConnect/pay-core`). Fine-grained PAT preferred. |
+| `KPI_GITHUB_PAT` | Token with `actions:read` + `metadata:read` on the 5 tracked repos (kotlin/swift/flutter under `reown-com`, `reown-com/react-native-examples`, `WalletConnect/platform-monorepo`). Fine-grained PAT preferred. |
 | `SLACK_KPI_WEBHOOK_URL` | Incoming-webhook URL for `#wx-e2e-kpis`. |
 
 ## What's a "bug catch"?
