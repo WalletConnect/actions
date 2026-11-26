@@ -103,8 +103,10 @@ runs:
       continue-on-error: true
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
-        # One name per run: matrix legs and re-run attempts replace each other,
-        # and fetch-expired-pool.sh can list them all by name.
+        # One fixed name, so fetch-expired-pool.sh can list them with ?name=.
+        # Matrix legs and re-run attempts of a run replace each other: every
+        # leg's pool already holds the restored entries, so only the other
+        # legs' newly seeded payment is lost, and each run still adds one.
         name: pay-expired-pool
         path: ${{ runner.temp }}/pay-expired-pool/pool.tsv
         overwrite: true
