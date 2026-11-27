@@ -19,7 +19,7 @@ What a proof may deploy is each repository's decision, made in its own
    The fields are the ones your repository's workflow reads, for example:
 
    ```bash
-   break-glass-sign.py WalletConnect/pay-core -f image_tag=3f2a9c1e… -f terraform_ref=main | pbcopy
+   break-glass-sign.py WalletConnect/platform-monorepo -f image_tag=3f2a9c1e… -f terraform_ref=main | pbcopy
    ```
 
    The YubiKey blinks; touch it. The proof is printed as one
@@ -34,7 +34,7 @@ What a proof may deploy is each repository's decision, made in its own
 ## The proof
 
 ```json
-{"payload":"{\"aud\":\"WalletConnect/pay-core\",\"iat\":1762862400,\"image_tag\":\"3f2a9c1e…\",\"terraform_ref\":\"main\"}","sig":"U1NIU0lHAAAAAQ…"}
+{"payload":"{\"aud\":\"WalletConnect/platform-monorepo\",\"iat\":1762862400,\"image_tag\":\"3f2a9c1e…\",\"terraform_ref\":\"main\"}","sig":"U1NIU0lHAAAAAQ…"}
 ```
 
 - `payload` is a JSON object kept as a string, so the signed bytes survive
