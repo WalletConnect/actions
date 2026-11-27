@@ -172,11 +172,16 @@ The test wallet must hold USDT **and** a little POL (gas) on Polygon.
 
 Payments expire 15 minutes after creation, so `pay_expired_link` can't create its own. By default it
 falls back to a hardcoded prod link, which stops working once that payment is no longer returned as
-`expired`. Pass a test merchant to this action and it keeps a pool of payments in `actions/cache`
-instead: each run rewrites the flow's fallback to a payment an earlier run created (older than
-20 minutes) and seeds a new one for later runs.
+`expired`. Pass a test merchant to this action and it keeps a pool of payments in
+`pay-expired-pool` artifacts instead: each run rewrites the flow's fallback to a payment an earlier
+run created (older than 20 minutes) and seeds a new one for later runs.
 
 ```yaml
+permissions:
+  contents: read
+  actions: read   # list and download earlier pay-expired-pool artifacts
+
+# ...
 - name: Copy shared Pay test flows
   uses: WalletConnect/actions/maestro/pay-tests@<sha>
   with:
@@ -184,8 +189,12 @@ instead: each run rewrites the flow's fallback to a payment an earlier run creat
     merchant-id: ${{ secrets.WPAY_MERCHANT_ID_SINGLE_NOKYC }}
 ```
 
-- The cache is scoped to the consumer repo, so the first run after enabling it has nothing old
-  enough yet and keeps the hardcoded link; runs that start 20+ minutes later use the pool.
+- The pool is read from the newest 5 `pay-expired-pool` artifacts of the consumer repo, from any
+  branch or PR (fork PR runs are ignored), and each run uploads its own with 3-day retention. The
+  first run after enabling it has nothing old enough yet and keeps the hardcoded link; runs that
+  start 20+ minutes later use the pool. The daily scheduled run keeps the pool from running dry.
+- It used to live in `actions/cache`, but caches are branch-scoped and evicted least-recently-used
+  once a repo passes 10 GB, which dropped the pool within hours in repos with large Gradle caches.
 - `WPAY_EXPIRED_GATEWAY_URL` (passed with `--env`) still takes precedence, e.g. for a local pay-core
   that seeds its own expired payment. The picked link is also exposed as the `expired-gateway-url` output.
 - Each run creates one unpaid payment on the merchant; nothing pays it, so it simply expires.

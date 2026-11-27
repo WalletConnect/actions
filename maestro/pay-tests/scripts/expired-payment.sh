@@ -5,7 +5,8 @@
 # link eventually stops resolving as `expired` (it broke in Oct 2026). Instead,
 # every run picks a payment an earlier run created (old enough to have expired)
 # and seeds a fresh one for later runs. The pool is a TSV of
-# "<created-epoch>\t<gateway-url>" lines carried between runs in actions/cache.
+# "<created-epoch>\t<gateway-url>" lines carried between runs in artifacts
+# (see fetch-expired-pool.sh).
 # Holding several entries keeps runs that start close together (PR pushes,
 # re-runs) from only finding a payment that hasn't expired yet.
 #
